@@ -1,9 +1,5 @@
 # s-aixbdd-spec-kit
 
-## 關於這個 repo
-
-《AI x BDD》課程第三章「基因工程」的練習 repo：以 [Spec-Kit](https://github.com/github/spec-kit) 為基因來源，用自建的 `skill-engineering` 家族打造自己的 SDD 工作流 Skills。
-
 ## 結構說明
 
 | 路徑 | 內容 |
