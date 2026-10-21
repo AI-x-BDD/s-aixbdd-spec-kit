@@ -1,0 +1,43 @@
+MIT License
+
+Copyright (c) 2026 Steve Tsao
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+授權範圍
+
+本 repo 中適用上方 MIT 授權的內容，限於 Steve Tsao 擁有權利的自建程式與 Skill：
+
+- .claude/skills/ 與 .agents/skills/ 中的 skill-engineering、skill-form-*、skill-derive-*
+  （自 https://github.com/stevecyj/s-aixbdd 複製），以及之後在本 repo 新建的自建 Skill
+- scripts/sync-skills.sh
+
+以下內容不適用上方 MIT 授權，保留各自的授權與版權聲明：
+
+- .claude/skills/clarify/ 與 .agents/skills/clarify/：來自 https://github.com/Waterball-Software-Academy/aixbdd ，
+  依 Apache License 2.0，見該目錄的 LICENSE
+- .spec-kit/：來自 https://github.com/github/spec-kit ，依 MIT License（Copyright GitHub, Inc.），見 .spec-kit/LICENSE
+- 水球軟體學院《AI x BDD》課程官方文字及素材：README.md 文末官方區塊（含版權宣告）、
+  CLAUDE.md／AGENTS.md 的「課程產出規範」段落、.claude/skills/README.md、.agents/skills/README.md、VERSION，
+  著作權屬原權利人
+
+specs/001-photo-album-organizer/ 是以 Spec-Kit 產生的練習 artifacts，未另行宣告授權。
+docs/ 下的筆記未另行宣告授權。
