@@ -25,7 +25,7 @@
 2. 外部 Skill 保持原樣，不直接修改內容；要更新時從上游重新複製：
    - `clarify`：來自 https://github.com/Waterball-Software-Academy/aixbdd ，Apache-2.0，授權與來源見 `clarify/LICENSE`
    - `.spec-kit/`：來自 https://github.com/github/spec-kit ，MIT，授權見 `.spec-kit/LICENSE`
-3. 自建的 Skill（`skill-engineering`、`skill-form-*`、`skill-derive-*`，以及之後新建的 SDD Skills）可以直接修改。參考外部 Skill 改寫時，在該 Skill 目錄放 `LICENSE`，註明來源並保留原授權全文。
+3. 自建的 Skill（`skill-engineering`、`skill-form-*`、`skill-derive-*`、`conventional-commits`，以及之後新建的 SDD Skills）可以直接修改。參考外部 Skill 改寫時，在該 Skill 目錄放 `LICENSE`，註明來源並保留原授權全文。
 4. 在任一邊建立、修改或刪除 Skill，或修改 `CLAUDE.md`／`AGENTS.md` 之後，從自己編輯的那一邊執行同步：
    - 改的是 `.claude/skills/` 或 `CLAUDE.md`：`scripts/sync-skills.sh --from claude`
    - 改的是 `.agents/skills/` 或 `AGENTS.md`：`scripts/sync-skills.sh --from agents`
