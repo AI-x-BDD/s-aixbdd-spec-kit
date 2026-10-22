@@ -23,7 +23,7 @@ import yaml
 
 VERBS = ("READ", "THINK", "WRITE", "CHECK", "DELEGATE")
 PART_DIRS = ("rules", "templates", "scripts")
-ALLOWED_FRONTMATTER_KEYS = {"name", "description", "license", "allowed-tools", "metadata", "compatibility"}
+ALLOWED_FRONTMATTER_KEYS = {"name", "description", "license", "allowed-tools", "metadata", "compatibility", "disable-model-invocation"}
 IGNORED_FILE_NAMES = {".DS_Store", ".gitkeep"}
 UNDEFINED_STRENGTH_WORDS = ("盡量", "儘量", "最好", "原則上")
 
