@@ -1,7 +1,7 @@
 # 根因報告：s-specify－依賴決定了故事優先級
 
 - 紀錄目錄：`specs/skill-engineering/07-s-specify-依賴決定了故事優先級/`
-- 問題證據：產出檔 `specs/001-online-pvp-1a2b/spec.md`（以下稱 1A2B 產出，由 `s-specify` 產出，見提交 `64eaa6d`）；Skill 檔案 `.agents/skills/s-specify/SKILL.md`、`rules/使用者故事-格式規範.md`（以下稱故事規則，自 `27de6ed` 建立後沒有修改）、`templates/spec.example.md`（以下稱範例）；交接文件 `docs/交接-s-specify-AI自訂門檻.md`「驗收通過之後」第 2 項（紀錄 04 驗收子代理的觀察）；本次對話中依課程內容與 Codex 討論後、使用者同意的方向
+- 問題證據：產出檔 `specs/001-online-pvp-1a2b/spec.md`（以下稱 1A2B 產出，由 `s-specify` 產出，見提交 `64eaa6d`）；Skill 檔案 `.agents/skills/s-specify/SKILL.md`、`rules/使用者故事-格式規範.md`（以下稱故事規則，自 `27de6ed` 建立後沒有修改）、`templates/spec.example.md`（以下稱範例）；交接文件 `docs/交接-s-specify-AI自訂門檻.md`「驗收通過之後」第 2 項（該文件已於紀錄 07 完成後刪除，可從提交 `aece02c` 查到）（紀錄 04 驗收子代理的觀察）；本次對話中依課程內容與 Codex 討論後、使用者同意的方向
 
 ## 1. 使用者回報的問題
 
