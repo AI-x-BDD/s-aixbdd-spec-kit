@@ -27,7 +27,7 @@ SOFTWARE.
 本 repo 中適用上方 MIT 授權的內容，限於 Steve Tsao 擁有權利的自建程式與 Skill：
 
 - .claude/skills/ 與 .agents/skills/ 中的 skill-engineering、skill-form-*、skill-derive-*、
-  conventional-commits（自 https://github.com/stevecyj/s-aixbdd 複製），以及之後在本 repo 新建的自建 Skill
+  conventional-commits（自 https://github.com/AI-x-BDD/s-aixbdd 複製），以及之後在本 repo 新建的自建 Skill
 - scripts/sync-skills.sh
 
 以下內容不適用上方 MIT 授權，保留各自的授權與版權聲明：
