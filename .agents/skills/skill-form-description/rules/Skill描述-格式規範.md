@@ -1,7 +1,7 @@
 # Rule 1 - frontmatter 只包含允許的欄位與格式
 
 - `SKILL.md` 必須以 `---` 包圍的 YAML frontmatter 開頭，且必須包含 `name` 與 `description`。
-- frontmatter 只能使用 `name`、`description`、`license`、`allowed-tools`、`metadata` 與 `compatibility` 欄位。
+- frontmatter 只能使用 `name`、`description`、`license`、`allowed-tools`、`metadata`、`compatibility` 與 `disable-model-invocation` 欄位。
 - `name` 必須是 64 字元內的 kebab-case，且必須與 Skill 目錄名稱相同。
 - `description` 必須是 1024 字元內的單一字串，且不得包含 `<` 或 `>`。
 
@@ -13,6 +13,7 @@
 ---
 name: api-error-review
 description: 撰寫或審查 API 錯誤回應時使用；檢查錯誤訊息是否指出失敗欄位、收到的值與修正方式。
+disable-model-invocation: true
 ---
 ```
 
