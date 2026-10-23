@@ -1,7 +1,7 @@
 ---
 name: artifact-to-skill-engineering
 disable-model-invocation: true
-description: （未驗證）以一份具體的產出物範例（Artifact）為目標建立 Skill 時使用（Artifact-First）：使用者手上有別的工具產出的檔案或自己想要的產出樣貌，想打造一個能穩定產出同格式檔案的 Skill。會先和使用者把範例改到定稿、取得明確確認後，才倒抽樣板並交給 skill-engineering 反推 SOP 與 rules。使用者提到 artifact-first、artifact-to-skill、以範例反推 skill、參考某份產出物做 skill、基因工程時使用。沒有範例、直接描述 Skill 需求時改用 skill-engineering；只為既有 Skill 的某個步驟抽樣板時改用 skill-derive-template；只修改樣板內容時改用 skill-form-template；產出物是程式碼等無法樣板化的內容時不使用此 Skill。
+description: 以一份具體的產出物範例（Artifact）為目標建立 Skill 時使用（Artifact-First）：使用者手上有別的工具產出的檔案或自己想要的產出樣貌，想打造一個能穩定產出同格式檔案的 Skill。會先和使用者把範例改到定稿、取得明確確認後，才倒抽樣板並交給 skill-engineering 反推 SOP 與 rules。使用者提到 artifact-first、artifact-to-skill、以範例反推 skill、參考某份產出物做 skill、基因工程時使用。沒有範例、直接描述 Skill 需求時改用 skill-engineering；只為既有 Skill 的某個步驟抽樣板時改用 skill-derive-template；只修改樣板內容時改用 skill-form-template；產出物是程式碼等無法樣板化的內容時不使用此 Skill。
 ---
 
 # SOP
