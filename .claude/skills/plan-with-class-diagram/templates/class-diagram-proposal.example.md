@@ -32,10 +32,12 @@ classDiagram
 
     class PaymentGateway:::kept {
         <<interface · existing>>
+        +charge(order: Order) void
     }
 
     class OrderNotifier:::kept {
         <<existing>>
+        +notifyCancelled(order: Order) void
     }
 ```
 
@@ -47,9 +49,43 @@ classDiagram
 | `<<modified>>` | 類別 | 既有類別，本次修改其成員或行為 | `changed`（橘） |
 | `<<deleted>>` | 類別 | 既有類別，本次刪除 | `removed`（紅色虛線框） |
 | `<<existing>>` | 類別 | 既有類別，本次不修改，只呈現協作關係 | `kept`（灰） |
-| `«new»` | 成員、關係標籤結尾 | 本次新增的成員或關係 | — |
+| `«new»` | 成員、關係標籤、循序圖訊息結尾 | 本次新增的成員、關係或呼叫 | — |
 | `«changed»` | 成員結尾 | 本次修改簽章或行為的成員 | — |
 | `«removed»` | 成員、關係標籤結尾 | 本次移除的成員或關係 | — |
+
+# 循序圖
+
+## 情境 1：下單
+
+```mermaid
+sequenceDiagram
+    actor Caller as 呼叫端
+    participant OrderService
+    participant PaymentGateway
+    participant OrderRepository
+
+    Caller->>OrderService: placeOrder(command)
+    OrderService->>PaymentGateway: charge(order)
+    OrderService->>OrderRepository: save(order) «new»
+    OrderService-->>Caller: order
+```
+
+## 情境 2：取消訂單並通知
+
+```mermaid
+sequenceDiagram
+    actor Caller as 呼叫端
+    participant OrderService
+    participant OrderRepository
+    participant OrderNotifier
+
+    Caller->>OrderService: cancelOrder(orderId) «new»
+    OrderService->>OrderRepository: findById(orderId) «new»
+    OrderRepository-->>OrderService: order
+    Note over OrderService: 將 order 狀態改為已取消
+    OrderService->>OrderRepository: save(order) «new»
+    OrderService->>OrderNotifier: notifyCancelled(order) «new»
+```
 
 # 設計說明與實作順序
 
