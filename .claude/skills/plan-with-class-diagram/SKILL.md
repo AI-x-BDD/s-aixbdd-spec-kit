@@ -1,6 +1,6 @@
 ---
 name: plan-with-class-diagram
-description: （未驗證）寫程式前先產出 Mermaid 類別圖提案時使用：在類別圖上標出本次新增、修改、刪除與沿用的既有類別，附設計說明與實作順序，取得使用者明確確認後才依提案開發。使用者要求先規劃類別、先畫類別圖再寫程式，或提到 plan-with-class-diagram、class diagram、類別圖提案、類別設計時，必須使用此 Skill。只需把功能描述寫成需求規格文件 spec.md 時改用 s-specify。
+description: 寫程式前先產出 Mermaid 類別圖提案時使用：在類別圖上標出本次新增、修改、刪除與沿用的既有類別，附設計說明與實作順序，取得使用者明確確認後才依提案開發。使用者要求先規劃類別、先畫類別圖再寫程式，或提到 plan-with-class-diagram、class diagram、類別圖提案、類別設計時，必須使用此 Skill。只需把功能描述寫成需求規格文件 spec.md 時改用 s-specify。
 ---
 
 # SOP
