@@ -239,3 +239,12 @@ description: 以一份具體的產出物範例（Artifact）為目標建立 Skil
   2. S1 產出的 `s-adr` 沒有加 `disable-model-invocation`，也沒有標「未驗證」；兩者都屬於 `skill-engineering` 對目標 Skill 的設計，不屬於本 Skill 的範圍。
   3. 授權檔的處理依 CLAUDE.md 規則 3 由 `skill-engineering` 列為工作項完成，本 Skill 只負責傳入來源與授權（E9），運作如預期。
 - 驗收後調整：使用者要求依 CLAUDE.md「未經學員實際驗證的 skill 要標明未驗證」，以 `skill-form-description` 在 `description` 開頭加上「（未驗證）」，其餘文字不變；因此 `SKILL.md` 的 `description` 與第 2 節 To-Be 差在這個前綴。調整後結構診斷 0 個 error、0 個 warning，同步檢查「兩邊一致」。使用者親自實跑驗證後再移除。
+- 使用者實際驗證（2026-10-23）：使用者親自輸入 `/artifact-to-skill-engineering`，目標 Skill 為 `plan-with-class-diagram`，起始階段判定為「定稿範例」（`templates/` 只有使用者放入的 `class-diagram-proposal.example.md`）。
+  - 定稿：使用者要求補上兩條關係的 `«new»`、`«removed»` 標記後明確回覆「確認定稿」，定稿雜湊 `e8c074d3…fc65e`。
+  - 倒抽：`skill-form-template` 產出骨架 `class-diagram-proposal.md`，以範例值填回骨架與範例逐字相同，範例實際以 Mermaid 渲染成功。
+  - 反推：`skill-engineering` 在 `specs/skill-engineering/09-plan-with-class-diagram-建立/` 完成藍圖確認、施工與兩個子代理驗收情境，均通過。
+  - 溯源：交付時範例雜湊等於定稿雜湊；`SKILL.md` Phase 1 以 `READ` 載入這組樣板並依其寫入提案檔；`templates/` 只有這一組。
+  - 結論：使用者確認驗證通過，以 `skill-form-description` 移除 `description` 開頭的「（未驗證）」，其餘文字不變。
+- 實際驗證中的觀察（不影響結論，未修改本 Skill）：
+  1. 使用者把目標 Skill 建在 `.claude/skills/`，本 Skill 的 Phase 1 讀取 `.agents/skills/`，需先執行 `scripts/sync-skills.sh --from claude` 才讀得到範例。
+  2. Phase 1 要求的「產出範例時的輸入樣本」不存在：範例是早期 AI 修改 Skill 時寫的示範，沒有任何使用者需求產出它；使用者一度難以理解這項輸入的意思。最後依 Phase 4 步驟 1 以「推定輸入樣本」處理，並經使用者確認。
