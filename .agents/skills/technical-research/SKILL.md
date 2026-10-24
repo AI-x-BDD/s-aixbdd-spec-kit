@@ -1,6 +1,6 @@
 ---
 name: technical-research
-description: 已有 spec.md、要做技術選型研究並記錄決策時使用：從 spec 的需求與使用者的技術限制盤點需要決策的技術主題，每個主題收斂成單一確定方案，寫出依據與被捨棄的替代方案，產出與 spec.md 同目錄的 research.md；技術限制互相衝突時會先委派 clarify 詢問使用者。使用者提到 technical research、research.md、技術研究、技術選型、選框架、選資料庫、決策紀錄時使用。只需把功能描述寫成 spec.md 時改用 s-specify；要規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；只查詢單一套件用法或一般資料蒐集、不產出 research.md 時不使用此 Skill。
+description: 已有 spec.md、要做技術選型研究並記錄決策時使用：從 spec 的需求與使用者的技術限制盤點需要決策的技術主題，每個主題收斂成單一確定方案，寫出依據與被捨棄的替代方案，產出與 spec.md 同目錄的 research.md，再把採用與不引入的技術整理成同目錄的 techstack.md 技術堆疊總覽；技術限制互相衝突時會先委派 clarify 詢問使用者。使用者提到 technical research、research.md、techstack.md、技術研究、技術選型、技術堆疊、選框架、選資料庫、決策紀錄時使用。只需把功能描述寫成 spec.md 時改用 s-specify；要規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；只查詢單一套件用法或一般資料蒐集、不產出 research.md 時不使用此 Skill。
 ---
 
 # SOP
@@ -11,8 +11,8 @@ description: 已有 spec.md、要做技術選型研究並記錄決策時使用�
 2. `THINK` 決定「目標 spec」：使用者指定 spec.md 路徑或功能目錄時使用該 spec，未指定且清單只有一份時使用該份，其餘情況視為未決定。
 3. `CHECK` 「目標 spec」不存在時，告知使用者需要先產出 spec.md（可使用 `s-specify`）並停止執行；清單有多份且使用者未指定時，列出清單請使用者指定並停止執行。
 4. `READ` 「目標 spec」全文，以及使用者指定的專案原則文件或專案中名為 `constitution.md` 的檔案（都沒有時視為空），加入「研究輸入」。
-5. `WRITE` 「目標 spec」所在目錄已有 `research.md` 時，詢問使用者是否覆寫；沒有時略過本步驟與下一步。
-6. `CHECK` 使用者回覆：同意覆寫時進入下一步；不同意或未回覆時停止執行，不修改既有的 `research.md`。
+5. `WRITE` 「目標 spec」所在目錄已有 `research.md` 或 `techstack.md` 時，詢問使用者是否覆寫；兩份都沒有時略過本步驟與下一步。
+6. `CHECK` 使用者回覆：同意覆寫時進入下一步；不同意或未回覆時停止執行，不修改既有的 `research.md` 與 `techstack.md`。
 7. `THINK` 依「研究輸入」盤點需要決策的技術主題，每項使用者技術限制與每條影響技術選型的 FR／SC 都必須歸入至少一個主題，並為每個主題列出候選方案與適用的使用者限制、需求編號及專案原則，建立「主題清單」。
 8. `THINK` 盤點「主題清單」中無法依「研究輸入」收斂成單一方案的主題，包括使用者限制彼此衝突、限制與需求衝突，或候選方案的取捨取決於使用者偏好，建立「決策缺口」。
 9. `DELEGATE` 「決策缺口」不為空時，委派 `clarify` Skill（無法以 Skill 工具呼叫時，讀取 `clarify` 的 `SKILL.md` 並依其 SOP 執行），以「決策缺口」為優先提問面向、不要求詳記問答紀錄，取得使用者已確認的決策並加入「研究輸入」；「決策缺口」為空時略過本步驟。
@@ -27,6 +27,16 @@ description: 已有 spec.md、要做技術選型研究並記錄決策時使用�
 4. `READ` `templates/research.md` 與 `templates/research.example.md`，載入骨架與範例，命名載入結果為「research 樣板組」。
 5. `WRITE` 依「research 樣板組」將 `research.md` 寫入「目標 spec」所在目錄：標題填 spec.md 的功能名稱，`Feature Branch` 填該目錄名稱，`Date` 填執行當日日期；主題章節數依「主題清單」增減，編號從 1 連續，章節之間以 `---` 分隔；內文使用繁體中文，欄位名稱與技術名詞維持原文。
 6. `CHECK` 逐條驗證「技術決策檢查清單」，並比對 `research.md` 與「research 樣板組」的標頭及每個主題章節的欄位順序，確認「主題清單」的每個主題都有章節；未通過時修正 `research.md` 後重新驗證，最多 3 輪，第 3 輪仍未通過時將未通過的 Rule 與章節編號記為「未通過項」。
-7. `WRITE` 向使用者回報 `research.md` 路徑、每個主題的 `Decision` 摘要、經 `clarify` 由使用者決定的項目，以及「未通過項」（沒有時說明全部通過）。
 
-完成條件：`research.md` 已寫入「目標 spec」所在目錄，「技術決策檢查清單」已通過或未通過的項目已記為「未通過項」，且已向使用者回報。
+完成條件：`research.md` 已寫入「目標 spec」所在目錄，且「技術決策檢查清單」已通過或未通過的項目已記為「未通過項」。
+
+## Phase 3 -- 整理並產出 techstack.md
+
+1. `READ` 整理技術堆疊時，讀取 `rules/技術堆疊-格式規範.md` 的所有 Rule，建立「技術堆疊檢查清單」。
+2. `THINK` 依已寫入的 `research.md` 與已載入的「技術堆疊檢查清單」，決定「技術堆疊總覽」與「本次開發不引入的技術」的每一列。
+3. `READ` `templates/techstack.md` 與 `templates/techstack.example.md`，載入骨架與範例，命名載入結果為「techstack 樣板組」。
+4. `WRITE` 依「techstack 樣板組」將 `techstack.md` 寫入「目標 spec」所在目錄：標題、`Feature Branch` 與 `Date` 填入與 `research.md` 相同的值。
+5. `CHECK` 逐條驗證「技術堆疊檢查清單」，並比對 `techstack.md` 與「techstack 樣板組」的標頭、段落順序與表格欄位；未通過時修正 `techstack.md` 後重新驗證，最多 3 輪，第 3 輪仍未通過時將未通過的 Rule 記為「未通過項」。
+6. `WRITE` 向使用者回報 `research.md` 與 `techstack.md` 的路徑、每個主題的 `Decision` 摘要、經 `clarify` 由使用者決定的項目，以及「未通過項」（沒有時說明全部通過）。
+
+完成條件：`techstack.md` 已寫入「目標 spec」所在目錄，「技術堆疊檢查清單」已通過或未通過的項目已記為「未通過項」，且已向使用者回報。

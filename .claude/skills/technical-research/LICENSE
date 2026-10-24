@@ -3,6 +3,7 @@
 1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）：
    `templates/research.md` 與 `templates/research.example.md` 的 research.md 段落結構
    （Decision／Rationale／Alternatives considered），以及照片相簿範例情境。範例內容經使用者定稿時修改。
+   `templates/techstack.example.md` 沿用同一照片相簿情境，內容由上述 research 範例整理而成。
    本 Skill 的 SOP 與 RuleFile 為重新撰寫，未直接複製上述專案的檔案。
 
 以下依授權要求，保留其原始授權全文。
