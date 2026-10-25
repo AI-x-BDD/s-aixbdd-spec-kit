@@ -224,3 +224,11 @@ Phase 2 寫成下列胖 SOP（待抽取的約束暫寫在 `THINK` 步驟內文�
 - W4：Rule 1 的端點類型欄格式初稿要求箭頭右側寫端點類型，與定稿範例「資料庫（後端 → MySQL）」矛盾，改為箭頭右側可以寫端點類型或採用的產品名稱。
 - 驗收前發現 E3／C6／C7 的需求依據來源清單不含 Key Entities 與 NFR，與定稿範例 D1 及 `s-specify` 的 spec 格式矛盾；S2 情境與 RuleFile 範例重複。停止並回報，使用者確認後擴充來源清單（只修改 RuleFile 的 Rule 1、Rule 2 條列與 Rule 2 Good Example），S2 改用健身房預約情境；SOP 不受影響。
 - 與 Codex 討論驗收子代理的選模後，S5 拆成 S5a、S5b；選模原則另開 `skill-engineering` 優化，`user-verify-skill` 支援 Codex 記入 `docs/待確認.md` 第 6 項。
+
+### 使用者實際驗證（2026-10-25）
+
+- 方式：在 scratchpad 建暫存專案 `uv-system-analysis`（`.claude/skills/` 只放本次版本的 `system-analysis`；素材沿用 S1 的 `specs/001-online-pvp-1a2b/` 的 spec.md、techstack.md、research.md，由使用者指定 1A2B 需求並確認），以 Herdr 開新 pane 啟動 `claude --model sonnet`（Sonnet 5.5、effort medium），依課程「測試用笨一點的模型」。實跑需求以自然語言送出、不指名 Skill：「specs/001-online-pvp-1a2b 的 spec 和技術研究都做完了，幫我做系統分析的初步規劃。」
+- 權限處理：信任資料夾由使用者回答 Yes，執行者代為輸入。測試 session 預設為 auto mode，之後沒有出現任何權限確認或提問畫面；執行者沒有代為放行任何項目。
+- 結果：測試 session 第一個動作即自行呼叫 `system-analysis` Skill（自動觸發成功），約 53 秒完成，P3-4 有以 `grep` 查核需求編號。產出 `plan.md`：前端 F1–F4、後端 B1–B4 共 8 個介面，依 research §4 沒有列資料庫；Wave 1 前端、Wave 2 後端並寫出依賴。對照 E1–E9 全部符合（引用的 27 個 FR／NFR／SC 編號都存在，Key Entities、Edge Cases 亦有引用；US1–US3 都被引用；開場句數字一致；只新增 plan.md）；E10–E12 本輪未觸及，已由 S3–S5b 驗證。
+- 觀察：Source Code 樹多了 `shared/`（前後端共用型別與判定邏輯，依 research §3），不對應任何端點類型，與 P3-1「依端點類型規劃頂層目錄」輕微偏離；測試 session 自己在回報中指出。使用者決定留到下一個單元（〈系統分析的單一職責原則 - 產出多個 Planner Skills〉改寫 `system-analysis` 時）一併處理，與驗收觀察的 `grep` 與停止回報兩項一起評估。
+- 結論：使用者判定通過，移除 `description` 開頭的「（未驗證）」，其餘文字不變。測試 pane 與暫存專案（含驗收用的 `sa-accept/`）已移除。
