@@ -1,7 +1,7 @@
 ---
 name: user-verify-skill
 disable-model-invocation: true
-description: （未驗證）目標 Skill 已通過 skill-engineering 的子代理實跑驗收、要由使用者親自實際驗證時使用：在暫存專案以 Herdr 開新 pane 跑全新的 Claude Code，把 clarify 提問與確認閘門轉給使用者回答，獨立核對產出後請使用者判定；通過時移除 description 開頭的「（未驗證）」並把驗證經過寫入紀錄目錄的藍圖，不通過時整理問題證據交給 skill-engineering 優化後重跑。使用者提到 user-verify-skill、使用者實際驗證、親自驗證 Skill、拿掉未驗證時使用。建立或優化 Skill、執行子代理驗收時改用 skill-engineering。
+description: 目標 Skill 已通過 skill-engineering 的子代理實跑驗收、要由使用者親自實際驗證時使用：在暫存專案以 Herdr 開新 pane 跑全新的 Claude Code，把 clarify 提問與確認閘門轉給使用者回答，獨立核對產出後請使用者判定；通過時移除 description 開頭的「（未驗證）」並把驗證經過寫入紀錄目錄的藍圖，不通過時整理問題證據交給 skill-engineering 優化後重跑。使用者提到 user-verify-skill、使用者實際驗證、親自驗證 Skill、拿掉未驗證時使用。建立或優化 Skill、執行子代理驗收時改用 skill-engineering。
 ---
 
 # SOP
