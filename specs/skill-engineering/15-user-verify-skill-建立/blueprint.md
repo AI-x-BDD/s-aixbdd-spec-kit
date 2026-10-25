@@ -265,3 +265,10 @@ description: （未驗證）目標 Skill 已通過 skill-engineering 的子代�
 - 不修改的觀察：同一暫存專案路徑重複使用時，`~/.claude/projects/` 下會有多個對話紀錄檔，執行者以 `herdr agent get` 的 session id 對應；連續權限確認時放行後的 `--until working` 可能逾時，依 SOP 不重送即可。
 - 結論：S1～S9 均已實跑通過（S1 第三輪、S2～S5 第二輪、S6、S7、S8 重跑、S9）。使用者尚未親自實際驗證本 Skill，`description` 開頭保留「（未驗證）」。
 
+### 使用者實際驗證（2026-10-25）
+
+- 方式：使用者在主專案輸入「用 /user-verify-skill 目標 Skill：s-specify 親自驗證」，執行者依本 Skill 的 SOP 執行；目標 Skill 為 `s-specify`，紀錄目錄為 `specs/skill-engineering/07-s-specify-依賴決定了故事優先級/`。
+- 過程：Phase 1 記下執行前 HEAD `9728b7b`，確認紀錄 07 的 S1、S2 最終結果為通過，因使用者沒有提供需求而提出 3 個候選需求（避開範例的照片相簿與過去驗收用過的情境），使用者選定「家務分配 App」；Phase 2 建立只含 `s-specify` 與 `clarify` 的暫存專案，以 Herdr 開新 pane 啟動全新 Claude Code，信任資料夾確認轉給使用者；`s-specify` 設有 `disable-model-invocation`，需求以 `/s-specify` 開頭送出；clarify 兩輪 5 題都轉給使用者回答後代為輸入；送出第 2 輪回答時 Herdr 回傳 timeout、狀態為 working，沒有重送，繼續等待到回合結束。Phase 3 獨立核對 `git status`、spec.md 全文、樣板結構與測試 session 對話紀錄的工具順序，逐條對照紀錄 07 的 E1～E10，記錄觸發方式為「手動觸發，未驗證自動觸發」；使用者要求先釐清 E7 的缺口，經說明與課程對照後判定 `s-specify` 通過。Phase 4 寫入紀錄 07 的驗證紀錄、關閉測試 pane、刪除暫存專案，交付前檢查全部通過，沒有 commit。
+- 觀察：測試 session 為 auto mode，沒有出現權限確認，這次沒有走到自行放行的分支（已由驗收 S1 驗證）；判定前使用者提出疑問時，SOP 依 Phase 3 步驟 4「未明確判定時停止」保留測試環境，釐清後再繼續，運作正常。
+- 結論：使用者判定 `user-verify-skill` 通過，以 `skill-form-description` 移除 `description` 開頭的「（未驗證）」，其餘文字不變；兩邊已同步一致。
+
