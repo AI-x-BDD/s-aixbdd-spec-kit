@@ -1,0 +1,143 @@
+// Data Model: 購物車與結帳 (Shopping Cart Checkout)
+// Spec: specs/004-shopping-cart-checkout/spec.md
+// Date: 2026-10-26
+
+Project "shopping-cart-checkout" {
+  database_type: 'PostgreSQL'
+  Note: '涵蓋 D1 購物車資料存取與 D2 訂單與付款紀錄持久化。商品與規格只建立購物車與訂單需要參照的欄位，商品管理不在本次範圍。'
+}
+
+// ---------- Enums ----------
+
+Enum order_status {
+  pending_payment [note: '已建立訂單，等待綠界付款結果（FR-004）']
+  paid [note: '綠界回報付款成功（FR-006）']
+  payment_failed [note: '綠界回報付款失敗']
+  expired [note: '付款逾時（Edge Cases：付款逾時）']
+}
+
+Enum payment_status {
+  pending
+  succeeded
+  failed
+}
+
+// ---------- Tables ----------
+
+// D1 購物車資料存取
+Table products {
+  id uuid [pk]
+  name varchar(200) [not null]
+  is_listed boolean [not null, default: true, note: '下架商品不可加入購物車（Edge Cases：商品已下架）']
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'D1：Key Entities 商品；FR-001 加入購物車前確認商品仍上架'
+}
+
+Table product_variants {
+  id uuid [pk]
+  product_id uuid [not null]
+  sku varchar(64) [not null, unique]
+  spec_label varchar(100) [not null, note: '例如「黑色 / M」']
+  unit_price integer [not null, note: '新台幣，以元為單位']
+  stock_quantity integer [not null, default: 0, note: '加入與調整數量時比對庫存（FR-003）']
+
+  indexes {
+    product_id
+  }
+
+  Note: 'D1：Key Entities 商品規格；FR-001 選擇規格、FR-003 庫存不足時拒絕'
+}
+
+Table carts {
+  id uuid [pk]
+  customer_id uuid [not null, unique, note: '每位顧客只有一個進行中的購物車']
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: 'D1：Key Entities 購物車；US1 加入購物車並調整'
+}
+
+Table cart_items {
+  id uuid [pk]
+  cart_id uuid [not null]
+  variant_id uuid [not null]
+  quantity integer [not null, note: '必須大於 0；調整為 0 時改為刪除此列（FR-002）']
+  added_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (cart_id, variant_id) [unique, name: 'uq_cart_items_cart_variant']
+  }
+
+  Note: 'D1：Key Entities 購物車項目；FR-002 調整數量與移除；SC-001 加入購物車 1 秒內完成，以 cart_id 查詢項目'
+}
+
+// D2 訂單與付款紀錄持久化
+Table orders {
+  id uuid [pk]
+  order_no varchar(20) [not null, unique, note: '綠界 MerchantTradeNo，限 20 字元英數']
+  customer_id uuid [not null]
+  status order_status [not null, default: 'pending_payment']
+  recipient_name varchar(50) [not null]
+  recipient_phone varchar(20) [not null]
+  shipping_address varchar(200) [not null]
+  total_amount integer [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (customer_id, created_at) [name: 'idx_orders_customer_created']
+  }
+
+  Note: 'D2：Key Entities 訂單；FR-004 建立訂單與收件資料；FR-008 查看訂單明細與付款狀態'
+}
+
+Table order_items {
+  id uuid [pk]
+  order_id uuid [not null]
+  variant_id uuid [not null]
+  spec_label varchar(100) [not null, note: '下單當下的規格快照']
+  unit_price integer [not null, note: '下單當下的單價快照']
+  quantity integer [not null]
+
+  Note: 'D2：Key Entities 訂單項目；FR-004 由購物車項目轉為訂單明細並保存價格快照'
+}
+
+Table payments {
+  id uuid [pk]
+  order_id uuid [not null]
+  ecpay_trade_no varchar(20) [unique, note: '綠界交易編號；重複的付款通知以此去重（Edge Cases：重複的付款通知）']
+  status payment_status [not null, default: 'pending']
+  amount integer [not null]
+  check_mac_verified boolean [not null, default: false, note: 'NFR-001 付款通知須驗證 CheckMacValue']
+  notified_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    order_id [name: 'idx_payments_order']
+  }
+
+  Note: 'D2：Key Entities 付款紀錄；FR-005 導向綠界付款、FR-006 接收付款結果並更新訂單'
+}
+
+// ---------- Table Groups ----------
+
+TableGroup d1_cart_data_access [note: 'D1 購物車資料存取'] {
+  products
+  product_variants
+  carts
+  cart_items
+}
+
+TableGroup d2_order_payment_persistence [note: 'D2 訂單與付款紀錄持久化'] {
+  orders
+  order_items
+  payments
+}
+
+// ---------- Relationships ----------
+
+Ref: product_variants.product_id > products.id
+Ref: cart_items.cart_id > carts.id [delete: cascade]
+Ref: cart_items.variant_id > product_variants.id
+Ref: order_items.order_id > orders.id [delete: cascade]
+Ref: order_items.variant_id > product_variants.id
+Ref: payments.order_id > orders.id
