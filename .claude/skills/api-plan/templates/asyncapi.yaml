@@ -1,0 +1,38 @@
+asyncapi: 3.0.0
+info:
+  title: {{FEATURE_NAME}}
+  version: 0.1.0
+  description: |
+    {{CONTRACT_SCOPE}}
+servers:
+  {{SERVER_NAME}}:
+    host: {{SERVER_HOST}}
+    protocol: {{SERVER_PROTOCOL}}
+    description: {{SERVER_DESCRIPTION}}
+channels:
+{{CHANNELS}}
+operations:
+{{OPERATIONS}}
+components:
+  messages:
+    Error:
+      name: {{ERROR_EVENT_NAME}}
+      title: 錯誤
+      summary: 本合約所有錯誤訊息共用的格式
+      payload:
+        $ref: '#/components/schemas/Error'
+{{MESSAGES}}
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 錯誤碼，指出錯誤情況
+          enum:
+{{ERROR_CODES}}
+        message:
+          type: string
+          description: 給使用者看的繁體中文錯誤訊息
+{{SCHEMAS}}

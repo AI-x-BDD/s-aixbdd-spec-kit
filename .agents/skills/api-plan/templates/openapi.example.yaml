@@ -1,0 +1,321 @@
+openapi: 3.1.0
+info:
+  title: 購物車與結帳
+  version: 0.1.0
+  description: |
+    前端與綠界呼叫後端的 HTTP 介面合約，涵蓋 B1 購物車 API、B2 結帳下單 API、B3 綠界付款結果通知接收 API。付款狀態的即時推播（B4）以 Socket.IO 傳輸，見同目錄的 asyncapi.yaml。
+servers:
+  - url: http://localhost:3000/api
+    description: 本機開發用 Express 伺服器
+tags:
+  - name: B1 購物車 API
+    description: US1 加入購物車並調整；FR-001 加入商品並選擇規格、FR-002 調整數量與移除、FR-003 庫存不足時拒絕並提示；SC-001 加入購物車 1 秒內完成
+  - name: B2 結帳下單 API
+    description: US2 結帳付款；FR-004 填寫收件資料並建立訂單、FR-005 導向綠界付款
+  - name: B3 綠界付款結果通知接收 API
+    description: FR-006 接收綠界付款結果並更新訂單；NFR-001 驗證 CheckMacValue；Edge Cases 重複的付款通知
+paths:
+  /cart:
+    get:
+      operationId: getCart
+      tags: [B1 購物車 API]
+      summary: 查詢目前的購物車
+      description: 依 FR-001、FR-002 回傳購物車中的項目、各項小計與總金額，供購物車頁顯示與調整數量。
+      responses:
+        '200':
+          description: 目前的購物車
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+  /cart/items:
+    post:
+      operationId: addCartItem
+      tags: [B1 購物車 API]
+      summary: 將商品規格加入購物車
+      description: 依 FR-001 加入指定規格與數量；同一規格已在購物車時累加數量。FR-003 庫存不足時拒絕；商品已下架時拒絕（Edge Cases）。SC-001 要求 1 秒內回應。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartItemRequest'
+      responses:
+        '201':
+          description: 加入後的購物車
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /cart/items/{itemId}:
+    parameters:
+      - name: itemId
+        in: path
+        required: true
+        description: 購物車項目 ID
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateCartItemQuantity
+      tags: [B1 購物車 API]
+      summary: 調整購物車項目的數量
+      description: 依 FR-002 調整數量；FR-003 數量超過庫存時拒絕，錯誤訊息寫出目前可購買的數量（Edge Cases 數量超過庫存）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCartItemRequest'
+      responses:
+        '200':
+          description: 調整後的購物車
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: removeCartItem
+      tags: [B1 購物車 API]
+      summary: 從購物車移除項目
+      description: 依 FR-002 移除購物車項目。
+      responses:
+        '200':
+          description: 移除後的購物車
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [B2 結帳下單 API]
+      summary: 以購物車內容建立訂單並取得綠界付款導向資訊
+      description: 依 FR-004 以收件資料與購物車內容建立待付款訂單，並依 FR-005 回傳導向綠界付款頁所需的表單欄位。購物車為空、收件資料不完整、下單時庫存不足或商品已下架時拒絕（Edge Cases）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: 已建立的訂單與綠界付款導向資訊
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrderResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/CartEmpty'
+  /payments/ecpay/notify:
+    post:
+      operationId: receiveEcpayPaymentResult
+      tags: [B3 綠界付款結果通知接收 API]
+      summary: 接收綠界的付款結果通知
+      description: 依 FR-006 接收綠界以 Server POST 送出的付款結果並更新訂單；NFR-001 必須先驗證 CheckMacValue。重複的付款通知（Edge Cases）不再改變訂單，仍回應 `1|OK` 讓綠界停止重送。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EcpayPaymentNotification'
+      responses:
+        '200':
+          description: 已處理通知（含重複通知），依綠界規格回應純文字 `1|OK`
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: 1|OK
+        '400':
+          $ref: '#/components/responses/ChecksumInvalid'
+components:
+  schemas:
+    Error:
+      type: object
+      description: 本合約所有錯誤回應共用的格式
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 錯誤碼，指出錯誤情況
+          enum:
+            - VALIDATION_FAILED
+            - PRODUCT_NOT_FOUND
+            - CART_ITEM_NOT_FOUND
+            - PRODUCT_UNAVAILABLE
+            - INSUFFICIENT_STOCK
+            - CART_EMPTY
+            - CHECKSUM_INVALID
+        message:
+          type: string
+          description: 給使用者看的繁體中文錯誤訊息
+    Cart:
+      type: object
+      required: [items, totalAmount]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        totalAmount:
+          type: integer
+          minimum: 0
+          description: 購物車總金額（新台幣元）
+    CartItem:
+      type: object
+      required: [id, productId, variantId, productName, variantName, unitPrice, quantity, subtotal]
+      properties:
+        id:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
+        variantId:
+          type: string
+          format: uuid
+        productName:
+          type: string
+        variantName:
+          type: string
+          description: 規格名稱，例如「黑色 / M」
+        unitPrice:
+          type: integer
+          minimum: 0
+        quantity:
+          type: integer
+          minimum: 1
+        subtotal:
+          type: integer
+          minimum: 0
+    AddCartItemRequest:
+      type: object
+      required: [variantId, quantity]
+      properties:
+        variantId:
+          type: string
+          format: uuid
+          description: 商品規格 ID
+        quantity:
+          type: integer
+          minimum: 1
+    UpdateCartItemRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+    CreateOrderRequest:
+      type: object
+      required: [recipientName, recipientPhone, shippingAddress]
+      properties:
+        recipientName:
+          type: string
+          maxLength: 50
+        recipientPhone:
+          type: string
+          pattern: '^09\d{8}$'
+        shippingAddress:
+          type: string
+          maxLength: 200
+    CreateOrderResponse:
+      type: object
+      required: [orderId, orderNumber, totalAmount, paymentRedirect]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        orderNumber:
+          type: string
+          description: 送給綠界的 MerchantTradeNo
+        totalAmount:
+          type: integer
+          minimum: 1
+        paymentRedirect:
+          type: object
+          description: 前端以 POST 表單送往綠界付款頁的資訊
+          required: [action, fields]
+          properties:
+            action:
+              type: string
+              format: uri
+              description: 綠界全方位金流付款頁網址
+            fields:
+              type: object
+              description: 表單欄位（含 CheckMacValue），前端原樣送出
+              additionalProperties:
+                type: string
+    EcpayPaymentNotification:
+      type: object
+      required: [MerchantID, MerchantTradeNo, RtnCode, RtnMsg, TradeNo, TradeAmt, PaymentDate, CheckMacValue]
+      properties:
+        MerchantID:
+          type: string
+        MerchantTradeNo:
+          type: string
+          description: 對應 CreateOrderResponse.orderNumber
+        RtnCode:
+          type: string
+          description: 1 表示付款成功，其餘為失敗
+        RtnMsg:
+          type: string
+        TradeNo:
+          type: string
+          description: 綠界交易編號
+        TradeAmt:
+          type: string
+        PaymentDate:
+          type: string
+        CheckMacValue:
+          type: string
+  responses:
+    ValidationFailed:
+      description: 欄位格式不符（VALIDATION_FAILED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 商品或購物車項目不存在（PRODUCT_NOT_FOUND、CART_ITEM_NOT_FOUND）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: 商品已下架或庫存不足（PRODUCT_UNAVAILABLE、INSUFFICIENT_STOCK）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    CartEmpty:
+      description: 購物車沒有項目，無法結帳（CART_EMPTY）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ChecksumInvalid:
+      description: CheckMacValue 驗證失敗，不更新訂單（CHECKSUM_INVALID）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
