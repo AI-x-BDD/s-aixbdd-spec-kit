@@ -1,0 +1,115 @@
+asyncapi: 3.0.0
+info:
+  title: 購物車與結帳
+  version: 0.1.0
+  description: |
+    後端與前端之間的 Socket.IO 事件合約，涵蓋 B4 訂單付款狀態推播。購物車、下單與綠界付款通知的 HTTP 介面見同目錄的 openapi.yaml。
+servers:
+  development:
+    host: localhost:3000
+    protocol: ws
+    description: 本機開發用 Socket.IO 伺服器（建立在 WebSocket 上），與 Express 共用同一個 port
+channels:
+  orderWatch:
+    address: order:watch
+    title: 訂閱訂單付款狀態
+    messages:
+      orderWatchRequested:
+        $ref: '#/components/messages/OrderWatchRequested'
+  orderPaymentUpdated:
+    address: order:payment-updated
+    title: 訂單付款狀態更新
+    messages:
+      orderPaymentUpdated:
+        $ref: '#/components/messages/OrderPaymentUpdated'
+  orderError:
+    address: order:error
+    title: 訂單事件錯誤
+    messages:
+      error:
+        $ref: '#/components/messages/Error'
+operations:
+  receiveOrderWatch:
+    action: receive
+    channel:
+      $ref: '#/channels/orderWatch'
+    tags:
+      - name: B4 訂單付款狀態推播
+    summary: 結帳頁訂閱指定訂單的付款狀態
+    description: 依 FR-007，前端從綠界付款頁返回結帳頁後送出訂單 ID，後端開始推播該訂單的付款狀態。
+    messages:
+      - $ref: '#/channels/orderWatch/messages/orderWatchRequested'
+  sendOrderPaymentUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/orderPaymentUpdated'
+    tags:
+      - name: B4 訂單付款狀態推播
+    summary: 推播訂單付款結果
+    description: 依 FR-006 收到綠界付款結果並更新訂單後，依 FR-007 推播給訂閱該訂單的結帳頁；付款逾時（Edge Cases）時推播 `expired` 狀態。
+    messages:
+      - $ref: '#/channels/orderPaymentUpdated/messages/orderPaymentUpdated'
+  sendOrderError:
+    action: send
+    channel:
+      $ref: '#/channels/orderError'
+    tags:
+      - name: B4 訂單付款狀態推播
+    summary: 回報訂閱失敗
+    description: 依 FR-007 與 FR-008，訂閱的訂單不存在或不屬於目前使用者時回報錯誤，不推播該訂單的狀態。
+    messages:
+      - $ref: '#/channels/orderError/messages/error'
+components:
+  messages:
+    Error:
+      name: order:error
+      title: 錯誤
+      summary: 本合約所有錯誤訊息共用的格式
+      payload:
+        $ref: '#/components/schemas/Error'
+    OrderWatchRequested:
+      name: order:watch
+      title: 訂閱訂單
+      payload:
+        type: object
+        required: [orderId]
+        properties:
+          orderId:
+            type: string
+            format: uuid
+    OrderPaymentUpdated:
+      name: order:payment-updated
+      title: 付款狀態更新
+      payload:
+        $ref: '#/components/schemas/OrderPaymentStatus'
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 錯誤碼，指出錯誤情況
+          enum:
+            - ORDER_NOT_FOUND
+            - ORDER_FORBIDDEN
+        message:
+          type: string
+          description: 給使用者看的繁體中文錯誤訊息
+    OrderPaymentStatus:
+      type: object
+      required: [orderId, paymentStatus, updatedAt]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        paymentStatus:
+          type: string
+          enum: [pending, paid, failed, expired]
+          description: paid 為付款成功，failed 為綠界回傳失敗，expired 為超過付款期限
+        failureReason:
+          type: string
+          description: paymentStatus 為 failed 時的綠界 RtnMsg
+        updatedAt:
+          type: string
+          format: date-time
