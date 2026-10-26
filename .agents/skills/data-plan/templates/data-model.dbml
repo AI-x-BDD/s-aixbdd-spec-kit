@@ -1,0 +1,24 @@
+// Data Model: {{FEATURE_TITLE}}
+// Spec: {{SPEC_PATH}}
+// Date: {{PLAN_DATE}}
+
+Project {{PROJECT_NAME}} {
+  database_type: '{{DATABASE_TYPE}}'
+  Note: '{{PROJECT_NOTE}}'
+}
+
+// ---------- Enums ----------
+
+{{ENUM_BLOCKS}}
+
+// ---------- Tables ----------
+
+{{INTERFACE_TABLE_SECTIONS}}
+
+// ---------- Table Groups ----------
+
+{{TABLE_GROUP_BLOCKS}}
+
+// ---------- Relationships ----------
+
+{{REF_LINES}}
