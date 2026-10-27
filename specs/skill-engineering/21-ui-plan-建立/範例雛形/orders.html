@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的訂單｜拾日選物</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F7F4EE;
+    --surface: #FFFFFF;
+    --ink: #23302B;
+    --muted: #6B7570;
+    --line: #E2DDD3;
+    --primary: #2F5D50;
+    --primary-soft: #E4EDE8;
+    --danger: #B4442F;
+    --danger-soft: #F8E7E2;
+    --pending: #9A6A14;
+    --pending-soft: #F6EDD9;
+    --success: #2F7D4F;
+    --success-soft: #E2F1E7;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(35, 48, 43, .06), 0 4px 16px rgba(35, 48, 43, .06);
+    --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); }
+  a { color: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1080px; margin: 0 auto; padding: 0 16px; height: 60px; display: flex; align-items: center; gap: 16px; }
+  .brand { font-size: 18px; font-weight: 700; letter-spacing: .12em; color: var(--primary); text-decoration: none; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; }
+  .site-nav a { padding: 6px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .cart-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 12px; }
+  .customer { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  @media (max-width: 640px) { .customer { display: none; } .site-nav a { padding: 6px 8px; } }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 96px; }
+  h1 { margin: 0 0 16px; font-size: 24px; }
+  h2 { margin: 0 0 16px; font-size: 17px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .thumb { width: 48px; height: 48px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; color: var(--primary); }
+  .thumb svg { width: 60%; height: 60%; }
+  .skeleton { border-radius: 8px; background: linear-gradient(90deg, #EEEAE2 25%, #F5F2EC 50%, #EEEAE2 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 我的訂單 */
+  .orders { display: grid; gap: 16px; max-width: 760px; }
+  .order { overflow: hidden; }
+  .order.highlight { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft), var(--shadow); }
+  .order-head { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 16px 20px; }
+  .order-no { font-weight: 700; letter-spacing: .02em; }
+  .order-meta { color: var(--muted); font-size: 13px; }
+  .order-amount { text-align: right; font-weight: 700; color: var(--primary); }
+  .order-head .toggle { grid-column: 1 / -1; justify-self: start; padding: 0; border: 0; background: none; color: var(--primary); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .status { display: inline-block; margin-left: 8px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; vertical-align: 1px; }
+  .status-paid { background: var(--success-soft); color: var(--success); }
+  .status-pending { background: var(--pending-soft); color: var(--pending); }
+  .status-failed { background: var(--danger-soft); color: var(--danger); }
+  .status-expired { background: var(--bg); color: var(--muted); }
+  .order-detail { padding: 4px 20px 20px; border-top: 1px solid var(--line); }
+  .order-detail h3 { margin: 16px 0 8px; font-size: 14px; color: var(--muted); }
+  .line-item { display: flex; gap: 12px; align-items: center; padding: 8px 0; }
+  .line-item .info { flex: 1; min-width: 0; }
+  .line-item .spec { color: var(--muted); font-size: 13px; }
+  .order-detail dl { display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; margin: 0; }
+  .order-detail dt { color: var(--muted); }
+  .order-detail dd { margin: 0; }
+  .skeleton-card { padding: 16px 20px; }
+  .skeleton-card .line { height: 14px; margin-bottom: 10px; }
+  .skeleton-card .line.short { width: 40%; margin-bottom: 0; }
+  .empty-card { max-width: 560px; margin: 24px auto; padding: 32px; text-align: center; }
+  .empty-card p { margin: 0 0 20px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html">拾日選物</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">商品</a>
+      <a href="cart.html">購物車<span class="cart-count num">4</span></a>
+      <a href="orders.html" aria-current="page">我的訂單</a>
+    </nav>
+    <span class="customer">林佳穎 您好</span>
+  </div>
+</header>
+
+<main>
+  <section id="view-orders">
+    <h1>我的訂單</h1>
+    <div class="orders" id="order-list"></div>
+  </section>
+
+  <section id="view-empty" class="card empty-card" hidden>
+    <h1>還沒有訂單</h1>
+    <p>完成結帳後，訂單與付款狀態會顯示在這裡。</p>
+    <a class="btn btn-primary" href="index.html">去逛逛</a>
+  </section>
+</main>
+
+
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 index.html、cart.html、checkout.html 同一批商品與訂單
+  const MOCK = {
+    recipient: { name: '林佳穎', phone: '0912345678', address: '臺北市大安區復興南路一段 390 號 5 樓' },
+    orders: [
+      { orderNo: 'SC20261027A0042', createdAt: '2026-10-27 14:32', status: 'paid',
+        items: [
+          { productName: '亞麻短袖襯衫', specLabel: '黑色 / M', unitPrice: 1280, quantity: 1, icon: 'shirt', tint: '#E9E4DA' },
+          { productName: '帆布托特包', specLabel: '墨綠 / 單一尺寸', unitPrice: 890, quantity: 1, icon: 'bag', tint: '#DCE6DF' },
+          { productName: '陶瓷馬克杯 350ml', specLabel: '灰藍', unitPrice: 420, quantity: 2, icon: 'mug', tint: '#DDE3EA' },
+        ],
+        payment: [['付款方式', '信用卡'], ['綠界交易編號', '2610271435081294'], ['付款時間', '2026-10-27 14:35']] },
+      { orderNo: 'SC20261026A0031', createdAt: '2026-10-26 20:05', status: 'pending',
+        items: [{ productName: '亞麻短袖襯衫', specLabel: '米白 / L', unitPrice: 1280, quantity: 1, icon: 'shirt', tint: '#E9E4DA' }],
+        payment: [['付款方式', 'ATM 轉帳'], ['付款狀態', '等待轉帳，綠界確認入帳後會自動更新']] },
+      { orderNo: 'SC20261019A0017', createdAt: '2026-10-19 09:15', status: 'failed',
+        items: [{ productName: '陶瓷馬克杯 350ml', specLabel: '霧白', unitPrice: 420, quantity: 1, icon: 'mug', tint: '#DDE3EA' }],
+        payment: [['付款方式', '信用卡'], ['失敗原因', '信用卡授權失敗，未扣款']] },
+      { orderNo: 'SC20261008A0005', createdAt: '2026-10-08 21:40', status: 'expired',
+        items: [{ productName: '帆布托特包', specLabel: '原色 / 單一尺寸', unitPrice: 890, quantity: 1, icon: 'bag', tint: '#DCE6DF' }],
+        payment: [['付款方式', '超商代碼'], ['付款狀態', '未於付款期限內完成付款，訂單已取消']] },
+    ],
+  };
+
+  const STATUS_LABELS = { paid: '已付款', pending: '待付款', failed: '付款失敗', expired: '已逾時' };
+
+  const ICONS = {
+    shirt: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M17 8l-9 6 4 7 4-2v21h16V19l4 2 4-7-9-6c-1 3-4 5-7 5s-6-2-7-5z"/></svg>',
+    bag: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M10 17h28l-2 23H12z"/><path d="M18 17v-3a6 6 0 0 1 12 0v3"/></svg>',
+    mug: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M10 14h22v18a6 6 0 0 1-6 6H16a6 6 0 0 1-6-6z"/><path d="M32 18h3a5 5 0 0 1 0 10h-3"/></svg>',
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const fmt = n => 'NT$' + n.toLocaleString('zh-TW');
+  const highlighted = new URLSearchParams(location.search).get('order');
+  let expanded = new Set();
+  let timers = [];
+
+  function orderTotal(order) {
+    return order.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  }
+
+  function showView(view) {
+    $('#view-orders').hidden = view !== 'orders';
+    $('#view-empty').hidden = view !== 'empty';
+  }
+
+  function renderSkeleton() {
+    showView('orders');
+    $('#order-list').innerHTML = Array.from({ length: 3 }, () => `
+      <div class="card skeleton-card">
+        <div class="line skeleton"></div>
+        <div class="line short skeleton"></div>
+      </div>`).join('');
+  }
+
+  function render(orders) {
+    if (orders.length === 0) { showView('empty'); return; }
+    showView('orders');
+    $('#order-list').innerHTML = orders.map(order => {
+      const open = expanded.has(order.orderNo);
+      const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
+      return `
+      <article class="card order${order.orderNo === highlighted ? ' highlight' : ''}">
+        <div class="order-head">
+          <div>
+            <span class="order-no num">${order.orderNo}</span>
+            <span class="status status-${order.status}">${STATUS_LABELS[order.status]}</span>
+            <div class="order-meta num">${order.createdAt}・${order.items[0].productName}${order.items.length > 1 ? ` 等 ${order.items.length} 項` : ''}，共 ${count} 件</div>
+          </div>
+          <div class="order-amount num">${fmt(orderTotal(order))}</div>
+          <button class="toggle" type="button" data-toggle="${order.orderNo}" aria-expanded="${open}">${open ? '收合明細' : '查看明細'}</button>
+        </div>
+        ${open ? `
+        <div class="order-detail">
+          <h3>商品</h3>
+          ${order.items.map(item => `
+            <div class="line-item">
+              <div class="thumb" style="background:${item.tint}">${ICONS[item.icon]}</div>
+              <div class="info">
+                <div>${item.productName}</div>
+                <div class="spec">${item.specLabel} × ${item.quantity}</div>
+              </div>
+              <div class="num">${fmt(item.unitPrice * item.quantity)}</div>
+            </div>`).join('')}
+          <h3>收件資料</h3>
+          <dl>
+            <dt>收件人</dt><dd>${MOCK.recipient.name}</dd>
+            <dt>手機號碼</dt><dd class="num">${MOCK.recipient.phone}</dd>
+            <dt>收件地址</dt><dd>${MOCK.recipient.address}</dd>
+          </dl>
+          <h3>付款紀錄</h3>
+          <dl>${order.payment.map(([k, v]) => `<dt>${k}</dt><dd class="num">${v}</dd>`).join('')}</dl>
+        </div>` : ''}
+      </article>`;
+    }).join('');
+  }
+
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+  $('#order-list').addEventListener('click', event => {
+    const btn = event.target.closest('[data-toggle]');
+    if (!btn) return;
+    const no = btn.dataset.toggle;
+    if (expanded.has(no)) expanded.delete(no); else expanded.add(no);
+    render(MOCK.orders);
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'loading', label: '載入中', apply: () => renderSkeleton() },
+    { key: 'list', label: '有訂單', apply: () => { expanded = new Set([highlighted || MOCK.orders[0].orderNo]); render(MOCK.orders); } },
+    { key: 'empty', label: '沒有訂單', apply: () => render([]) },
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  applyState('loading');
+  later(800, () => applyState('list'));
+</script>
+</body>
+</html>
