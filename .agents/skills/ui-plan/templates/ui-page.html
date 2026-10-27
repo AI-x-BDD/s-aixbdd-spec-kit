@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{PAGE_TITLE}}｜{{BRAND_NAME}}</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: {{COLOR_BG}};
+    --surface: {{COLOR_SURFACE}};
+    --ink: {{COLOR_INK}};
+    --muted: {{COLOR_MUTED}};
+    --line: {{COLOR_LINE}};
+    --primary: {{COLOR_PRIMARY}};
+    --primary-soft: {{COLOR_PRIMARY_SOFT}};
+    --danger: {{COLOR_DANGER}};
+    --danger-soft: {{COLOR_DANGER_SOFT}};
+    --pending: {{COLOR_PENDING}};
+    --pending-soft: {{COLOR_PENDING_SOFT}};
+    --success: {{COLOR_SUCCESS}};
+    --success-soft: {{COLOR_SUCCESS_SOFT}};
+    --radius: {{RADIUS}};
+    --shadow: {{SHADOW}};
+    --font: {{FONT_STACK}};
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+{{BASE_STYLES}}
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+{{PAGE_STYLES}}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html">{{BRAND_NAME}}</a>
+    <nav class="site-nav" aria-label="主要導覽">
+{{NAV_LINKS}}
+    </nav>
+{{HEADER_EXTRA}}
+  </div>
+</header>
+
+<main>
+{{MAIN_CONTENT}}
+</main>
+
+{{PAGE_OVERLAYS}}
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：{{MOCK_DATA_NOTE}}
+  const MOCK = {{MOCK_DATA}};
+
+{{PAGE_CONSTANTS}}
+
+  const $ = sel => document.querySelector(sel);
+{{PAGE_HELPERS}}
+  let timers = [];
+{{PAGE_LOGIC}}
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+{{STATE_ENTRIES}}
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+{{PAGE_INIT}}
+</script>
+</body>
+</html>

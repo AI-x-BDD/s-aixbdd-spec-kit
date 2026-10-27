@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>商品｜拾日選物</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F7F4EE;
+    --surface: #FFFFFF;
+    --ink: #23302B;
+    --muted: #6B7570;
+    --line: #E2DDD3;
+    --primary: #2F5D50;
+    --primary-soft: #E4EDE8;
+    --danger: #B4442F;
+    --danger-soft: #F8E7E2;
+    --pending: #9A6A14;
+    --pending-soft: #F6EDD9;
+    --success: #2F7D4F;
+    --success-soft: #E2F1E7;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(35, 48, 43, .06), 0 4px 16px rgba(35, 48, 43, .06);
+    --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); }
+  a { color: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1080px; margin: 0 auto; padding: 0 16px; height: 60px; display: flex; align-items: center; gap: 16px; }
+  .brand { font-size: 18px; font-weight: 700; letter-spacing: .12em; color: var(--primary); text-decoration: none; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; }
+  .site-nav a { padding: 6px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .cart-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 12px; }
+  .customer { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  @media (max-width: 640px) { .customer { display: none; } .site-nav a { padding: 6px 8px; } }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 96px; }
+  h1 { margin: 0 0 16px; font-size: 24px; }
+  h2 { margin: 0 0 16px; font-size: 17px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 12px 16px; border-radius: var(--radius); }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); }
+
+  .thumb { width: 56px; height: 56px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; color: var(--primary); }
+  .thumb svg { width: 60%; height: 60%; }
+  .skeleton { border-radius: 8px; background: linear-gradient(90deg, #EEEAE2 25%, #F5F2EC 50%, #EEEAE2 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; z-index: 30; display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-radius: 999px; background: var(--ink); color: #fff; opacity: 0; transform: translate(-50%, 16px); transition: .2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .toast a { color: #BFE3D3; font-weight: 600; white-space: nowrap; }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 商品列表 */
+  .lead { margin: -8px 0 24px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; }
+  .product { display: flex; flex-direction: column; overflow: hidden; }
+  .product .cover { aspect-ratio: 4 / 3; display: grid; place-items: center; color: var(--primary); }
+  .product .cover svg { width: 38%; height: 38%; }
+  .product .body { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 16px; }
+  .product .name { font-weight: 600; font-size: 16px; }
+  .product .desc { color: var(--muted); font-size: 13px; }
+  .product .price { margin: 8px 0 12px; font-weight: 700; color: var(--primary); }
+  .product .btn { margin-top: auto; }
+  .product.unlisted .cover, .product.unlisted .price { filter: grayscale(1); opacity: .5; }
+  .tag-unlisted { align-self: flex-start; padding: 0 8px; border-radius: 999px; background: var(--bg); color: var(--muted); font-size: 12px; }
+  .skeleton-card .cover { aspect-ratio: 4 / 3; border-radius: 0; }
+  .skeleton-card .line { height: 14px; margin: 16px 16px 0; }
+  .skeleton-card .line.short { width: 40%; margin-bottom: 16px; }
+
+  /* 規格選擇面板 */
+  .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(35, 48, 43, .35); }
+  .sheet { position: fixed; top: 0; right: 0; bottom: 0; z-index: 21; width: min(420px, 100%); overflow: auto; padding: 24px; background: var(--surface); box-shadow: var(--shadow); }
+  @media (max-width: 640px) { .sheet { top: auto; max-height: 80vh; border-radius: 16px 16px 0 0; } }
+  .sheet-close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--bg); font-size: 20px; cursor: pointer; }
+  .sheet-head { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; padding-right: 40px; }
+  .sheet-head .thumb { width: 72px; height: 72px; }
+  .sheet-head h2 { margin: 0; }
+  .sheet-head .price { color: var(--primary); font-weight: 700; }
+  .sheet h3 { margin: 20px 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font: inherit; cursor: pointer; }
+  .chip[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  .chip:disabled { color: var(--muted); background: var(--bg); text-decoration: line-through; cursor: not-allowed; }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; }
+  .stepper button { width: 40px; height: 40px; border: 0; background: none; font-size: 18px; cursor: pointer; }
+  .stepper button:disabled { color: var(--line); cursor: not-allowed; }
+  .stepper output { min-width: 36px; text-align: center; font-weight: 600; }
+  .stock-hint { margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .stock-hint.low { color: var(--pending); }
+  .qty-error { margin-top: 6px; font-size: 13px; color: var(--danger); }
+  .sheet-foot { margin-top: 28px; }
+  .sheet-foot .muted { margin: 0 0 8px; font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html">拾日選物</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html" aria-current="page">商品</a>
+      <a href="cart.html">購物車<span class="cart-count num" id="cart-count"></span></a>
+      <a href="orders.html">我的訂單</a>
+    </nav>
+    <span class="customer">林佳穎 您好</span>
+  </div>
+</header>
+
+<main>
+  <h1>本週選物</h1>
+  <p class="lead">日常耐用的衣物與器物，選好規格就能加入購物車。</p>
+  <div class="grid" id="product-grid"></div>
+</main>
+
+<!-- 規格選擇面板 -->
+<div id="sheet-backdrop" class="backdrop" hidden></div>
+<section id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+  <button class="sheet-close" type="button" aria-label="關閉">×</button>
+  <div class="sheet-head">
+    <div class="thumb" id="sheet-thumb"></div>
+    <div>
+      <h2 id="sheet-title"></h2>
+      <div class="price num" id="sheet-price"></div>
+    </div>
+  </div>
+  <div id="sheet-error" class="banner banner-danger" role="alert" hidden></div>
+  <h3>規格</h3>
+  <div class="chips" id="variant-chips"></div>
+  <h3>數量</h3>
+  <div class="stepper">
+    <button type="button" id="qty-minus" aria-label="減少數量">−</button>
+    <output id="qty" class="num" aria-live="polite"></output>
+    <button type="button" id="qty-plus" aria-label="增加數量">＋</button>
+  </div>
+  <div class="stock-hint" id="stock-hint"></div>
+  <div class="qty-error" id="qty-error" role="alert" hidden></div>
+  <div class="sheet-foot">
+    <p class="muted" id="select-hint">請先選擇規格</p>
+    <button class="btn btn-primary btn-block" type="button" id="add-btn">加入購物車</button>
+  </div>
+</section>
+
+<div class="toast" role="status" aria-live="polite"></div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 cart.html、checkout.html、orders.html 同一批商品與購物車
+  const MOCK = {
+    cartCount: 4,
+    products: [
+      { id: 'p-1', name: '亞麻短袖襯衫', desc: '100% 亞麻，水洗後更柔軟', price: 1280, icon: 'shirt', tint: '#E9E4DA', isListed: true,
+        variants: [{ label: '米白 / M', stock: 12 }, { label: '米白 / L', stock: 8 }, { label: '黑色 / M', stock: 2 }, { label: '黑色 / L', stock: 0 }] },
+      { id: 'p-2', name: '帆布托特包', desc: '12 oz 厚帆布，可放 14 吋筆電', price: 890, icon: 'bag', tint: '#DCE6DF', isListed: true,
+        variants: [{ label: '原色 / 單一尺寸', stock: 20 }, { label: '墨綠 / 單一尺寸', stock: 6 }] },
+      { id: 'p-3', name: '陶瓷馬克杯 350ml', desc: '鶯歌窯燒，可微波與洗碗機清洗', price: 420, icon: 'mug', tint: '#DDE3EA', isListed: true,
+        variants: [{ label: '霧白', stock: 15 }, { label: '灰藍', stock: 9 }] },
+      { id: 'p-4', name: '手沖咖啡濾杯組', desc: '濾杯、分享壺與 40 張濾紙', price: 1150, icon: 'dripper', tint: '#EDE3D6', isListed: false,
+        variants: [{ label: '1–2 人份', stock: 0 }] },
+    ],
+  };
+
+  const ICONS = {
+    shirt: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M17 8l-9 6 4 7 4-2v21h16V19l4 2 4-7-9-6c-1 3-4 5-7 5s-6-2-7-5z"/></svg>',
+    bag: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M10 17h28l-2 23H12z"/><path d="M18 17v-3a6 6 0 0 1 12 0v3"/></svg>',
+    mug: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M10 14h22v18a6 6 0 0 1-6 6H16a6 6 0 0 1-6-6z"/><path d="M32 18h3a5 5 0 0 1 0 10h-3"/></svg>',
+    dripper: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M9 12h30l-9 15H18z"/><path d="M14 33h20"/><path d="M24 27v6"/><path d="M12 40h24"/></svg>',
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const fmt = n => 'NT$' + n.toLocaleString('zh-TW');
+  let timers = [];
+  let sheet = null; // { product, variantIndex, qty, error }
+
+  function renderCartCount() { $('#cart-count').textContent = MOCK.cartCount; }
+
+  function renderSkeleton() {
+    $('#product-grid').innerHTML = Array.from({ length: 4 }, () => `
+      <div class="card product skeleton-card">
+        <div class="cover skeleton"></div>
+        <div class="line skeleton"></div>
+        <div class="line short skeleton"></div>
+      </div>`).join('');
+  }
+
+  function renderProducts() {
+    $('#product-grid').innerHTML = MOCK.products.map(p => `
+      <article class="card product${p.isListed ? '' : ' unlisted'}">
+        <div class="cover" style="background:${p.tint}">${ICONS[p.icon]}</div>
+        <div class="body">
+          ${p.isListed ? '' : '<span class="tag-unlisted">已下架</span>'}
+          <div class="name">${p.name}</div>
+          <div class="desc">${p.desc}</div>
+          <div class="price num">${fmt(p.price)}</div>
+          <button class="btn${p.isListed ? ' btn-primary' : ''}" type="button" data-open="${p.id}"${p.isListed ? '' : ' disabled'}>
+            ${p.isListed ? '選擇規格' : '已下架'}
+          </button>
+        </div>
+      </article>`).join('');
+  }
+
+  function openSheet(productId, variantIndex = null, qty = 1) {
+    const product = MOCK.products.find(p => p.id === productId);
+    sheet = { product, variantIndex, qty, error: '' };
+    $('#sheet-thumb').style.background = product.tint;
+    $('#sheet-thumb').innerHTML = ICONS[product.icon];
+    $('#sheet-title').textContent = product.name;
+    $('#sheet-price').textContent = fmt(product.price);
+    $('#sheet').hidden = false;
+    $('#sheet-backdrop').hidden = false;
+    setAdding(false);
+    renderSheet();
+  }
+
+  function closeSheet() {
+    sheet = null;
+    $('#sheet').hidden = true;
+    $('#sheet-backdrop').hidden = true;
+  }
+
+  function renderSheet() {
+    const { product, variantIndex, qty, error } = sheet;
+    const variant = variantIndex === null ? null : product.variants[variantIndex];
+    $('#variant-chips').innerHTML = product.variants.map((v, i) => `
+      <button class="chip" type="button" data-variant="${i}" aria-pressed="${i === variantIndex}"${v.stock === 0 ? ' disabled' : ''}>
+        ${v.label}${v.stock === 0 ? '（已售完）' : ''}
+      </button>`).join('');
+    $('#qty').textContent = qty;
+    $('#qty-minus').disabled = qty <= 1;
+    const overStock = variant && qty > variant.stock;
+    $('#stock-hint').textContent = !variant || overStock ? '' : variant.stock <= 3 ? `庫存剩 ${variant.stock} 件` : '有現貨';
+    $('#stock-hint').className = 'stock-hint' + (variant && variant.stock <= 3 ? ' low' : '');
+    $('#qty-error').textContent = overStock ? `${variant.label} 只剩 ${variant.stock} 件` : '';
+    $('#qty-error').hidden = !overStock;
+    $('#select-hint').hidden = Boolean(variant);
+    $('#sheet-error').textContent = error;
+    $('#sheet-error').hidden = !error;
+    $('#add-btn').disabled = !variant || overStock || Boolean(error);
+  }
+
+  function setAdding(on) {
+    $('#add-btn').disabled = on;
+    $('#add-btn').textContent = on ? '加入中…' : '加入購物車';
+  }
+
+  function showAdded(product, variantLabel, qty) {
+    closeSheet();
+    MOCK.cartCount += qty;
+    renderCartCount();
+    const toast = $('.toast');
+    toast.innerHTML = `<span>已加入購物車：${product.name}（${variantLabel}）× ${qty}</span><a href="cart.html">查看購物車</a>`;
+    toast.classList.add('show');
+    later(4000, () => toast.classList.remove('show'));
+  }
+
+  function markUnlisted(product) {
+    product.isListed = false;
+    sheet.error = '這件商品剛剛下架了，無法加入購物車';
+    renderProducts();
+    renderSheet();
+  }
+
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+  $('#product-grid').addEventListener('click', event => {
+    const btn = event.target.closest('[data-open]');
+    if (btn) { openSheet(btn.dataset.open); markState('selecting'); }
+  });
+  $('#variant-chips').addEventListener('click', event => {
+    const chip = event.target.closest('[data-variant]');
+    if (!chip || chip.disabled) return;
+    sheet.variantIndex = Number(chip.dataset.variant);
+    renderSheet();
+  });
+  $('#qty-minus').addEventListener('click', () => { sheet.qty -= 1; renderSheet(); });
+  $('#qty-plus').addEventListener('click', () => {
+    sheet.qty += 1;
+    renderSheet();
+    const variant = sheet.product.variants[sheet.variantIndex];
+    if (variant && sheet.qty > variant.stock) markState('over-stock');
+  });
+  $('#add-btn').addEventListener('click', () => {
+    const { product, variantIndex, qty } = sheet;
+    setAdding(true);
+    markState('adding');
+    later(600, () => { showAdded(product, product.variants[variantIndex].label, qty); markState('added'); });
+  });
+  $('.sheet-close').addEventListener('click', () => { closeSheet(); markState('list'); });
+  $('#sheet-backdrop').addEventListener('click', () => { closeSheet(); markState('list'); });
+
+  function reset() {
+    MOCK.cartCount = 4;
+    MOCK.products[1].isListed = true;
+    renderCartCount();
+    renderProducts();
+    closeSheet();
+    $('.toast').classList.remove('show');
+  }
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'loading', label: '載入中', apply: () => { reset(); renderSkeleton(); } },
+    { key: 'list', label: '商品列表', apply: () => reset() },
+    { key: 'selecting', label: '選擇規格中', apply: () => { reset(); openSheet('p-1', 2, 1); } },
+    { key: 'adding', label: '加入中', apply: () => { reset(); openSheet('p-1', 2, 1); setAdding(true); } },
+    { key: 'added', label: '加入成功', apply: () => { reset(); showAdded(MOCK.products[0], '黑色 / M', 1); } },
+    { key: 'over-stock', label: '數量超過庫存', apply: () => { reset(); openSheet('p-1', 2, 3); } },
+    { key: 'unlisted', label: '加入時商品剛下架', apply: () => { reset(); openSheet('p-2', 1, 1); markUnlisted(MOCK.products[1]); } },
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  applyState('loading');
+  later(800, () => { renderProducts(); markState('list'); });
+</script>
+</body>
+</html>

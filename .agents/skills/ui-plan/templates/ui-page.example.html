@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>結帳｜拾日選物</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F7F4EE;
+    --surface: #FFFFFF;
+    --ink: #23302B;
+    --muted: #6B7570;
+    --line: #E2DDD3;
+    --primary: #2F5D50;
+    --primary-soft: #E4EDE8;
+    --danger: #B4442F;
+    --danger-soft: #F8E7E2;
+    --pending: #9A6A14;
+    --pending-soft: #F6EDD9;
+    --success: #2F7D4F;
+    --success-soft: #E2F1E7;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(35, 48, 43, .06), 0 4px 16px rgba(35, 48, 43, .06);
+    --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); }
+  a { color: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1080px; margin: 0 auto; padding: 0 16px; height: 60px; display: flex; align-items: center; gap: 16px; }
+  .brand { font-size: 18px; font-weight: 700; letter-spacing: .12em; color: var(--primary); text-decoration: none; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; }
+  .site-nav a { padding: 6px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .cart-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 12px; }
+  .customer { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  @media (max-width: 640px) { .customer { display: none; } .site-nav a { padding: 6px 8px; } }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 96px; }
+  h1 { margin: 0 0 16px; font-size: 24px; }
+  h2 { margin: 0 0 16px; font-size: 17px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 12px 16px; border-radius: var(--radius); }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); }
+  .banner .btn { height: 36px; flex-shrink: 0; }
+
+  .thumb { width: 56px; height: 56px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; color: var(--primary); }
+  .thumb svg { width: 60%; height: 60%; }
+  .spinner { width: 22px; height: 22px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 結帳頁 */
+  .steps { display: flex; gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .steps li { display: flex; align-items: center; gap: 6px; }
+  .steps li + li::before { content: ""; width: 20px; height: 1px; background: var(--line); }
+  .steps .dot { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); }
+  .steps .done .dot { background: var(--primary-soft); border-color: var(--primary-soft); color: var(--primary); }
+  .steps .current { color: var(--ink); font-weight: 600; }
+  .steps .current .dot { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+  .checkout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+  @media (max-width: 820px) { .checkout { grid-template-columns: 1fr; } }
+  .form-card { padding: 24px; }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 600; }
+  .field .req { margin-left: 2px; color: var(--danger); }
+  .field input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; }
+  .field input:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field input:disabled { background: var(--bg); }
+  .field.has-error input { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .hint { margin-top: 4px; color: var(--muted); font-size: 13px; }
+  .field .error { margin-top: 4px; color: var(--danger); font-size: 13px; }
+  .pay-note { display: flex; gap: 10px; margin: 4px 0 20px; padding: 12px 14px; border-radius: 10px; background: var(--bg); color: var(--muted); font-size: 13px; }
+
+  .summary { position: sticky; top: 84px; padding: 20px; }
+  .line-item { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .line-item .info { flex: 1; min-width: 0; }
+  .line-item .name { font-weight: 600; }
+  .line-item .spec { color: var(--muted); font-size: 13px; }
+  .total-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 16px; }
+  .total-row strong { font-size: 22px; color: var(--primary); }
+
+  .empty-card, .result { max-width: 560px; margin: 24px auto; padding: 32px; text-align: center; }
+  .empty-card p { margin: 0 0 20px; color: var(--muted); }
+
+  .overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(247, 244, 238, .94); }
+  .overlay .box { display: grid; justify-items: center; gap: 12px; text-align: center; }
+  .overlay .spinner { width: 36px; height: 36px; }
+
+  .result-icon { width: 64px; height: 64px; margin: 0 auto 16px; display: grid; place-items: center; border-radius: 50%; }
+  .result-icon svg { width: 32px; height: 32px; }
+  .result h1 { margin-bottom: 8px; }
+  .result > p { margin: 0 auto; max-width: 420px; color: var(--muted); }
+  .tone-pending .result-icon { background: var(--pending-soft); color: var(--pending); }
+  .tone-success .result-icon { background: var(--success-soft); color: var(--success); }
+  .tone-danger .result-icon { background: var(--danger-soft); color: var(--danger); }
+  .tone-muted .result-icon { background: var(--bg); color: var(--muted); }
+  .result dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 24px 0; padding: 16px 20px; border-radius: 10px; background: var(--bg); text-align: left; }
+  .result dt { color: var(--muted); }
+  .result dd { margin: 0; }
+  .result-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html">拾日選物</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">商品</a>
+      <a href="cart.html">購物車<span class="cart-count num">4</span></a>
+      <a href="orders.html">我的訂單</a>
+    </nav>
+    <span class="customer">林佳穎 您好</span>
+  </div>
+</header>
+
+<main>
+  <ol class="steps" aria-label="結帳步驟">
+    <li class="done"><span class="dot">1</span>購物車</li>
+    <li data-step="form"><span class="dot">2</span>收件資料</li>
+    <li data-step="pay"><span class="dot">3</span>綠界付款</li>
+    <li data-step="result"><span class="dot">4</span>付款結果</li>
+  </ol>
+
+  <!-- 填寫收件資料 -->
+  <section id="view-form">
+    <h1>填寫收件資料</h1>
+    <div id="order-error" class="banner banner-danger" role="alert" hidden>
+      <span id="order-error-text"></span>
+      <a class="btn" href="cart.html">回購物車</a>
+    </div>
+    <div class="checkout">
+      <form id="checkout-form" class="card form-card" novalidate>
+        <h2>收件資料</h2>
+        <div class="field" data-field="recipientName">
+          <label for="recipientName">收件人姓名<span class="req">*</span></label>
+          <input id="recipientName" name="recipientName" maxlength="50" autocomplete="name">
+          <div class="error" hidden></div>
+        </div>
+        <div class="field" data-field="recipientPhone">
+          <label for="recipientPhone">手機號碼<span class="req">*</span></label>
+          <input id="recipientPhone" name="recipientPhone" inputmode="numeric" maxlength="12" autocomplete="tel" placeholder="0912345678">
+          <div class="hint">出貨與到貨通知會以簡訊傳送</div>
+          <div class="error" hidden></div>
+        </div>
+        <div class="field" data-field="shippingAddress">
+          <label for="shippingAddress">收件地址<span class="req">*</span></label>
+          <input id="shippingAddress" name="shippingAddress" maxlength="200" autocomplete="street-address" placeholder="縣市、區、路段與門牌">
+          <div class="error" hidden></div>
+        </div>
+        <div class="pay-note">
+          <span aria-hidden="true">ⓘ</span>
+          <span>建立訂單後會前往綠界付款頁，可選擇信用卡、ATM 轉帳或超商代碼付款。</span>
+        </div>
+        <button id="submit-btn" class="btn btn-primary btn-block" type="submit">建立訂單並前往付款</button>
+      </form>
+
+      <aside class="card summary" aria-label="訂單摘要">
+        <h2>訂單摘要</h2>
+        <div id="summary-items"></div>
+        <div class="total-row">
+          <span>合計（<span id="summary-count" class="num"></span> 件）</span>
+          <strong id="summary-total" class="num"></strong>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 購物車為空 -->
+  <section id="view-empty" class="card empty-card" hidden>
+    <h1>購物車是空的，無法結帳</h1>
+    <p>先挑選想要的商品，再回來結帳。</p>
+    <a class="btn btn-primary" href="index.html">去逛逛</a>
+  </section>
+
+  <!-- 付款結果 -->
+  <section id="view-result" class="card result" aria-live="polite" hidden>
+    <div class="result-icon" id="result-icon"></div>
+    <h1 id="result-title"></h1>
+    <p id="result-desc"></p>
+    <dl id="result-detail"></dl>
+    <div class="result-actions" id="result-actions"></div>
+  </section>
+</main>
+
+<!-- 前往綠界付款頁 -->
+<div id="view-redirect" class="overlay" hidden>
+  <div class="box">
+    <div class="spinner"></div>
+    <strong>正在前往綠界付款頁…</strong>
+    <span class="muted">訂單 SC20261027A0042 已建立，請勿重新整理頁面</span>
+  </div>
+</div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 index.html、cart.html、orders.html 同一批商品與購物車
+  const MOCK = {
+    cartItems: [
+      { productName: '亞麻短袖襯衫', specLabel: '黑色 / M', unitPrice: 1280, quantity: 1, icon: 'shirt', tint: '#E9E4DA' },
+      { productName: '帆布托特包', specLabel: '墨綠 / 單一尺寸', unitPrice: 890, quantity: 1, icon: 'bag', tint: '#DCE6DF' },
+      { productName: '陶瓷馬克杯 350ml', specLabel: '灰藍', unitPrice: 420, quantity: 2, icon: 'mug', tint: '#DDE3EA' },
+    ],
+    filledForm: { recipientName: '林佳穎', recipientPhone: '0912345678', shippingAddress: '臺北市大安區復興南路一段 390 號 5 樓' },
+    invalidForm: { recipientName: '', recipientPhone: '0912-34', shippingAddress: '' },
+    order: { orderNo: 'SC20261027A0042', paymentType: '信用卡', paidAt: '2026-10-27 14:35' },
+    orderErrors: {
+      stock: '陶瓷馬克杯 350ml（灰藍）庫存只剩 1 件，訂單沒有建立。請回購物車調整數量後再結帳。',
+      unavailable: '帆布托特包（墨綠 / 單一尺寸）已下架，訂單沒有建立。請回購物車移除後再結帳。',
+    },
+    failureReason: '信用卡授權失敗',
+  };
+
+  const ICONS = {
+    shirt: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M17 8l-9 6 4 7 4-2v21h16V19l4 2 4-7-9-6c-1 3-4 5-7 5s-6-2-7-5z"/></svg>',
+    bag: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M10 17h28l-2 23H12z"/><path d="M18 17v-3a6 6 0 0 1 12 0v3"/></svg>',
+    mug: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M10 14h22v18a6 6 0 0 1-6 6H16a6 6 0 0 1-6-6z"/><path d="M32 18h3a5 5 0 0 1 0 10h-3"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  };
+
+  const RESULTS = {
+    pending: { tone: 'pending', title: '付款結果確認中', desc: '綠界正在回傳付款結果，確認後此頁會自動更新，請勿關閉此頁。', actions: [] },
+    paid: { tone: 'success', icon: 'check', title: '付款成功', desc: '訂單已成立，可到「我的訂單」查看明細與付款狀態。',
+      actions: [{ label: '查看訂單', href: 'orders.html?order=SC20261027A0042', primary: true }, { label: '繼續逛逛', href: 'index.html' }] },
+    failed: { tone: 'danger', icon: 'cross', title: '付款未完成', desc: `綠界回傳：${MOCK.failureReason}。這筆訂單沒有扣款，可以重新選購後再結帳。`,
+      actions: [{ label: '查看訂單', href: 'orders.html?order=SC20261027A0042' }, { label: '重新選購', href: 'index.html', primary: true }] },
+    expired: { tone: 'muted', icon: 'clock', title: '已超過付款期限', desc: '這筆訂單沒有在期限內完成付款，已自動取消，不會扣款。',
+      actions: [{ label: '查看訂單', href: 'orders.html?order=SC20261027A0042' }, { label: '重新選購', href: 'index.html', primary: true }] },
+  };
+
+  const FIELD_RULES = {
+    recipientName: v => v.trim() ? '' : '請填寫收件人姓名',
+    recipientPhone: v => {
+      const digits = v.replace(/[-\s]/g, '');
+      if (!digits) return '請填寫手機號碼';
+      return /^09\d{8}$/.test(digits) ? '' : '請輸入 09 開頭的 10 碼手機號碼';
+    },
+    shippingAddress: v => v.trim() ? '' : '請填寫收件地址',
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const fmt = n => 'NT$' + n.toLocaleString('zh-TW');
+  const form = $('#checkout-form');
+  const submitBtn = $('#submit-btn');
+  let timers = [];
+  let submitted = false;
+
+  function renderSummary() {
+    $('#summary-items').innerHTML = MOCK.cartItems.map(item => `
+      <div class="line-item">
+        <div class="thumb" style="background:${item.tint}">${ICONS[item.icon]}</div>
+        <div class="info">
+          <div class="name">${item.productName}</div>
+          <div class="spec">${item.specLabel} × ${item.quantity}</div>
+        </div>
+        <div class="num">${fmt(item.unitPrice * item.quantity)}</div>
+      </div>`).join('');
+    $('#summary-count').textContent = MOCK.cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    $('#summary-total').textContent = fmt(totalAmount());
+  }
+
+  function totalAmount() {
+    return MOCK.cartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  }
+
+  function setStep(step) {
+    const order = ['form', 'pay', 'result'];
+    document.querySelectorAll('.steps [data-step]').forEach(li => {
+      const idx = order.indexOf(li.dataset.step);
+      li.className = idx < order.indexOf(step) ? 'done' : idx === order.indexOf(step) ? 'current' : '';
+    });
+  }
+
+  function showView(view) {
+    $('#view-form').hidden = view !== 'form';
+    $('#view-empty').hidden = view !== 'empty';
+    $('#view-result').hidden = view !== 'result';
+    $('#view-redirect').hidden = view !== 'redirect';
+    $('.steps').hidden = view === 'empty';
+    setStep(view === 'redirect' ? 'pay' : view === 'result' ? 'result' : 'form');
+  }
+
+  function fillForm(values) {
+    submitted = false;
+    Object.keys(FIELD_RULES).forEach(name => { form.elements[name].value = values ? values[name] : ''; });
+    clearErrors();
+    setSubmitting(false);
+    $('#order-error').hidden = true;
+  }
+
+  function clearErrors() {
+    document.querySelectorAll('.field').forEach(field => {
+      field.classList.remove('has-error');
+      field.querySelector('.error').hidden = true;
+    });
+  }
+
+  function validate(focusFirst) {
+    let firstInvalid = null;
+    Object.entries(FIELD_RULES).forEach(([name, rule]) => {
+      const input = form.elements[name];
+      const field = input.closest('.field');
+      const message = rule(input.value);
+      field.classList.toggle('has-error', Boolean(message));
+      input.setAttribute('aria-invalid', String(Boolean(message)));
+      const error = field.querySelector('.error');
+      error.textContent = message;
+      error.hidden = !message;
+      if (message && !firstInvalid) firstInvalid = input;
+    });
+    if (firstInvalid && focusFirst) firstInvalid.focus();
+    return !firstInvalid;
+  }
+
+  function setSubmitting(on) {
+    submitBtn.disabled = on;
+    submitBtn.textContent = on ? '建立訂單中…' : '建立訂單並前往付款';
+    Object.keys(FIELD_RULES).forEach(name => { form.elements[name].disabled = on; });
+  }
+
+  function showOrderError(message) {
+    $('#order-error-text').textContent = message;
+    $('#order-error').hidden = false;
+  }
+
+  function showResult(status) {
+    const result = RESULTS[status];
+    const values = MOCK.filledForm;
+    showView('result');
+    $('#view-result').className = `card result tone-${result.tone}`;
+    $('#result-icon').innerHTML = status === 'pending' ? '<div class="spinner"></div>' : ICONS[result.icon];
+    $('#result-title').textContent = result.title;
+    $('#result-desc').textContent = result.desc;
+    const rows = [
+      ['訂單編號', MOCK.order.orderNo],
+      ['付款金額', fmt(totalAmount())],
+      ['收件人', `${values.recipientName}　${values.recipientPhone}`],
+      ['收件地址', values.shippingAddress],
+    ];
+    if (status === 'paid') rows.push(['付款方式', MOCK.order.paymentType], ['付款時間', MOCK.order.paidAt]);
+    $('#result-detail').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd class="num">${v}</dd>`).join('');
+    $('#result-actions').innerHTML = result.actions.map(a =>
+      `<a class="btn${a.primary ? ' btn-primary' : ''}" href="${a.href}">${a.label}</a>`).join('');
+  }
+
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    submitted = true;
+    $('#order-error').hidden = true;
+    if (!validate(true)) { markState('invalid'); return; }
+    MOCK.filledForm = {
+      recipientName: form.elements.recipientName.value.trim(),
+      recipientPhone: form.elements.recipientPhone.value.replace(/[-\s]/g, ''),
+      shippingAddress: form.elements.shippingAddress.value.trim(),
+    };
+    setSubmitting(true);
+    markState('submitting');
+    later(1000, () => { showView('redirect'); markState('redirecting'); });
+    later(2500, () => { showResult('pending'); markState('pending'); });
+    later(5500, () => { showResult('paid'); markState('paid'); });
+  });
+
+  form.addEventListener('input', () => { if (submitted) validate(false); });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'form', label: '填寫收件資料', apply: () => { fillForm(); showView('form'); } },
+    { key: 'invalid', label: '欄位驗證錯誤', apply: () => { fillForm(MOCK.invalidForm); showView('form'); submitted = true; validate(false); } },
+    { key: 'submitting', label: '建立訂單中', apply: () => { fillForm(MOCK.filledForm); showView('form'); setSubmitting(true); } },
+    { key: 'stock-error', label: '下單時庫存不足', apply: () => { fillForm(MOCK.filledForm); showView('form'); showOrderError(MOCK.orderErrors.stock); } },
+    { key: 'unavailable', label: '下單時商品已下架', apply: () => { fillForm(MOCK.filledForm); showView('form'); showOrderError(MOCK.orderErrors.unavailable); } },
+    { key: 'cart-empty', label: '購物車為空', apply: () => showView('empty') },
+    { key: 'redirecting', label: '前往綠界付款頁', apply: () => showView('redirect') },
+    { key: 'pending', label: '等待付款結果', apply: () => showResult('pending') },
+    { key: 'paid', label: '付款成功', apply: () => showResult('paid') },
+    { key: 'failed', label: '付款失敗', apply: () => showResult('failed') },
+    { key: 'expired', label: '付款逾時', apply: () => showResult('expired') },
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  renderSummary();
+  applyState('form');
+</script>
+</body>
+</html>
