@@ -31,6 +31,11 @@
    - 改的是 `.agents/skills/` 或 `AGENTS.md`：`scripts/sync-skills.sh --from agents`
    - 刪除 Skill 時，腳本不會刪除另一邊的同名資料夾，要手動刪掉兩邊。
    - 同步後用 `scripts/sync-skills.sh --check` 確認兩邊一致。
+5. 遇到課程後面章節才會處理的問題（例如第五章的 Truth／Plan 區分），先記在 `docs/待確認.md`，不先修改 Skill；上到該章時再處理，處理完更新該項。
+6. 課程單元完成、且使用者實際驗證通過後，提議打 annotated tag，先問使用者再打：
+   - 命名 `ch<章>-<單元>-<主題>`，例如 `ch3-14-planners`。
+   - 打在該單元的最後一個 commit，訊息寫單元名稱與完成內容。
+   - 使用者沒有要求時不 push tag。
 
 ## 課程產出規範
 
