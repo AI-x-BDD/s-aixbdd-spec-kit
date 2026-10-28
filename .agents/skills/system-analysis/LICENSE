@@ -2,9 +2,10 @@
 
 1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）：
    `templates/plan.md` 與 `templates/plan.example.md` 的 plan.md 標頭（Branch／Date／Spec／Input）與
-   Project Structure 段落結構（Documentation、Source Code、Structure Decision），以及照片相簿範例情境。
+   Project Structure 段落結構（Documentation、Source Code、Structure Decision）。
    範例刪除了 Summary、Technical Context、Constitution Check、Complexity Tracking 段落。
-   「分析流程規劃」段落、本 Skill 的 SOP 與 RuleFile 為重新撰寫，未直接複製上述專案的檔案。
+   範例的「購物車與結帳」情境、「分析流程規劃」段落、本 Skill 的 SOP 與 RuleFile 為重新撰寫，
+   未直接複製上述專案的檔案。
 
 以下依授權要求，保留其原始授權全文。
 
