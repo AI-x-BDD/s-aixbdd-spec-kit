@@ -38,6 +38,10 @@
    - 打在該單元的最後一個 commit，訊息寫單元名稱與完成內容。
    - 使用者沒有要求時不 push tag。
 
+## 模型與 effort（Codex）
+
+僅當執行平台為 Codex 時，開始工作前讀取並遵循 [Codex 選模與委派規則](.codex/model-routing.md)。其他平台維持各自既有流程。
+
 ## 模型與 effort（Claude Code）
 
 主 session 的 model 與 effort 由使用者開啟時設定，agent 無法自行切換。委派子代理時依下表選擇，不用 Haiku 做驗收或實作：
