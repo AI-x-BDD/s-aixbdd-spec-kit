@@ -1,0 +1,439 @@
+openapi: 3.1.0
+info:
+  title: 線上 PVP 1A2B 猜數字對戰平台 (Online PVP 1A2B)
+  version: 0.1.0
+  description: |
+    前端呼叫後端的 HTTP 介面合約，涵蓋 B1 玩家進站 API、B2 房間配對與離開 API、B3 對局進行 API。所有玩家指令都走本合約的 REST 端點；房間狀態、輪次、猜測結果與對局結束的即時推播（B4）以 Socket.IO 傳輸，見同目錄的 asyncapi.yaml。
+
+    - 身分：`POST /players` 取得不透明 token，其餘請求以 `Authorization: Bearer <token>` 帶入；玩家的 Socket.IO 連線中斷時，伺服器刪除該玩家，token 隨即失效（research §5）。
+    - 錯誤：所有錯誤回應共用 `Error` schema，格式為 `{ "error": { "code": "<錯誤碼>" } }`；後端只回錯誤碼，繁體中文提示由前端 `frontend/src/text/zh-TW.ts` 對應（research §1、§3、NFR-004）。
+    - 秘密答案：對局結束前，本合約所有回應都不含任何秘密答案（NFR-002、SC-004）；對局結束時雙方答案只由 asyncapi.yaml 的 `game:ended` 事件揭曉（research §8）。
+servers:
+  - url: http://localhost:3000/api
+    description: 本機開發用 Express 伺服器；Socket.IO 掛在同一個 HTTP 伺服器，前端開發時由 Vite 代理 `/api`
+tags:
+  - name: B1 玩家進站 API
+    description: FR-001 只以暱稱進站、不得要求註冊登入、暱稱為空時拒絕
+  - name: B2 房間配對與離開 API
+    description: US1 情境 1–5；FR-002 配對碼相同且等待中時加入；FR-003 沒有符合時建立新房；FR-004 已滿或已開始視為沒有符合；FR-005 配對碼格式驗證；FR-007 房主離開時關閉房間並釋出配對碼；FR-016 對局結束後離開房間；Edge Cases 同時輸入同一配對碼、配對碼被占用；SC-002 配對正確率 100%
+  - name: B3 對局進行 API
+    description: US2 情境 1–6；US3 情境 1–5；FR-008 只有房主在滿兩人時可開始；FR-009 各自設定秘密答案；FR-011 依對手答案回報 A／B；FR-012 輪流制、房主先手；FR-014 猜出 4A 立即結束；FR-017 答案與猜測格式驗證；SC-005 A／B 與標準規則 100% 一致
+paths:
+  /players:
+    post:
+      operationId: enterAsPlayer
+      tags: [B1 玩家進站 API]
+      summary: 以暱稱進站並取得玩家 token
+      description: 依 FR-001 只需暱稱即可進站，不需註冊或登入；暱稱 trim 後為空或超過 12 字時拒絕（NICKNAME_INVALID）。暱稱不要求唯一，玩家以回傳的 token 區分；token 只在本次連線有效，不保存跨連線的戰績。取得 token 後，前端應立即以它建立 Socket.IO 連線（見 asyncapi.yaml），才能進行配對。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnterPlayerRequest'
+      responses:
+        '201':
+          description: 進站成功，回傳玩家身分與 token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerSession'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+  /rooms/match:
+    post:
+      operationId: matchRoom
+      tags: [B2 房間配對與離開 API]
+      summary: 以四碼配對碼加入等待中的房間，或建立新房間
+      description: |
+        依 FR-005 只接受恰好四位 0–9 數字的配對碼，格式不符時拒絕且不建立也不加入房間（US1 情境 4，PAIR_CODE_INVALID）。依 FR-002 有配對碼相同且只有房主一人的等待中房間時加入成為對手（matchResult 為 JOINED，US1 情境 2）；依 FR-003 沒有符合時建立新房間並成為房主（matchResult 為 CREATED，US1 情境 1）。
+        依 FR-004，配對碼相同但房間已滿或對局已開始時視為沒有符合（Edge Cases 配對碼被占用），照常回 200 並建立新房間（matchResult 為 CREATED，US1 情境 3），不得拒絕。
+        Edge Cases 同時輸入同一配對碼：後端以原子配對保證先被處理的玩家成為房主、另一位加入同一間，不會各自建立房間（SC-002）；重試仍失敗時回 503（MATCH_BUSY）。
+        配對成功後，伺服器把該玩家的 Socket.IO 連線加入 `room:<roomId>`，並對該 room 推播 `room:updated`，讓房主看到對手加入（FR-006）。玩家尚未建立 Socket.IO 連線時拒絕（SOCKET_NOT_CONNECTED），玩家已在其他房間時拒絕（ALREADY_IN_ROOM）。NFR-001 要求送出到看見房間低於 2 秒。
+      security:
+        - playerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatchRoomRequest'
+      responses:
+        '200':
+          description: 已加入既有房間（JOINED）或已建立新房間（CREATED，含配對碼被占用的情況）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchRoomResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/MatchConflict'
+        '503':
+          $ref: '#/components/responses/MatchBusy'
+  /rooms/{roomId}/leave:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    post:
+      operationId: leaveRoom
+      tags: [B2 房間配對與離開 API]
+      summary: 離開目前所在的房間
+      description: |
+        玩家主動離開房間，伺服器把其 Socket.IO 連線移出 `room:<roomId>`，依房間狀態處理（Socket.IO 斷線時伺服器以相同規則處理）：
+        - 等待對手（只有房主）：依 FR-007 關閉房間並釋出配對碼，之後輸入同一配對碼的玩家會建立新房間（US1 情境 5、Edge Cases 等待中房主離開）。
+        - 已滿兩人、尚未開始：房主離開時依 FR-007 關閉房間；對手離開時同樣關閉房間（spec 未規定，採最小假設）；兩者都對留下的玩家推播 `room:closed`。
+        - 設定秘密答案：依 FR-018 關閉房間、不判定勝負，對另一方推播 `room:closed`（US2 情境 7）。
+        - 猜測階段：依 FR-015 判另一方獲勝並結束對局，對 room 推播 `game:ended`（US3 情境 6）。
+        - 對局已結束：依 FR-016 直接離開，雙方都離開後刪除房間。
+      security:
+        - playerToken: []
+      responses:
+        '204':
+          description: 已離開房間
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RoomNotFound'
+  /rooms/{roomId}/start:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    post:
+      operationId: startGame
+      tags: [B3 對局進行 API]
+      summary: 房主開始遊戲，雙方進入設定秘密答案階段
+      description: 依 FR-008 只允許房主在房內已有兩位玩家時開始遊戲（US2 情境 3）；房內只有房主一人時拒絕並提示需等待對手（US2 情境 1，OPPONENT_NOT_JOINED）；操作者不是房主時拒絕（US2 情境 2，NOT_HOST）；房間已開始或已結束時拒絕（GAME_ALREADY_STARTED）。成功後房間狀態變為 setting_secrets，並對 room 推播 `room:updated`，雙方畫面同時進入設定秘密答案階段。
+      security:
+        - playerToken: []
+      responses:
+        '200':
+          description: 已開始遊戲，回傳最新房間狀態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/RoomNotFound'
+        '409':
+          $ref: '#/components/responses/StartConflict'
+  /rooms/{roomId}/secret:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    post:
+      operationId: setSecret
+      tags: [B3 對局進行 API]
+      summary: 設定自己的秘密答案
+      description: 依 FR-009 讓玩家設定只有自己知道的秘密答案，配對碼不會被當成答案；依 FR-017 答案必須恰好四位、0–9 且互不重複，可以 0 開頭，不符時拒絕（US2 情境 4，SECRET_INVALID）。只能在 setting_secrets 階段設定一次（GAME_NOT_IN_SETUP、SECRET_ALREADY_SET）。成功後對 room 推播 `room:updated`，對手只看到「已設定」狀態（US2 情境 5）；依 FR-010 雙方都設定完成時，房間狀態變為 in_progress、輪到房主先手（US2 情境 6）。依 NFR-002 回應與推播都不含任何秘密答案。
+      security:
+        - playerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetSecretRequest'
+      responses:
+        '200':
+          description: 已設定答案，回傳最新房間狀態（不含答案）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomState'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RoomNotFound'
+        '409':
+          $ref: '#/components/responses/SecretConflict'
+  /rooms/{roomId}/guesses:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    post:
+      operationId: submitGuess
+      tags: [B3 對局進行 API]
+      summary: 提交一次猜測並取得幾 A 幾 B
+      description: |
+        依 FR-011 以對手的秘密答案計算 A（數字與位置皆正確）與 B（數字正確但位置錯誤），由後端判定，前端不計算（US3 情境 1、SC-005）。依 FR-017 猜測必須恰好四位、0–9 且互不重複，不符時拒絕且仍輪到同一位玩家（US3 情境 4，GUESS_INVALID）。
+        依 FR-012 只有輪到的玩家可以提交，未輪到時拒絕且不新增紀錄（US3 情境 3，NOT_YOUR_TURN）；對局不在猜測階段時拒絕（GAME_NOT_IN_PROGRESS）。
+        Edge Cases 重複猜同一組數字：照常判定、記入猜測紀錄並交換輪次，回 201，不另外限制。
+        成功後對 room 推播 `room:updated`，雙方畫面顯示該次猜測與輪次（US3 情境 2、FR-013、NFR-003）。猜出 4A 時依 FR-014 立即結束對局，回應的 status 為 finished、winnerPlayerId 為提交者，雙方答案由 `game:ended` 事件揭曉，本回應不含任何秘密答案（NFR-002）。
+      security:
+        - playerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitGuessRequest'
+      responses:
+        '201':
+          description: 已記入猜測紀錄（含重複猜同一組數字），回傳該次結果與輪次
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitGuessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RoomNotFound'
+        '409':
+          $ref: '#/components/responses/GuessConflict'
+components:
+  schemas:
+    Error:
+      type: object
+      description: 本合約所有錯誤回應共用的格式；依 research §3 只回錯誤碼，繁體中文提示由前端依錯誤碼對應
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              description: 錯誤碼，指出錯誤情況
+              enum:
+                - NICKNAME_INVALID
+                - PAIR_CODE_INVALID
+                - SECRET_INVALID
+                - GUESS_INVALID
+                - UNAUTHORIZED
+                - NOT_HOST
+                - ROOM_NOT_FOUND
+                - ALREADY_IN_ROOM
+                - SOCKET_NOT_CONNECTED
+                - MATCH_BUSY
+                - OPPONENT_NOT_JOINED
+                - GAME_ALREADY_STARTED
+                - GAME_NOT_IN_SETUP
+                - SECRET_ALREADY_SET
+                - GAME_NOT_IN_PROGRESS
+                - NOT_YOUR_TURN
+    EnterPlayerRequest:
+      type: object
+      required: [nickname]
+      properties:
+        nickname:
+          type: string
+          description: 暱稱；後端先 trim，trim 後須為 1～12 字，不要求唯一
+          examples: [阿哲]
+    PlayerSession:
+      type: object
+      required: [playerId, nickname, token]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+          description: 玩家 ID，用來在房間狀態中辨識自己；可公開給對手
+        nickname:
+          type: string
+          description: trim 後的暱稱
+        token:
+          type: string
+          description: 不透明 token，只放在前端記憶體；REST 以 Bearer 帶入，Socket.IO 以 handshake `auth.token` 帶入
+    MatchRoomRequest:
+      type: object
+      required: [pairCode]
+      properties:
+        pairCode:
+          type: string
+          pattern: '^\d{4}$'
+          description: 四碼配對碼，允許重複數字，只用來配對房間
+          examples: ['5208']
+    MatchRoomResponse:
+      type: object
+      required: [matchResult, room]
+      properties:
+        matchResult:
+          type: string
+          enum: [CREATED, JOINED]
+          description: CREATED 為建立新房間並成為房主（含配對碼被占用時），JOINED 為加入等待中的房間成為對手
+        room:
+          $ref: '#/components/schemas/RoomState'
+    SetSecretRequest:
+      type: object
+      required: [secret]
+      properties:
+        secret:
+          type: string
+          pattern: '^(?!.*(\d).*\1)\d{4}$'
+          description: 四位互不重複的數字，可以 0 開頭
+          examples: ['7310']
+    SubmitGuessRequest:
+      type: object
+      required: [guess]
+      properties:
+        guess:
+          type: string
+          pattern: '^(?!.*(\d).*\1)\d{4}$'
+          description: 四位互不重複的數字，可以 0 開頭
+          examples: ['4096']
+    SubmitGuessResponse:
+      type: object
+      required: [guess, status, currentTurnPlayerId, winnerPlayerId]
+      properties:
+        guess:
+          $ref: '#/components/schemas/GuessRecord'
+        status:
+          type: string
+          enum: [in_progress, finished]
+          description: 猜出 4A 時為 finished，否則仍為 in_progress
+        currentTurnPlayerId:
+          type: [string, 'null']
+          format: uuid
+          description: 下一個輪到的玩家；對局結束時為 null
+        winnerPlayerId:
+          type: [string, 'null']
+          format: uuid
+          description: 猜出 4A 時為提交者，否則為 null
+    RoomState:
+      type: object
+      description: 房間狀態快照，與 asyncapi.yaml 的 `room:updated` 事件內容相同；不含任何秘密答案（NFR-002）
+      required: [roomId, pairCode, status, hostPlayerId, players, currentTurnPlayerId, guesses]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        pairCode:
+          type: string
+          pattern: '^\d{4}$'
+        status:
+          type: string
+          enum: [waiting_for_opponent, ready_to_start, setting_secrets, in_progress, finished]
+          description: waiting_for_opponent 只有房主；ready_to_start 已滿兩人、尚未開始；setting_secrets 設定秘密答案；in_progress 輪流猜測；finished 對局已結束
+        hostPlayerId:
+          type: string
+          format: uuid
+        players:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/RoomPlayer'
+        currentTurnPlayerId:
+          type: [string, 'null']
+          format: uuid
+          description: in_progress 時為輪到的玩家，其餘狀態為 null
+        guesses:
+          type: array
+          description: 本場所有猜測紀錄，依 sequence 遞增排列
+          items:
+            $ref: '#/components/schemas/GuessRecord'
+    RoomPlayer:
+      type: object
+      required: [playerId, nickname, role, secretSet]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        role:
+          type: string
+          enum: [host, opponent]
+          description: host 為房主，opponent 為對手
+        secretSet:
+          type: boolean
+          description: 是否已設定秘密答案；只揭露是否設定，不含答案內容
+    GuessRecord:
+      type: object
+      required: [sequence, playerId, guess, a, b]
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+          description: 本場猜測的提交順序
+        playerId:
+          type: string
+          format: uuid
+          description: 提交猜測的玩家
+        guess:
+          type: string
+          pattern: '^(?!.*(\d).*\1)\d{4}$'
+        a:
+          type: integer
+          minimum: 0
+          maximum: 4
+        b:
+          type: integer
+          minimum: 0
+          maximum: 4
+  parameters:
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      description: 房間 ID，取自配對回應的 room.roomId
+      schema:
+        type: string
+        format: uuid
+  securitySchemes:
+    playerToken:
+      type: http
+      scheme: bearer
+      description: '`POST /players` 回傳的不透明 token；玩家的 Socket.IO 連線中斷時失效'
+  responses:
+    ValidationFailed:
+      description: 欄位格式不符（NICKNAME_INVALID、PAIR_CODE_INVALID、SECRET_INVALID、GUESS_INVALID）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未帶 token、token 無效或玩家已斷線而被刪除（UNAUTHORIZED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 不是房主，不能開始遊戲（NOT_HOST）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RoomNotFound:
+      description: 房間不存在、已關閉，或玩家不在這間房間（ROOM_NOT_FOUND）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    MatchConflict:
+      description: 玩家已在其他房間，或尚未建立 Socket.IO 連線（ALREADY_IN_ROOM、SOCKET_NOT_CONNECTED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    MatchBusy:
+      description: 同一配對碼同時配對，重試 3 次仍未完成（MATCH_BUSY），前端可提示稍後再試
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    StartConflict:
+      description: 房內還沒有對手，或對局已開始或已結束（OPPONENT_NOT_JOINED、GAME_ALREADY_STARTED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    SecretConflict:
+      description: 不在設定秘密答案階段，或已設定過答案（GAME_NOT_IN_SETUP、SECRET_ALREADY_SET）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    GuessConflict:
+      description: 還沒輪到你，或對局不在猜測階段（NOT_YOUR_TURN、GAME_NOT_IN_PROGRESS）；不新增猜測紀錄
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>房間｜1A2B 對戰</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F3F2FF;
+    --surface: #FFFFFF;
+    --ink: #24224A;
+    --muted: #6D6A92;
+    --line: #E2E0F5;
+    --primary: #5B5BD6;
+    --primary-soft: #E7E6FB;
+    --danger: #D2454B;
+    --danger-soft: #FBE6E7;
+    --pending: #A0710B;
+    --pending-soft: #FFF4D6;
+    --success: #2B9468;
+    --success-soft: #DEF3EA;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(36, 34, 74, .06), 0 6px 20px rgba(91, 91, 214, .08);
+    --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  :root {
+    --accent: #FFC83D;
+    --accent-soft: #FFF4D6;
+    --accent-ink: #5C4300;
+    --mono: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font); }
+  a { color: inherit; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 720px; margin: 0 auto; padding: 0 16px; height: 60px; display: flex; align-items: center; gap: 12px; }
+  .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: var(--primary); text-decoration: none; white-space: nowrap; }
+  .brand::before { content: "A"; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 16px; transform: rotate(-8deg); }
+  .site-nav { display: flex; gap: 2px; margin-left: auto; overflow-x: auto; }
+  .site-nav a { padding: 6px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; white-space: nowrap; font-size: 14px; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 700; }
+  .me-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--bg); font-size: 14px; white-space: nowrap; }
+  @media (max-width: 640px) { .me-chip { display: none; } .brand { font-size: 0; gap: 0; } .site-nav a { padding: 6px 8px; } }
+
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .form-card { padding: 24px; margin-bottom: 16px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 22px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; border-radius: 12px; font-weight: 600; }
+  .banner-info { background: var(--primary-soft); color: var(--primary); }
+  .banner-accent { background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent); }
+  .banner-success { background: var(--success-soft); color: var(--success); }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); }
+
+  .field { margin-bottom: 18px; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 700; }
+  .field input { width: 100%; height: 48px; padding: 0 14px; border: 2px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; }
+  .field input:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field input:disabled { background: var(--bg); color: var(--muted); }
+  .field.has-error input { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .hint { margin-top: 4px; color: var(--muted); font-size: 13px; }
+  .field .error { margin-top: 4px; color: var(--danger); font-size: 14px; font-weight: 600; }
+  .big-digits { height: 64px !important; font-family: var(--mono); font-size: 30px !important; letter-spacing: .5em; text-align: center; padding-left: .5em !important; }
+
+  .avatar { display: inline-grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; }
+  .avatar-guest { background: var(--accent); color: var(--accent-ink); }
+  .avatar-sm { width: 26px; height: 26px; font-size: 13px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: middle; }
+  .tag-host { background: var(--primary-soft); color: var(--primary); }
+  .tag-me { background: var(--bg); color: var(--muted); }
+  .code-chip { display: inline-block; padding: 2px 12px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 800; letter-spacing: .15em; }
+  .digit-boxes { display: inline-flex; gap: 6px; }
+  .digit-boxes span { display: inline-grid; place-items: center; width: 36px; height: 44px; border-radius: 10px; background: var(--bg); border: 2px solid var(--line); font-family: var(--mono); font-size: 22px; font-weight: 800; }
+  .digit-boxes.hidden-digits span { color: var(--muted); }
+  .wait-line { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0; color: var(--muted); font-weight: 600; }
+
+  .spinner { width: 20px; height: 20px; flex-shrink: 0; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(36, 34, 74, .4); }
+  .modal-box { width: 100%; max-width: 400px; padding: 24px; }
+  .modal-box p { margin: 0 0 20px; color: var(--muted); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 房間 */
+  .room-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 18px 20px; margin-bottom: 16px; }
+  .room-head .label { color: var(--muted); font-size: 13px; }
+  .room-head .code-chip { font-size: 28px; }
+  .room-status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 14px; }
+  .room-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .room-status.waiting { background: var(--pending-soft); color: var(--pending); }
+  .room-status.full { background: var(--success-soft); color: var(--success); }
+  .players { padding: 20px; margin-bottom: 16px; }
+  .player-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; padding: 0; list-style: none; }
+  @media (max-width: 480px) { .player-list { grid-template-columns: 1fr; } }
+  .player { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: var(--bg); border: 2px solid transparent; }
+  .player .avatar { width: 48px; height: 48px; font-size: 20px; }
+  .player .name { font-weight: 800; font-size: 17px; }
+  .player.is-me { border-color: var(--primary-soft); background: var(--surface); }
+  .player.empty { justify-content: center; border: 2px dashed var(--line); background: transparent; color: var(--muted); min-height: 80px; }
+  .player.just-joined { animation: pop .4s ease-out; }
+  @keyframes pop { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .actions { padding: 20px; display: grid; gap: 10px; }
+  .actions p { margin: 0; }
+  .inline-hint { margin-top: 10px !important; padding: 10px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 14px; }
+  .btn.is-waiting { opacity: .65; }
+  .share-tip { margin: 16px 0 0; text-align: center; font-size: 14px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html">1A2B 對戰</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">進站</a>
+      <a href="room.html" aria-current="page">房間</a>
+      <a href="secret.html">設定答案</a>
+      <a href="battle.html">對戰</a>
+    </nav>
+    <span class="me-chip" id="me-chip" hidden></span>
+  </div>
+</header>
+
+<main>
+  <section class="card room-head">
+    <div>
+      <div class="label">配對碼</div>
+      <span class="code-chip num" id="pair-code"></span>
+    </div>
+    <span class="room-status" id="room-status"><span class="dot"></span><span id="room-status-text"></span></span>
+  </section>
+
+  <div id="join-toast" class="banner banner-success" role="status" hidden></div>
+
+  <section class="card players" aria-live="polite">
+    <h2>房內玩家 <span class="num muted" id="player-count"></span></h2>
+    <ul class="player-list">
+      <li class="player" id="slot-host"></li>
+      <li class="player" id="slot-guest"></li>
+    </ul>
+  </section>
+
+  <section class="card actions">
+    <div id="host-actions">
+      <button id="start-btn" class="btn btn-primary btn-block" type="button">開始遊戲</button>
+      <p id="start-hint" class="inline-hint" role="alert" hidden>還沒有對手加入，等對手進房後才能開始遊戲</p>
+    </div>
+    <p id="guest-wait" class="wait-line" hidden><span class="spinner"></span><span id="guest-wait-text"></span></p>
+    <button id="leave-btn" class="btn btn-ghost btn-block" type="button">離開房間</button>
+  </section>
+
+  <p class="share-tip muted" id="share-tip"></p>
+</main>
+
+<div id="leave-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="leave-title" hidden>
+  <div class="card modal-box">
+    <h2 id="leave-title">確定要離開嗎？</h2>
+    <p id="leave-desc"></p>
+    <div class="modal-actions">
+      <button id="stay-btn" class="btn" type="button">留在房間</button>
+      <a class="btn btn-danger" href="index.html">離開</a>
+    </div>
+  </div>
+</div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 index.html、secret.html、battle.html 同一場對局（阿哲 開房、小米 加入，配對碼 5208）
+  const MOCK = {
+    host: { nickname: '阿哲' },
+    guest: { nickname: '小米' },
+    pairCode: '5208',
+  };
+
+  const $ = sel => document.querySelector(sel);
+  function setMe(name) {
+    const chip = $('#me-chip');
+    chip.hidden = !name;
+    chip.innerHTML = name ? `<span class="avatar avatar-sm">${name[0]}</span>${name}` : '';
+  }
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+  let timers = [];
+  let mode = 'waiting';
+  const startBtn = $('#start-btn');
+
+  function playerHtml(player, { host, me, guestColor }) {
+    return `<span class="avatar${guestColor ? ' avatar-guest' : ''}">${player.nickname[0]}</span>
+      <div><div class="name">${player.nickname}</div>
+      <div>${host ? '<span class="tag tag-host">房主</span> ' : '<span class="tag tag-me">對手</span> '}${me ? '<span class="tag tag-me">你</span>' : ''}</div></div>`;
+  }
+
+  // mode：waiting 只有房主、full 兩人到齊（房主視角）、guest 兩人到齊（對手視角）
+  function render(nextMode, { joined = false } = {}) {
+    mode = nextMode;
+    const viewerIsHost = mode !== 'guest';
+    const hasGuest = mode !== 'waiting';
+    setMe(viewerIsHost ? MOCK.host.nickname : MOCK.guest.nickname);
+    $('#pair-code').textContent = MOCK.pairCode;
+    $('#room-status').className = `room-status ${hasGuest ? 'full' : 'waiting'}`;
+    $('#room-status-text').textContent = hasGuest ? '兩人到齊' : '等待對手加入';
+    $('#player-count').textContent = hasGuest ? '2/2' : '1/2';
+
+    const hostSlot = $('#slot-host');
+    hostSlot.className = `player${viewerIsHost ? ' is-me' : ''}`;
+    hostSlot.innerHTML = playerHtml(MOCK.host, { host: true, me: viewerIsHost });
+    const guestSlot = $('#slot-guest');
+    if (hasGuest) {
+      guestSlot.className = `player${viewerIsHost ? '' : ' is-me'}${joined ? ' just-joined' : ''}`;
+      guestSlot.innerHTML = playerHtml(MOCK.guest, { host: false, me: !viewerIsHost, guestColor: true });
+    } else {
+      guestSlot.className = 'player empty';
+      guestSlot.innerHTML = '<span class="spinner"></span>等待對手加入…';
+    }
+
+    $('#join-toast').hidden = !joined;
+    $('#join-toast').textContent = `${MOCK.guest.nickname} 加入了房間`;
+    $('#host-actions').hidden = !viewerIsHost;
+    $('#guest-wait').hidden = viewerIsHost;
+    $('#guest-wait-text').textContent = `等房主 ${MOCK.host.nickname} 開始遊戲`;
+    $('#start-hint').hidden = true;
+    startBtn.disabled = false;
+    startBtn.textContent = '開始遊戲';
+    startBtn.classList.toggle('is-waiting', !hasGuest);
+    $('#share-tip').textContent = hasGuest ? '' : `把配對碼 ${MOCK.pairCode} 告訴朋友，對方輸入後就會進到這間房`;
+    $('#leave-desc').textContent = viewerIsHost
+      ? `你是房主，離開後房間會關閉，配對碼 ${MOCK.pairCode} 會開放給其他人使用。`
+      : '離開後你會回到入口。';
+    $('#leave-modal').hidden = true;
+  }
+
+  function waitForOpponent() {
+    later(4000, () => { render('full', { joined: true }); markState('full'); });
+  }
+
+  function setStarting() {
+    startBtn.disabled = true;
+    startBtn.innerHTML = '<span class="spinner"></span>開始中…';
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (mode === 'waiting') {
+      $('#start-hint').hidden = false;
+      markState('not-full');
+      return;
+    }
+    setStarting();
+    markState('starting');
+    later(900, () => { location.href = 'secret.html'; });
+  });
+
+  $('#leave-btn').addEventListener('click', () => { $('#leave-modal').hidden = false; markState('leave'); });
+  $('#stay-btn').addEventListener('click', () => {
+    $('#leave-modal').hidden = true;
+    markState(mode === 'guest' ? 'guest' : mode === 'full' ? 'full' : 'waiting');
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'waiting', label: '等待對手加入', apply: () => { render('waiting'); waitForOpponent(); } },
+    { key: 'full', label: '對手已加入', apply: () => render('full', { joined: true }) },
+    { key: 'guest', label: '以對手身分檢視', apply: () => render('guest') },
+    { key: 'starting', label: '開始遊戲中', apply: () => { render('full'); setStarting(); } },
+    { key: 'leave', label: '確認離開房間', apply: () => { render('waiting'); $('#leave-modal').hidden = false; } },
+    { key: 'not-full', label: '對手尚未加入就開始', apply: () => { render('waiting'); $('#start-hint').hidden = false; } },
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  applyState('waiting');
+</script>
+</body>
+</html>
