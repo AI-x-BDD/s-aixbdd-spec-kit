@@ -1,0 +1,35 @@
+本 skill（tasks）為自建 Skill，含下列來源的衍生內容：
+
+1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）：
+   `templates/tasks.md` 與 `templates/tasks.example.md` 的 tasks.md 整體結構與英文固定段落
+   （front matter、Format、Path Conventions、Phase 1 Setup／Phase 2 Foundational／User Story Phase／Polish、
+   Checkpoint、Dependencies & Execution Order、Parallel Example、Implementation Strategy、Notes）。
+   範例最早由 Spec Kit 的 speckit-tasks 產出，經使用者改寫為「購物車與結帳」情境後定稿。
+   Reference Loading Contract、依技術端點分組、Must Read／Optional 參考、本 Skill 的 SOP、RuleFile 與
+   `scripts/check_tasks.py` 為重新撰寫，未直接複製上述專案的檔案。
+
+以下依授權要求，保留其原始授權全文。
+
+---
+
+MIT License
+
+Copyright GitHub, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
