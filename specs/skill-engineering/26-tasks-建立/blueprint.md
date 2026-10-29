@@ -233,3 +233,13 @@ Phase 1 與 To-Be SOP 全文相同。Phase 2 與 Phase 3 寫成下列胖 SOP：
 
 - S1、S2 的子代理都因範例很長而分段閱讀範例；產出仍符合樣板結構。
 - 1A2B spec package 的上游命名不一致（房間狀態、結束原因）在兩次執行中都被寫成待確認，與 `docs/待確認.md` 已記錄的事項一致。
+
+### 使用者實際驗證（2026-10-29）
+
+- 方式：以 `user-verify-skill` 用 `mktemp -d` 建暫存專案 `/tmp/tasks-verify-HfLdhS`（`.claude/skills/` 只放 `tasks`，`.claude/` 加入 `.git/info/exclude`；測試素材為 repo 的 `specs/001-online-pvp-1a2b/`，含原版 `tasks.md`，提交為初始 commit），以 Herdr 在新 pane 啟動 `claude --model sonnet --effort medium`（auto mode）。使用者提供的需求開頭為 `/tasks`，依 `user-verify-skill` 規定改以自然語言送出、不指名 Skill：「specs/001-online-pvp-1a2b/ 依這個 spec package 產出 tasks.md，每個任務都要標出執行時要讀哪些文件的哪個部位」，使用者未反對。
+- 權限處理：信任資料夾由使用者回答「trust this folder」，執行者代為選擇；覆寫確認依使用者事先說明代為回覆「同意覆寫」（輸入框原本顯示的「同意覆寫」是 Claude Code 的建議文字，先以 Ctrl+U 確認不是已輸入的文字）；之後沒有出現權限確認。
+- 結果：測試 session 第一個動作即自行呼叫 `tasks`（自動觸發成功），先詢問覆寫，產出 63 個任務、168 項參考（Phase 1–6：6、13、12、13、11、8）。`check_tasks.py` 在測試 session 內執行 2 次、執行者重跑 1 次，`issues`、`warnings` 皆空；只有 `tasks.md` 被修改。對照通用驗收條件：E1 符合（區塊順序與樣板一致、3 個 User Story Phase、無 `{{`）；E2 符合（抽查 10 項參考，8 項字面找到，`components.responses`、`components.schemas.Error` 為 YAML 路徑，在 openapi.yaml 第 191–193、385 行存在）；E3 符合（組標題涵蓋 D1–D2、B1–B4、F1–F4，US1 沒有資料庫任務以引言說明）；E4 部分無法親自證實（Notes 6 項待確認都寫出影響任務與暫行做法，參考的識別字都存在；任務描述是否完全沒有自創識別字未逐條核對）；E5 符合（ID 連續、標籤正確、FR-001–018 與 NFR-001–004 皆引用）；E6 符合（User Story Phase 沒有測試任務，Tests 欄說明理由，SC 量測放在 Polish T056–T060）；E7 符合（先詢問覆寫）。
+- 與原版 `tasks.md`（HEAD）對照：新版多了 Reference Loading Contract 與 64 組 Must Read／Optional、資料庫端點組與介面編號、待確認由 2 項增為 6 項、SC 量測改為自動化測試檔、`vite.config.ts` 任務，任務數 59 → 63；少了 `quickstart.md` 撰寫與依 quickstart 走查、`backend/src/services/roomState.ts`、360px／720px 版面檢查，`[P]` 24 → 22。
+- 課程對照（wsa-course，第三章〈將多面向分析文件綁定到 task.md 中！/tasks〉）：Phase 劃分、依端點分第三層、任務綁到文件部位、Must Read／Optional／Why、Reference Loading Contract、Setup 參考 techstack.md、保留平行執行與實作策略都已對齊；資料庫端點組、待確認 Notes、Must Read 少直接指向 spec.md、Polish 寫成自動化量測與課程示範不同，但不違反課程標準。
+- 觀察：測試 session 寫 `tasks.md` 前讀了 `check_tasks.py` 原始碼。6 項待確認都是 1A2B 上游（`api-plan`、`data-plan`、`ui-plan` 產出）的缺口，記入 `docs/待確認.md` 第 13 項；`tasks` 遇到上游缺部位要繼續或停止交還上游，記入第 12 項，第五章再處理。
+- 結論：使用者判定通過，移除 `description` 開頭的「（未驗證）」，其餘文字不變。測試 pane 與暫存專案已移除。
