@@ -1,0 +1,255 @@
+asyncapi: 3.0.0
+info:
+  title: 線上 PVP 1A2B 猜數字對戰平台 (Online PVP 1A2B)
+  version: 0.1.0
+  description: |
+    後端推播給前端的 Socket.IO 事件合約，涵蓋 B4 房間與對局即時推播。進站、配對、離開房間、開始遊戲、設定秘密答案與提交猜測等玩家指令都走 HTTP，見同目錄的 openapi.yaml；本合約只有伺服器推播與連線驗證，不接收任何玩家指令（research §4）。
+
+    - 連線：前端以 `io({ auth: { token }, reconnection: false, transports: ["websocket"] })` 連線，`token` 為 `POST /api/players` 的回傳值；每個 token 只允許一條連線（research §5）。
+    - 房間：配對成功時伺服器把玩家的連線加入 Socket.IO room `room:<roomId>`，離開房間時移出；以下事件都只推播給該 room。REST 指令的交易提交後才推播（research §4、§8）。
+    - 斷線：伺服器收到 `disconnect` 時比照玩家離開房間處理，並刪除該玩家；前端不自動重連（spec Assumptions 不支援斷線重連）。
+    - 秘密答案：除了 `game:ended` 之外，所有事件都不含任何秘密答案（NFR-002、SC-004）。
+servers:
+  development:
+    host: localhost:3000
+    protocol: ws
+    description: 本機開發用 Socket.IO 伺服器（路徑 `/socket.io`，只用 WebSocket 傳輸），與 Express 共用同一個 HTTP 伺服器；pingInterval 10 秒、pingTimeout 5 秒，網路中斷約 15 秒內偵測到斷線
+channels:
+  roomUpdated:
+    address: room:updated
+    title: 房間狀態更新
+    messages:
+      roomUpdated:
+        $ref: '#/components/messages/RoomUpdated'
+  gameEnded:
+    address: game:ended
+    title: 對局結束
+    messages:
+      gameEnded:
+        $ref: '#/components/messages/GameEnded'
+  roomClosed:
+    address: room:closed
+    title: 房間關閉、對局取消
+    messages:
+      roomClosed:
+        $ref: '#/components/messages/RoomClosed'
+  connectError:
+    address: connect_error
+    title: 連線驗證失敗
+    messages:
+      error:
+        $ref: '#/components/messages/Error'
+operations:
+  sendRoomUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/roomUpdated'
+    tags:
+      - name: B4 房間與對局即時推播
+    summary: 推播房間狀態快照
+    description: |
+      每次房間或對局狀態改變（尚未結束）時，推播完整的房間狀態快照給 `room:<roomId>` 內的雙方，內容與 openapi.yaml 的 `RoomState` 相同：
+      - 對手加入：依 FR-006 與 US1 情境 2，雙方看到房主與對手的暱稱及房主標示。
+      - 房主開始遊戲：status 變為 setting_secrets，雙方同時進入設定秘密答案階段（US2 情境 3）。
+      - 一方設定答案：對應玩家的 secretSet 變為 true，另一方只看到「已設定」，看不到答案（US2 情境 5、NFR-002）。
+      - 雙方都設定完成：依 FR-010 status 變為 in_progress、currentTurnPlayerId 為房主（US2 情境 6）。
+      - 每次合法猜測：依 FR-013 guesses 加入該次猜測與 A／B，currentTurnPlayerId 交給對手（US3 情境 2）；重複猜同一組數字（Edge Cases）照常推播。NFR-003 與 SC-003 要求對手畫面在 95% 以上的情況下 1 秒內更新。
+      猜出 4A 或對局中有人離開時不推播本事件，改推播 `game:ended`。
+    messages:
+      - $ref: '#/channels/roomUpdated/messages/roomUpdated'
+  sendGameEnded:
+    action: send
+    channel:
+      $ref: '#/channels/gameEnded'
+    tags:
+      - name: B4 房間與對局即時推播
+    summary: 推播對局結果並揭曉雙方答案
+    description: 依 FR-014，任一玩家猜出 4A 時（reason 為 GUESSED_4A，US3 情境 5）推播勝者並揭曉雙方秘密答案；依 FR-015，猜測階段一方離開房間或斷線時（reason 為 PLAYER_LEFT，US3 情境 6）判另一方獲勝並推播。這是本合約唯一含秘密答案的事件，只在對局結束後推播（NFR-002）。之後雙方可依 FR-016 離開房間回到入口。
+    messages:
+      - $ref: '#/channels/gameEnded/messages/gameEnded'
+  sendRoomClosed:
+    action: send
+    channel:
+      $ref: '#/channels/roomClosed'
+    tags:
+      - name: B4 房間與對局即時推播
+    summary: 通知留下的玩家房間已關閉、不判定勝負
+    description: |
+      對局開始前或設定秘密答案階段有一方離開房間或斷線時，房間關閉並推播給留下的玩家，不判定勝負，前端回到入口：
+      - HOST_LEFT_BEFORE_START：已滿兩人、尚未開始時房主離開，依 FR-007 關閉房間並釋出配對碼。
+      - OPPONENT_LEFT_BEFORE_START：已滿兩人、尚未開始時對手離開；spec 未規定，採最小假設比照關閉房間。
+      - PLAYER_LEFT_DURING_SETUP：依 FR-018 設定秘密答案階段一方離開或斷線，通知另一方對局無法繼續（US2 情境 7）。
+      只有房主一人的等待中房間因房主離開而關閉時（US1 情境 5），房內沒有其他玩家，不推播。
+    messages:
+      - $ref: '#/channels/roomClosed/messages/roomClosed'
+  sendConnectError:
+    action: send
+    channel:
+      $ref: '#/channels/connectError'
+    tags:
+      - name: B4 房間與對局即時推播
+    summary: 回報連線驗證失敗
+    description: 依 FR-001 玩家身分只在本次連線有效，Socket.IO 連線中介層驗證 handshake `auth.token`；token 缺少或無效（UNAUTHORIZED）、同一個 token 已有連線（ALREADY_CONNECTED）時拒絕連線，前端收到 Socket.IO 內建的 `connect_error`，錯誤內容放在 `err.data`，`err.message` 為錯誤碼。
+    messages:
+      - $ref: '#/channels/connectError/messages/error'
+components:
+  messages:
+    Error:
+      name: connect_error
+      title: 錯誤
+      summary: 本合約所有錯誤訊息共用的格式，與 openapi.yaml 的錯誤格式相同，只回錯誤碼，繁體中文提示由前端對應
+      payload:
+        $ref: '#/components/schemas/Error'
+    RoomUpdated:
+      name: room:updated
+      title: 房間狀態更新
+      payload:
+        $ref: '#/components/schemas/RoomState'
+    GameEnded:
+      name: game:ended
+      title: 對局結束
+      payload:
+        $ref: '#/components/schemas/GameResult'
+    RoomClosed:
+      name: room:closed
+      title: 房間關閉
+      payload:
+        $ref: '#/components/schemas/RoomClosedNotice'
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              description: 錯誤碼，指出錯誤情況
+              enum:
+                - UNAUTHORIZED
+                - ALREADY_CONNECTED
+    RoomState:
+      type: object
+      description: 房間狀態快照，與 openapi.yaml 的 `RoomState` 相同；不含任何秘密答案（NFR-002）
+      required: [roomId, pairCode, status, hostPlayerId, players, currentTurnPlayerId, guesses]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        pairCode:
+          type: string
+          pattern: '^\d{4}$'
+        status:
+          type: string
+          enum: [waiting_for_opponent, ready_to_start, setting_secrets, in_progress]
+          description: 本事件只在對局結束前推播，所以沒有 finished
+        hostPlayerId:
+          type: string
+          format: uuid
+        players:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/RoomPlayer'
+        currentTurnPlayerId:
+          type: [string, 'null']
+          format: uuid
+          description: in_progress 時為輪到的玩家，其餘狀態為 null
+        guesses:
+          type: array
+          description: 本場所有猜測紀錄，依 sequence 遞增排列
+          items:
+            $ref: '#/components/schemas/GuessRecord'
+    RoomPlayer:
+      type: object
+      required: [playerId, nickname, role, secretSet]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        role:
+          type: string
+          enum: [host, opponent]
+        secretSet:
+          type: boolean
+          description: 是否已設定秘密答案；只揭露是否設定，不含答案內容
+    GuessRecord:
+      type: object
+      required: [sequence, playerId, guess, a, b]
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        playerId:
+          type: string
+          format: uuid
+        guess:
+          type: string
+          pattern: '^(?!.*(\d).*\1)\d{4}$'
+        a:
+          type: integer
+          minimum: 0
+          maximum: 4
+        b:
+          type: integer
+          minimum: 0
+          maximum: 4
+    GameResult:
+      type: object
+      required: [roomId, reason, winnerPlayerId, leftPlayerId, secrets, guesses]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [GUESSED_4A, PLAYER_LEFT]
+          description: GUESSED_4A 為有人猜出 4A；PLAYER_LEFT 為猜測階段一方離開房間或斷線
+        winnerPlayerId:
+          type: string
+          format: uuid
+        leftPlayerId:
+          type: [string, 'null']
+          format: uuid
+          description: reason 為 PLAYER_LEFT 時為離開的玩家，否則為 null
+        secrets:
+          type: array
+          description: 雙方的秘密答案，對局結束後才揭曉（FR-014）
+          minItems: 2
+          maxItems: 2
+          items:
+            type: object
+            required: [playerId, secret]
+            properties:
+              playerId:
+                type: string
+                format: uuid
+              secret:
+                type: string
+                pattern: '^(?!.*(\d).*\1)\d{4}$'
+        guesses:
+          type: array
+          description: 本場完整猜測紀錄，猜出 4A 時最後一筆即為獲勝的猜測
+          items:
+            $ref: '#/components/schemas/GuessRecord'
+    RoomClosedNotice:
+      type: object
+      required: [roomId, reason, leftPlayerId, leftPlayerNickname]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [HOST_LEFT_BEFORE_START, OPPONENT_LEFT_BEFORE_START, PLAYER_LEFT_DURING_SETUP]
+        leftPlayerId:
+          type: string
+          format: uuid
+        leftPlayerNickname:
+          type: string
+          description: 離開的玩家暱稱，供畫面顯示「<暱稱> 離開了房間，這局無法繼續」

@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>對戰｜1A2B 對戰</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F3F2FF;
+    --surface: #FFFFFF;
+    --ink: #24224A;
+    --muted: #6D6A92;
+    --line: #E2E0F5;
+    --primary: #5B5BD6;
+    --primary-soft: #E7E6FB;
+    --danger: #D2454B;
+    --danger-soft: #FBE6E7;
+    --pending: #A0710B;
+    --pending-soft: #FFF4D6;
+    --success: #2B9468;
+    --success-soft: #DEF3EA;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(36, 34, 74, .06), 0 6px 20px rgba(91, 91, 214, .08);
+    --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  :root {
+    --accent: #FFC83D;
+    --accent-soft: #FFF4D6;
+    --accent-ink: #5C4300;
+    --mono: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font); }
+  a { color: inherit; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 720px; margin: 0 auto; padding: 0 16px; height: 60px; display: flex; align-items: center; gap: 12px; }
+  .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: var(--primary); text-decoration: none; white-space: nowrap; }
+  .brand::before { content: "A"; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 16px; transform: rotate(-8deg); }
+  .site-nav { display: flex; gap: 2px; margin-left: auto; overflow-x: auto; }
+  .site-nav a { padding: 6px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; white-space: nowrap; font-size: 14px; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 700; }
+  .me-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--bg); font-size: 14px; white-space: nowrap; }
+  @media (max-width: 640px) { .me-chip { display: none; } .brand { font-size: 0; gap: 0; } .site-nav a { padding: 6px 8px; } }
+
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .form-card { padding: 24px; margin-bottom: 16px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 22px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; border-radius: 12px; font-weight: 600; }
+  .banner-info { background: var(--primary-soft); color: var(--primary); }
+  .banner-accent { background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent); }
+  .banner-success { background: var(--success-soft); color: var(--success); }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); }
+
+  .field { margin-bottom: 18px; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 700; }
+  .field input { width: 100%; height: 48px; padding: 0 14px; border: 2px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; }
+  .field input:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field input:disabled { background: var(--bg); color: var(--muted); }
+  .field.has-error input { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .hint { margin-top: 4px; color: var(--muted); font-size: 13px; }
+  .field .error { margin-top: 4px; color: var(--danger); font-size: 14px; font-weight: 600; }
+  .big-digits { height: 64px !important; font-family: var(--mono); font-size: 30px !important; letter-spacing: .5em; text-align: center; padding-left: .5em !important; }
+
+  .avatar { display: inline-grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; }
+  .avatar-guest { background: var(--accent); color: var(--accent-ink); }
+  .avatar-sm { width: 26px; height: 26px; font-size: 13px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: middle; }
+  .tag-host { background: var(--primary-soft); color: var(--primary); }
+  .tag-me { background: var(--bg); color: var(--muted); }
+  .code-chip { display: inline-block; padding: 2px 12px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 800; letter-spacing: .15em; }
+  .digit-boxes { display: inline-flex; gap: 6px; }
+  .digit-boxes span { display: inline-grid; place-items: center; width: 36px; height: 44px; border-radius: 10px; background: var(--bg); border: 2px solid var(--line); font-family: var(--mono); font-size: 22px; font-weight: 800; }
+  .digit-boxes.hidden-digits span { color: var(--muted); }
+  .wait-line { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0; color: var(--muted); font-weight: 600; }
+
+  .spinner { width: 20px; height: 20px; flex-shrink: 0; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(36, 34, 74, .4); }
+  .modal-box { width: 100%; max-width: 400px; padding: 24px; }
+  .modal-box p { margin: 0 0 20px; color: var(--muted); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 對戰與結果 */
+  .versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 16px; margin-bottom: 14px; }
+  .versus .side { display: grid; justify-items: center; gap: 4px; text-align: center; }
+  .versus .name { font-weight: 800; }
+  .versus .label { font-size: 12px; color: var(--muted); }
+  .versus .digit-boxes span { width: 30px; height: 38px; font-size: 18px; }
+  .versus .vs { display: grid; justify-items: center; font-weight: 900; color: var(--primary); font-size: 20px; }
+  .versus .vs .num { font-size: 12px; font-weight: 600; }
+  @media (max-width: 480px) { .versus { padding: 14px 10px; gap: 4px; } .versus .digit-boxes { gap: 3px; } .versus .digit-boxes span { width: 24px; height: 32px; font-size: 15px; border-radius: 7px; } }
+  .turn-bar { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px; border-radius: 14px; font-weight: 800; font-size: 17px; }
+  .turn-bar.mine { background: var(--accent); color: var(--accent-ink); }
+  .turn-bar.theirs { background: var(--primary-soft); color: var(--primary); }
+  .guess-card { padding: 18px 20px; margin-bottom: 14px; }
+  .guess-card .field { margin-bottom: 0; }
+  .guess-row { display: flex; gap: 10px; }
+  .guess-row input { flex: 1; min-width: 0; }
+  .guess-row .btn { height: 64px; flex-shrink: 0; }
+  @media (max-width: 480px) { .guess-row { flex-direction: column; } .guess-row .btn { height: 52px; } }
+  .result { padding: 24px; margin-bottom: 14px; text-align: center; }
+  .result.win { background: var(--accent-soft); border-color: var(--accent); }
+  .result.lose { background: var(--primary-soft); border-color: var(--primary-soft); }
+  .result .title { margin: 0 0 4px; font-size: 26px; font-weight: 900; }
+  .result.win .title { color: var(--accent-ink); }
+  .result.lose .title { color: var(--primary); }
+  .result p { margin: 0 0 18px; color: var(--muted); }
+  .reveal { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 20px; }
+  .reveal div { display: grid; justify-items: center; gap: 6px; font-weight: 700; }
+  .reveal .digit-boxes span { background: var(--surface); }
+  .log { padding: 18px 20px; margin-bottom: 14px; }
+  .log-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .log-item { display: grid; grid-template-columns: 34px auto 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+  .log-item.theirs { background: var(--surface); border: 1px solid var(--line); }
+  .log-item.winning { background: var(--accent-soft); border: 2px solid var(--accent); }
+  .log-item .round { color: var(--muted); font-size: 13px; }
+  .log-item .who { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .log-item .guess { font-size: 20px; font-weight: 800; letter-spacing: .25em; }
+  .log-item .again { margin-left: 6px; color: var(--muted); font-family: var(--font); font-size: 12px; font-weight: 600; letter-spacing: 0; }
+  .ab { display: inline-flex; gap: 4px; font-weight: 800; }
+  .ab .a { padding: 2px 8px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); }
+  .ab .b { padding: 2px 8px; border-radius: 8px; background: var(--primary-soft); color: var(--primary); }
+  @media (max-width: 480px) { .log-item { grid-template-columns: 28px 1fr auto; } .log-item .who { grid-column: 2 / 4; } .log-item .guess { grid-column: 2; } }
+  .empty { margin: 0; padding: 20px; text-align: center; color: var(--muted); border: 2px dashed var(--line); border-radius: 12px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html">1A2B 對戰</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">進站</a>
+      <a href="room.html">房間</a>
+      <a href="secret.html">設定答案</a>
+      <a href="battle.html" aria-current="page">對戰</a>
+    </nav>
+    <span class="me-chip" id="me-chip" hidden></span>
+  </div>
+</header>
+
+<main>
+  <section class="card versus">
+    <div class="side">
+      <span class="avatar" id="me-avatar"></span>
+      <span class="name" id="me-name"></span>
+      <span class="label">你的答案</span>
+      <span class="digit-boxes" id="me-secret"></span>
+    </div>
+    <div class="vs">VS<span class="num muted" id="round-label"></span></div>
+    <div class="side">
+      <span class="avatar avatar-guest" id="opp-avatar"></span>
+      <span class="name" id="opp-name"></span>
+      <span class="label" id="opp-secret-label"></span>
+      <span class="digit-boxes hidden-digits" id="opp-secret"></span>
+    </div>
+  </section>
+
+  <section id="result" class="card result" aria-live="assertive" hidden>
+    <div class="title" id="result-title"></div>
+    <p id="result-desc"></p>
+    <div class="reveal" id="reveal"></div>
+    <a class="btn btn-primary" href="index.html?from=finished">回到入口</a>
+  </section>
+
+  <div id="turn-bar" class="turn-bar" aria-live="polite"></div>
+  <div id="turn-error" class="banner banner-danger" role="alert" hidden></div>
+
+  <form id="guess-form" class="card guess-card" novalidate>
+    <div class="field" data-field="guess">
+      <label for="guess" id="guess-label"></label>
+      <div class="guess-row">
+        <input id="guess" name="guess" class="big-digits" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····">
+        <button id="guess-btn" class="btn btn-primary" type="submit">送出猜測</button>
+      </div>
+      <div class="error" hidden></div>
+    </div>
+  </form>
+
+  <section class="card log">
+    <h2>猜測紀錄 <span class="num muted" id="log-count"></span></h2>
+    <ol class="log-list" id="log" aria-live="polite"></ol>
+    <p class="empty" id="log-empty" hidden></p>
+  </section>
+
+  <button id="leave-btn" class="btn btn-ghost btn-block" type="button">離開對局</button>
+</main>
+
+<div id="leave-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="leave-title" hidden>
+  <div class="card modal-box">
+    <h2 id="leave-title">確定要離開嗎？</h2>
+    <p id="leave-desc"></p>
+    <div class="modal-actions">
+      <button id="stay-btn" class="btn" type="button">繼續對戰</button>
+      <a class="btn btn-danger" href="index.html">離開</a>
+    </div>
+  </div>
+</div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 index.html、room.html、secret.html 同一場對局（阿哲 房主先手、答案 7310；小米 答案 4096）
+  const MOCK = {
+    me: { nickname: '阿哲', secret: '7310' },
+    opponent: { nickname: '小米', secret: '4096' },
+    baseLog: [
+      { by: 'me', guess: '1234' },
+      { by: 'opp', guess: '5678' },
+      { by: 'me', guess: '4059' },
+      { by: 'opp', guess: '7013' },
+    ],
+    opponentNextGuesses: ['7301', '7310'],
+    invalidGuess: '4409',
+  };
+
+  function score(secret, guess) {
+    let a = 0, b = 0;
+    [...guess].forEach((d, i) => {
+      if (secret[i] === d) a += 1;
+      else if (secret.includes(d)) b += 1;
+    });
+    return { a, b };
+  }
+
+  function guessError(v) {
+    if (!/^\d{4}$/.test(v)) return '猜測要是 4 位數字（0–9）';
+    const dup = [...v].find((d, i) => v.indexOf(d) !== i);
+    return dup ? `猜測要是 4 個不重複的數字，${dup} 重複了` : '';
+  }
+
+  const $ = sel => document.querySelector(sel);
+  function setMe(name) {
+    const chip = $('#me-chip');
+    chip.hidden = !name;
+    chip.innerHTML = name ? `<span class="avatar avatar-sm">${name[0]}</span>${name}` : '';
+  }
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+  const boxes = digits => [...digits].map(d => `<span>${d}</span>`).join('');
+  let timers = [];
+  let log = [];
+  let turn = 'me';
+  let oppIdx = 0;
+  let submitted = false;
+  const form = $('#guess-form');
+  const input = $('#guess');
+  const guessBtn = $('#guess-btn');
+  const field = input.closest('.field');
+
+  function entry(by, guess) {
+    const secret = by === 'me' ? MOCK.opponent.secret : MOCK.me.secret;
+    return { by, guess, ...score(secret, guess) };
+  }
+
+  function renderLog() {
+    $('#log').innerHTML = log.map((item, i) => {
+      const player = item.by === 'me' ? MOCK.me : MOCK.opponent;
+      const again = log.slice(0, i).some(prev => prev.by === item.by && prev.guess === item.guess);
+      return `<li class="log-item ${item.by === 'me' ? 'mine' : 'theirs'}${item.a === 4 ? ' winning' : ''}">
+        <span class="round num">#${i + 1}</span>
+        <span class="who"><span class="avatar avatar-sm${item.by === 'me' ? '' : ' avatar-guest'}">${player.nickname[0]}</span>${player.nickname}</span>
+        <span class="guess num">${item.guess}${again ? '<span class="again">猜過了</span>' : ''}</span>
+        <span class="ab num"><span class="a">${item.a}A</span><span class="b">${item.b}B</span></span>
+      </li>`;
+    }).join('');
+    $('#log-empty').hidden = log.length > 0;
+    $('#log-empty').textContent = `還沒有人猜，${MOCK.me.nickname} 先手`;
+    $('#log-count').textContent = log.length ? `${log.length} 手` : '';
+  }
+
+  // turn：me 輪到你、opp 輪到對手、end 對局結束
+  function render(nextTurn, { reveal = false } = {}) {
+    turn = nextTurn;
+    setMe(MOCK.me.nickname);
+    $('#me-avatar').textContent = MOCK.me.nickname[0];
+    $('#me-name').textContent = `${MOCK.me.nickname}（你）`;
+    $('#me-secret').innerHTML = boxes(MOCK.me.secret);
+    $('#opp-avatar').textContent = MOCK.opponent.nickname[0];
+    $('#opp-name').textContent = MOCK.opponent.nickname;
+    $('#opp-secret-label').textContent = `${MOCK.opponent.nickname} 的答案`;
+    $('#opp-secret').innerHTML = boxes(reveal ? MOCK.opponent.secret : '●●●●');
+    $('#opp-secret').classList.toggle('hidden-digits', !reveal);
+    $('#round-label').textContent = turn === 'end' ? '對局結束' : `回合 ${log.length + 1}`;
+    renderLog();
+
+    const bar = $('#turn-bar');
+    bar.hidden = turn === 'end';
+    bar.className = `turn-bar ${turn === 'me' ? 'mine' : 'theirs'}`;
+    bar.innerHTML = turn === 'me' ? '輪到你猜！' : `<span class="spinner"></span>${MOCK.opponent.nickname} 正在猜…`;
+    form.hidden = turn === 'end';
+    $('#guess-label').textContent = `猜 ${MOCK.opponent.nickname} 的答案`;
+    input.disabled = turn !== 'me';
+    guessBtn.disabled = turn !== 'me';
+    guessBtn.textContent = turn === 'me' ? '送出猜測' : `等待 ${MOCK.opponent.nickname} 猜測`;
+    $('#turn-error').hidden = true;
+    $('#result').hidden = turn !== 'end';
+    $('#leave-btn').hidden = turn === 'end';
+    $('#leave-desc').textContent = `對戰中離開，這局會直接判 ${MOCK.opponent.nickname} 獲勝。`;
+    $('#leave-modal').hidden = true;
+    clearError();
+  }
+
+  function startGame(entries, nextTurn) {
+    log = entries.map(e => entry(e.by, e.guess));
+    oppIdx = 0;
+    submitted = false;
+    input.value = '';
+    render(nextTurn);
+  }
+
+  function showResult(kind) {
+    render('end', { reveal: true });
+    const result = $('#result');
+    result.className = `card result ${kind === 'lose' ? 'lose' : 'win'}`;
+    const winRound = log.length;
+    const texts = {
+      win: ['你贏了！', `第 ${winRound} 手猜中 ${MOCK.opponent.nickname} 的答案`],
+      lose: [`${MOCK.opponent.nickname} 獲勝`, `${MOCK.opponent.nickname} 在第 ${winRound} 手猜中你的答案`],
+      left: ['你贏了！', `${MOCK.opponent.nickname} 已離開對局，這局判你獲勝`],
+    };
+    $('#result-title').textContent = texts[kind][0];
+    $('#result-desc').textContent = texts[kind][1];
+    $('#reveal').innerHTML = [MOCK.me, MOCK.opponent].map(p =>
+      `<div><span>${p.nickname}</span><span class="digit-boxes">${boxes(p.secret)}</span></div>`).join('');
+  }
+
+  function clearError() {
+    field.classList.remove('has-error');
+    input.setAttribute('aria-invalid', 'false');
+    field.querySelector('.error').hidden = true;
+  }
+
+  function validate(focus) {
+    const message = guessError(input.value);
+    field.classList.toggle('has-error', Boolean(message));
+    input.setAttribute('aria-invalid', String(Boolean(message)));
+    const error = field.querySelector('.error');
+    error.textContent = message;
+    error.hidden = !message;
+    if (message && focus) input.focus();
+    return !message;
+  }
+
+  function setSubmitting(on) {
+    input.disabled = on;
+    guessBtn.disabled = on;
+    guessBtn.innerHTML = on ? '<span class="spinner"></span>送出中…' : '送出猜測';
+  }
+
+  function opponentMoves() {
+    later(2000, () => {
+      const guess = MOCK.opponentNextGuesses[Math.min(oppIdx, MOCK.opponentNextGuesses.length - 1)];
+      oppIdx += 1;
+      log.push(entry('opp', guess));
+      if (log[log.length - 1].a === 4) { showResult('lose'); markState('lose'); return; }
+      render('me');
+      markState('my-turn');
+    });
+  }
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    if (turn !== 'me') return;
+    submitted = true;
+    if (!validate(true)) { markState('invalid'); return; }
+    const guess = input.value;
+    setSubmitting(true);
+    markState('submitting');
+    later(600, () => {
+      log.push(entry('me', guess));
+      input.value = '';
+      submitted = false;
+      if (log[log.length - 1].a === 4) { showResult('win'); markState('win'); return; }
+      render('opp');
+      markState('opp-turn');
+      opponentMoves();
+    });
+  });
+
+  input.addEventListener('input', () => { if (submitted) validate(false); });
+  $('#leave-btn').addEventListener('click', () => { $('#leave-modal').hidden = false; markState('leave'); });
+  $('#stay-btn').addEventListener('click', () => { $('#leave-modal').hidden = true; markState(turn === 'me' ? 'my-turn' : 'opp-turn'); });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'empty', label: '尚無猜測紀錄', apply: () => startGame([], 'me') },
+    { key: 'my-turn', label: '輪到你猜', apply: () => startGame(MOCK.baseLog, 'me') },
+    { key: 'submitting', label: '送出猜測中', apply: () => { startGame(MOCK.baseLog, 'me'); input.value = MOCK.opponent.secret; setSubmitting(true); } },
+    { key: 'opp-turn', label: '輪到對手猜', apply: () => { startGame([...MOCK.baseLog, { by: 'me', guess: '4590' }], 'opp'); opponentMoves(); } },
+    { key: 'win', label: '你獲勝', apply: () => { startGame([...MOCK.baseLog, { by: 'me', guess: '4096' }], 'end'); showResult('win'); } },
+    { key: 'lose', label: '對手獲勝', apply: () => { startGame([...MOCK.baseLog, { by: 'me', guess: '4590' }, { by: 'opp', guess: '7310' }], 'end'); showResult('lose'); } },
+    { key: 'leave', label: '確認離開對局', apply: () => { startGame(MOCK.baseLog, 'me'); $('#leave-modal').hidden = false; } },
+    { key: 'invalid', label: '欄位驗證錯誤', apply: () => { startGame(MOCK.baseLog, 'me'); input.value = MOCK.invalidGuess; submitted = true; validate(false); } },
+    { key: 'not-your-turn', label: '還沒輪到你', apply: () => {
+      startGame([...MOCK.baseLog, { by: 'me', guess: '4590' }], 'opp');
+      input.value = MOCK.opponent.secret;
+      $('#turn-error').textContent = `還沒輪到你，這次猜測沒有送出，請等 ${MOCK.opponent.nickname} 猜完`;
+      $('#turn-error').hidden = false;
+    } },
+    { key: 'repeat', label: '重複猜同一組數字', apply: () => startGame([...MOCK.baseLog, { by: 'me', guess: '1234' }], 'opp') },
+    { key: 'opp-left', label: '對手離線', apply: () => { startGame(MOCK.baseLog, 'end'); showResult('left'); } },
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  applyState('my-turn');
+</script>
+</body>
+</html>

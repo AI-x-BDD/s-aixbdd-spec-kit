@@ -1,0 +1,113 @@
+// Data Model: 線上 PVP 1A2B 猜數字對戰平台 (Online PVP 1A2B)
+// Spec: specs/001-online-pvp-1a2b/spec.md
+// Date: 2026-10-29
+
+Project "online-pvp-1a2b" {
+  database_type: 'PostgreSQL'
+  Note: '涵蓋 D1 玩家與房間配對資料存取與 D2 秘密答案與猜測紀錄持久化，對應 PostgreSQL 18 與 Prisma 7.10（research §6）。只保存進行中的對局：玩家斷線時刪除玩家資料（research §5），房間關閉、或對局結束且雙方都離開後，刪除房間並連帶刪除秘密答案與猜測紀錄，不保存戰績（FR-001）。'
+}
+
+// ---------- Enums ----------
+
+Enum room_status {
+  waiting [note: '等待對手：只有房主一人，可被相同配對碼的玩家加入（FR-002、FR-003）']
+  ready [note: '兩人到齊但房主尚未開始遊戲；配對時視為沒有符合的房間（FR-004、FR-008）']
+  setting_secrets [note: '設定答案：房主已開始遊戲，雙方各自設定秘密答案（FR-009、FR-010）']
+  playing [note: '對戰中：雙方輪流猜測（FR-011、FR-012）']
+  finished [note: '已結束：有人猜出 4A、猜測階段一方離開，或設定答案階段一方離開而取消（FR-014、FR-015、FR-018）']
+}
+
+Enum room_role {
+  host [note: '房主，對戰先手（FR-010、FR-012）']
+  opponent [note: '加入房間的對手']
+}
+
+Enum game_end_reason {
+  solved [note: '有人猜出 4A（FR-014）']
+  opponent_left [note: '猜測階段一方斷線或離開，判另一方獲勝（FR-015）']
+  cancelled [note: '設定答案階段一方斷線或離開，對局取消、不判定勝負（FR-018）']
+}
+
+// ---------- Tables ----------
+
+// D1 玩家與房間配對資料存取
+Table players {
+  id uuid [pk]
+  token uuid [not null, unique, note: '以 crypto.randomUUID() 產生的不透明 token；REST 與 Socket.IO 以此查出玩家（research §5）']
+  nickname varchar(12) [not null, note: '1–12 字，不得為空（FR-001）；不要求唯一']
+  room_id uuid [note: '目前所在的房間；尚未配對或已離開房間時為 null']
+  room_role room_role [note: '在房間中的角色；room_id 為 null 時也必須為 null']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (room_id, room_role) [unique, name: 'uq_players_room_role', note: '每間房間最多一位房主與一位對手，即最多兩位玩家（FR-004）']
+  }
+
+  Note: 'D1：Key Entities 玩家；FR-001 只以暱稱進站、斷線時刪除此列不保存跨連線身分；FR-006 以 room_role 標示房主'
+}
+
+Table rooms {
+  id uuid [pk]
+  pair_code char(4) [not null, note: '四位數字配對碼，可重複數字（FR-005）；不是任何一方的秘密答案（FR-009）']
+  status room_status [not null, default: 'waiting']
+  current_turn room_role [note: '目前輪到哪一方猜測；只有 playing 時有值，進入 playing 時設為 host（FR-010、FR-012）']
+  winner_role room_role [note: '獲勝方；finished 且 end_reason 為 solved 或 opponent_left 時有值，cancelled 時為 null（FR-014、FR-015、FR-018）']
+  end_reason game_end_reason [note: '只有 finished 時有值']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    pair_code [name: 'uq_rooms_pair_code_waiting', note: '部分唯一索引：UNIQUE (pair_code) WHERE status = \'waiting\'，同一配對碼最多一間等待中房間，並支援配對時的 FOR UPDATE 查詢（research §7）；DBML 無法表達 WHERE 條件，Prisma 以 @@unique([pairCode], where: { status: "waiting" }) 建立']
+  }
+
+  Note: 'D1：Key Entities 房間；FR-002–FR-004 同一配對碼最多一間等待中房間，已滿或已開始視為沒有符合；FR-007 房主於開始前離開時刪除此列以釋出配對碼；Edge Cases 同時輸入同一配對碼；SC-002 配對正確率 100%'
+}
+
+// D2 秘密答案與猜測紀錄持久化
+Table secret_answers {
+  id uuid [pk]
+  room_id uuid [not null]
+  owner_role room_role [not null, note: '所屬玩家在房間中的角色；以角色而非玩家 id 記錄，玩家斷線刪除後仍能在結束時揭曉']
+  digits char(4) [not null, note: '四位不重複數字，可以 0 開頭（FR-017）；明文存放，供計算 A／B（research §8）；Prisma Client 全域 omit 預設排除，只有 A／B 判定與對局結束揭曉時取回（NFR-002、SC-004）']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (room_id, owner_role) [unique, name: 'uq_secret_answers_room_owner', note: '每位玩家每場只設定一次；雙方都有資料時進入 playing（FR-010）']
+  }
+
+  Note: 'D2：Key Entities 秘密答案；FR-009 各自設定只有自己知道的答案；FR-010 雙方設定完成才進入猜測；NFR-002、SC-004 結束前不得被對手取得'
+}
+
+Table guesses {
+  id uuid [pk]
+  room_id uuid [not null]
+  sequence integer [not null, note: '本場從 1 開始遞增的提交順序，在鎖定房間的交易中取得（research §8）']
+  guesser_role room_role [not null, note: '提交猜測的玩家在房間中的角色']
+  digits char(4) [not null, note: '四位不重複數字（FR-017）；可與先前猜測重複（Edge Cases 重複猜同一組數字）']
+  a_count smallint [not null, note: '0–4，數字與位置皆正確（FR-011）']
+  b_count smallint [not null, note: '0–4，數字正確但位置錯誤（FR-011）']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (room_id, sequence) [unique, name: 'uq_guesses_room_sequence', note: '同一場的提交順序不重複，並支援依順序列出本場所有猜測（FR-013）']
+  }
+
+  Note: 'D2：Key Entities 猜測紀錄；FR-011 回報 A／B；FR-012 輪流制；FR-013 依提交順序保存本場所有猜測；FR-014 a_count 為 4 時結束對局'
+}
+
+// ---------- Table Groups ----------
+
+TableGroup d1_player_room_matching [note: 'D1 玩家與房間配對資料存取'] {
+  players
+  rooms
+}
+
+TableGroup d2_secret_guess_persistence [note: 'D2 秘密答案與猜測紀錄持久化'] {
+  secret_answers
+  guesses
+}
+
+// ---------- Relationships ----------
+
+Ref: players.room_id > rooms.id [delete: set null]
+Ref: secret_answers.room_id > rooms.id [delete: cascade]
+Ref: guesses.room_id > rooms.id [delete: cascade]
