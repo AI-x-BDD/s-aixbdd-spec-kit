@@ -23,7 +23,7 @@ description: 目標 Skill 已通過 skill-engineering 的子代理實跑驗收�
 1. `WRITE` 在 scratchpad 目錄（沒有時以 `mktemp -d` 建立）建立暫存專案：把工作目錄中的目標 Skill，以及其 SOP 以 `DELEGATE` 委派的 Skill（含再委派的 Skill）複製到暫存專案的 `.claude/skills/`，放入「測試素材」，執行 `git init`，把 `.claude/` 加入 `.git/info/exclude`，再把測試素材提交為初始 commit（沒有測試素材時以 `git commit --allow-empty` 建立）；建立「實跑紀錄」，記下暫存專案路徑、「實跑需求」與「測試模型」。
 2. `CHECK` 暫存專案的 `git status --short` 沒有輸出，且 `.claude/skills/` 只有步驟 1 複製的 Skill；不符合時修正暫存專案。
 3. `CHECK` 執行 `test "${HERDR_ENV:-}" = 1`：成立時進入步驟 6；不成立時進入步驟 4。
-4. `WRITE` 向使用者提供 `cd <暫存專案絕對路徑> && claude --model <測試模型的模型> --effort <測試模型的推理強度>` 指令與「實跑需求」原文，請使用者在另一個終端機自行執行、親自回答提問與確認閘門，跑完後在該 session 執行 `/export` 存成檔案，並回報檔案路徑。
+4. `WRITE` 向使用者提供 `cd <暫存專案絕對路徑> && claude --model <測試模型的模型> --effort <測試模型的推理強度>` 指令與「實跑需求」原文（目標 Skill 的 frontmatter 有 `disable-model-invocation: true` 時，在需求前加上 `/<目標 Skill 名稱>`），請使用者在另一個終端機自行執行、親自回答提問與確認閘門，跑完後在該 session 執行 `/export` 存成檔案，並回報檔案路徑。
 5. `CHECK` 使用者回報已跑完時，把 `/export` 檔案路徑記入「實跑紀錄」並進入 Phase 3；未回報時停止執行，保留暫存專案。
 6. `READ` 執行 `herdr --skill` 取得 Herdr 使用說明，建立「Herdr 操作說明」。
 7. `DELEGATE` 依「Herdr 操作說明」以 `herdr pane split --current --direction <呼叫者 pane 寬時為 right，窄或高時為 down> --cwd <暫存專案絕對路徑> --no-focus` 在呼叫者 pane 旁開新 pane，再以 `herdr agent start <測試 session 名稱> --kind claude --pane <新 pane> -- --model <測試模型的模型> --effort <測試模型的推理強度>` 在其中啟動全新的 Claude Code，命名為「測試 session」；`agent start` 回傳 `agent_not_ready` 時照樣進入下一步。
