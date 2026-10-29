@@ -12,6 +12,7 @@
 .
 ├── .claude/skills/        專案 Skills（Claude Code 讀這裡）
 ├── .agents/skills/        與 .claude/skills/ 實體相同（Codex 等讀這裡）
+├── .claude/agents/        Claude Code 子代理定義（固定 model 與 effort），不同步到 .agents/
 ├── .spec-kit/             Spec-Kit 基因庫：Spec-Kit 的 Skills、commands 與 .specify 設定，未安裝到 agent 目錄
 ├── specs/001-photo-album-organizer/  用 Spec-Kit 實際跑出的 artifacts，作為基因樣本
 ├── docs/待確認.md         尚未確認的事項；確認後更新
@@ -36,6 +37,17 @@
    - 命名 `ch<章>-<單元>-<主題>`，例如 `ch3-14-planners`。
    - 打在該單元的最後一個 commit，訊息寫單元名稱與完成內容。
    - 使用者沒有要求時不 push tag。
+
+## 模型與 effort（Claude Code）
+
+主 session 的 model 與 effort 由使用者開啟時設定，agent 無法自行切換。委派子代理時依下表選擇，不用 Haiku 做驗收或實作：
+
+| 工作 | 模型與 effort | 做法 |
+|---|---|---|
+| 設計或優化 Skill、根因分析、提案、`clarify` | Opus、high | 主 session 執行 |
+| Skill 驗收（`skill-engineering` Phase 5） | Sonnet、medium | Agent 工具指定 `model: sonnet`、`effort: medium`；無法指定 model 時改用 `skill-tester` agent |
+| 依已確認的計畫實作 | Sonnet、medium | `implementer` agent |
+| 設計 testplan、BDD 相關 Skill（第四、五章） | Opus、xhigh 或 max | 主 session 低於 xhigh 時，開始前提醒使用者以 `/effort` 調整 |
 
 ## 課程產出規範
 
