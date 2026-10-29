@@ -1,6 +1,6 @@
 ---
 name: tasks
-description: （未驗證）已有 spec.md、plan.md 及 system-analysis 委派產出的 API 合約、資料模型與 UI 規劃，要拆成可執行的任務清單時使用：依 spec 的 User Story 與 plan.md 系統介面盤點，把工作排成 Setup、Foundational、每個 User Story 一個 Phase 與 Polish，Phase 內依資料庫、後端、前端分組並標出介面編號，每個任務列出執行時要讀的文件部位（Must Read／Optional，檔案 → 部位 — Why），寫成 spec 目錄的 tasks.md；上游缺少的介面部位寫成 Notes 的待確認，不自行虛構。使用者提到 tasks、tasks.md、任務清單、任務拆解、implementation tasks、Reference Loading Contract 時使用。盤點介面與產出 plan.md 改用 system-analysis；只補單一種上游產出（UI 雛形、API 合約、資料模型）改用 ui-plan、api-plan 或 data-plan；規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；依既有 tasks.md 實作任務時不使用此 Skill。
+description: 已有 spec.md、plan.md 及 system-analysis 委派產出的 API 合約、資料模型與 UI 規劃，要拆成可執行的任務清單時使用：依 spec 的 User Story 與 plan.md 系統介面盤點，把工作排成 Setup、Foundational、每個 User Story 一個 Phase 與 Polish，Phase 內依資料庫、後端、前端分組並標出介面編號，每個任務列出執行時要讀的文件部位（Must Read／Optional，檔案 → 部位 — Why），寫成 spec 目錄的 tasks.md；上游缺少的介面部位寫成 Notes 的待確認，不自行虛構。使用者提到 tasks、tasks.md、任務清單、任務拆解、implementation tasks、Reference Loading Contract 時使用。盤點介面與產出 plan.md 改用 system-analysis；只補單一種上游產出（UI 雛形、API 合約、資料模型）改用 ui-plan、api-plan 或 data-plan；規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；依既有 tasks.md 實作任務時不使用此 Skill。
 ---
 
 # SOP
