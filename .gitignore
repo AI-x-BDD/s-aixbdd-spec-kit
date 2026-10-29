@@ -1,2 +1,5 @@
 # 課程筆記：內容整理自課程，課程內容僅授權學員本人學習使用，不放進 public repo
 docs/tmp/
+
+# macOS 自動產生的資料夾顯示設定
+.DS_Store
