@@ -1,0 +1,34 @@
+本 skill（implement）為自建 Skill，含下列來源的衍生內容：
+
+1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）：
+   `speckit-implement`（`templates/commands/implement.md`）的行為約束——逐 Phase 執行並遵守任務依賴、
+   修改同一檔案的任務循序執行、完成的任務在 tasks.md 標為 `[X]`、每個任務回報進度、
+   依專案技術建立或補齊 ignore 檔、完成時驗證實作符合規格與計畫、可指定任務範圍。
+   本 Skill 的 SOP、`rules/` 下的 RuleFile 與 `scripts/tasks_state.py` 為重新撰寫，未直接複製上述專案的檔案；
+   Extension hooks、`.specify/` 腳本、checklists 閘門、全文預載與強制 TDD 等內容未納入。
+
+以下依授權要求，保留其原始授權全文。
+
+---
+
+MIT License
+
+Copyright GitHub, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
