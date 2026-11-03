@@ -1,13 +1,13 @@
 ---
 name: constitution
-description: 要為專案新增或修改憲法規則、約束某個 SDD Skill 產出物的內容時使用：依使用者描述的規範判斷規則屬於哪個 Skill 的哪個產出物，寫進 `.agents/constitution/` 下對應的憲法檔，全部產出物共用時才寫進 `shared.md`；每條規則附 Good／Bad Example，缺少的細節委派 clarify 詢問，拒絕改變 SDD 流程或下游追溯結構的需求。使用者提到 constitution、憲法、專案規範、API 風格、資料規範、產出物約束時使用。要新增或改變 SDD 流程、步驟或測試時改用 skill-engineering；寫 spec.md 改用 s-specify。
+description: （未驗證）要為專案新增或修改憲法規則、約束某個 SDD Skill 產出物的內容時使用：依使用者描述的規範判斷規則屬於哪個 Skill 的哪個產出物，寫進 `.agents/constitution/` 下對應的憲法檔，全部產出物共用時才寫進 `shared.md`；每條規則附 Good／Bad Example，缺少的細節委派 clarify 詢問，拒絕改變 SDD 流程或下游追溯結構的需求。使用者提到 constitution、憲法、專案規範、API 風格、資料規範、產出物約束時使用。要新增或改變 SDD 流程、步驟或測試時改用 skill-engineering；寫 spec.md 改用 s-specify。
 ---
 
 # SOP
 
 ## Phase 1 -- 判斷規則落點
 
-1. `READ` 使用者需求，以及專案根目錄 `.agents/constitution/` 下所有既有憲法檔，建立「憲法輸入」。
+1. `READ` 使用者需求；在專案根目錄執行 `find .agents/constitution -type f` 列出所有既有憲法檔（不截斷輸出），並讀取列出的每個檔案，建立「憲法輸入」。
 2. `READ` 判斷落點時，讀取 `rules/憲法落點-格式規範.md` 的所有 Rule，建立「落點檢查清單」。
 3. `THINK` 依「落點檢查清單」把使用者需求拆成「規則需求」，為每項決定落點檔案，以及新增 Rule 或修改哪一條既有 Rule；不寫入的需求列入「拒絕清單」，寫出原因與建議的做法。
 4. `READ` 每項「規則需求」的目標 Skill（專案根目錄 `.agents/skills/<Skill>/`，不存在時改讀 `.claude/skills/<Skill>/`）的 `SKILL.md`、`rules/`、`templates/`，以及腳本的檔頭說明，建立「目標 Skill 現況」。

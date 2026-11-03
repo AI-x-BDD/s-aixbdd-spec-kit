@@ -1,7 +1,7 @@
 ---
 name: s-specify
 disable-model-invocation: true
-description: 使用者要求把功能描述寫成 SDD 規格文件 spec.md 時使用：切分可獨立測試的使用者故事，把 FR／NFR 列管在所屬故事底下，跨故事的才放全域需求，並保留關鍵實體、可量測成果與假設；需求有高影響缺口時會先委派 clarify 訪談使用者。使用者提到 specify、寫規格、spec.md、需求規格、user story、FR／NFR 時使用。只需訪談釐清需求、不產出 spec.md 時改用 clarify；只做技術規劃（技術堆疊、架構、部署方式）時不使用此 Skill。
+description: （未驗證）使用者要求把功能描述寫成 SDD 規格文件 spec.md 時使用：切分可獨立測試的使用者故事，把 FR／NFR 列管在所屬故事底下，跨故事的才放全域需求，並保留關鍵實體、可量測成果與假設；需求有高影響缺口時會先委派 clarify 訪談使用者。使用者提到 specify、寫規格、spec.md、需求規格、user story、FR／NFR 時使用。只需訪談釐清需求、不產出 spec.md 時改用 clarify；只做技術規劃（技術堆疊、架構、部署方式）時不使用此 Skill。
 ---
 
 # SOP
@@ -10,10 +10,11 @@ description: 使用者要求把功能描述寫成 SDD 規格文件 spec.md 時�
 
 1. `READ` 使用者的功能描述，以及專案根目錄 `specs/` 下名稱符合 `<三位數編號>-<名稱>` 的目錄清單（以 `ls -d specs/[0-9][0-9][0-9]-*/` 取得；`specs/` 不存在或沒有符合的目錄時清單為空），建立「需求輸入」。
 2. `CHECK` 使用者的功能描述為空或只有空白時，回覆使用者需要提供功能描述並停止執行，不委派 `clarify`，也不建立任何目錄或檔案。
-3. `READ` `templates/spec.md` 與 `templates/spec.example.md`，載入骨架與範例，命名載入結果為「spec 樣板組」。
-4. `THINK` 依「spec 樣板組」各段落需要的內容，盤點「需求輸入」中會改變使用者故事切分、需求歸戶、主要流程或正式驗收標準的缺漏、矛盾與歧義，建立「需求缺口」。
-5. `DELEGATE` 「需求缺口」不為空時，委派 `clarify` Skill（無法以 Skill 工具呼叫時，讀取 `clarify` 的 `SKILL.md` 並依其 SOP 執行），以「需求缺口」為優先提問面向、不要求詳記問答紀錄，取得已確認決策、使用者補充與剩餘風險，建立「澄清結果」；「需求缺口」為空時略過本步驟。
-6. `THINK` 合併「需求輸入」與「澄清結果」，建立「需求決策」；「澄清結果」的剩餘風險與未經使用者確認的推斷，列為「未確認事項」。
+3. `READ` 專案根目錄的 `.agents/constitution/shared.md` 與 `.agents/constitution/skills/s-specify/spec.md`（不存在的略過），建立「憲法檢查清單」；鎖定項目不受憲法覆寫：`### User Story N - 標題 (Priority: Pn)` 標題格式、`US`／`FR-`／`NFR-`／`SC-` 編號格式，以及 Clarifications、Edge Cases、Requirements、Key Entities、Success Criteria 段落。
+4. `READ` `templates/spec.md` 與 `templates/spec.example.md`，載入骨架與範例，命名載入結果為「spec 樣板組」。
+5. `THINK` 依「spec 樣板組」各段落需要的內容，盤點「需求輸入」中會改變使用者故事切分、需求歸戶、主要流程或正式驗收標準的缺漏、矛盾與歧義，以及和「憲法檢查清單」必須／不得規則無法同時滿足的需求，建立「需求缺口」。
+6. `DELEGATE` 「需求缺口」不為空時，委派 `clarify` Skill（無法以 Skill 工具呼叫時，讀取 `clarify` 的 `SKILL.md` 並依其 SOP 執行），以「需求缺口」為優先提問面向、不要求詳記問答紀錄，取得已確認決策、使用者補充與剩餘風險，建立「澄清結果」；「需求缺口」為空時略過本步驟。
+7. `THINK` 合併「需求輸入」與「澄清結果」，建立「需求決策」；「澄清結果」的剩餘風險與未經使用者確認的推斷，列為「未確認事項」。
 
 完成條件：「需求決策」已建立，「需求缺口」的每一項都已由使用者在 clarify 中決定或列入「未確認事項」，且尚未建立 spec.md；或功能描述為空，已停止執行。
 
@@ -32,8 +33,8 @@ description: 使用者要求把功能描述寫成 SDD 規格文件 spec.md 時�
 
 1. `THINK` 決定輸出目錄名稱 `<NNN>-<short-name>`：`<NNN>` 為「需求輸入」目錄清單中的最大編號加一，清單為空時為 `001`，不得使用或覆寫既有目錄；`<short-name>` 為 2 至 4 個小寫英文單字以連字號連接的功能簡稱。
 2. `READ` 撰寫 spec.md 時，讀取 `rules/spec-文件-格式規範.md` 的所有 Rule，建立「spec 文件檢查清單」。
-3. `WRITE` 依「spec 樣板組」與已載入的「spec 文件檢查清單」，以「需求決策」、Phase 2 的使用者故事與需求、「推定需求」、「未確認事項」及「澄清結果」，將 spec.md 寫入專案根目錄 `specs/<NNN>-<short-name>/spec.md`；內文使用繁體中文，`Feature Branch` 填入 `<NNN>-<short-name>`，`Created` 填入執行當日日期，不建立 git 分支。
-4. `CHECK` 逐條驗證「spec 文件檢查清單」，並逐一比對 spec.md 與「spec 樣板組」的段落順序與各段落的條目格式，條目標題後的括號標記也必須與樣板相同；未通過時修正 spec.md 後重新驗證，最多 3 輪，第 3 輪仍未通過時停止修正，將未通過的 Rule 與 spec.md 中的位置加入「未通過項」。
-5. `WRITE` 向使用者回報 spec.md 路徑、本次是否進入 clarify、使用者故事與 FR／NFR 數量、全域需求與 Assumptions；「需求輸入」含技術偏好（如框架、資料庫、部署方式）時，一併列出並說明這些內容留待技術規劃階段提供；最後給出下一步：有「未通過項」時逐項列出並建議先處理，沒有時建議先審閱 Assumptions 與 Out of Scope，並提示可選擇執行 `clarify-over-specs` 對 spec.md 做多面向的需求澄清，確認後進入技術規劃階段。
+3. `WRITE` 依「spec 樣板組」、已載入的「spec 文件檢查清單」與「憲法檢查清單」，以「需求決策」、Phase 2 的使用者故事與需求、「推定需求」、「未確認事項」及「澄清結果」，將 spec.md 寫入專案根目錄 `specs/<NNN>-<short-name>/spec.md`；說明文字的語言依「憲法檢查清單」，沒有規定時使用繁體中文，`Feature Branch` 填入 `<NNN>-<short-name>`，`Created` 填入執行當日日期，不建立 git 分支。
+4. `CHECK` 逐條驗證「憲法檢查清單」與「spec 文件檢查清單」，並逐一比對 spec.md 與「spec 樣板組」的段落順序與各段落的條目格式，條目標題後的括號標記也必須與樣板相同；「憲法檢查清單」和「spec 文件檢查清單」或樣板衝突時以「憲法檢查清單」為準，規則會改變鎖定項目時不套用並記入「未套用規則」，偏離「應」規則時把規則與理由記入「憲法偏離」；未通過時修正 spec.md 後重新驗證，最多 3 輪，第 3 輪仍未通過時停止修正，將未通過的 Rule 與 spec.md 中的位置加入「未通過項」。
+5. `WRITE` 向使用者回報 spec.md 路徑、本次是否進入 clarify、使用者故事與 FR／NFR 數量、全域需求與 Assumptions；「需求輸入」含技術偏好（如框架、資料庫、部署方式）時，一併列出並說明這些內容留待技術規劃階段提供；最後給出下一步：有「未通過項」時逐項列出並建議先處理，沒有時建議先審閱 Assumptions 與 Out of Scope，並提示可選擇執行 `clarify-over-specs` 對 spec.md 做多面向的需求澄清，確認後進入技術規劃階段；並回報「憲法遵循」：已讀取的憲法檔路徑（都不存在時寫「沒有憲法檔」）、必須／不得規則是否全部通過、「憲法偏離」、「未套用規則」，以及經 `clarify` 決定的憲法衝突。
 
 完成條件：spec.md 已寫入 `specs/<NNN>-<short-name>/`，「spec 文件檢查清單」已通過或未通過的項目已記為「未通過項」，且已向使用者回報。
