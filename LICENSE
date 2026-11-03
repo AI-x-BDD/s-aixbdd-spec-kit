@@ -36,6 +36,8 @@ SOFTWARE.
   依 Apache License 2.0；本 repo 修改了題數上限，修改處與授權見該目錄的 LICENSE
 - .claude/skills/clarify-over-specs/ 與 .agents/skills/clarify-over-specs/：自建 Skill，含 https://github.com/github/spec-kit
   （MIT License，Copyright GitHub, Inc.）的衍生內容，衍生部分依其授權，見該目錄的 LICENSE
+- .claude/skills/constitution/ 與 .agents/skills/constitution/：自建 Skill，含 https://github.com/github/spec-kit
+  （MIT License，Copyright GitHub, Inc.）的衍生內容，衍生部分依其授權，見該目錄的 LICENSE
 - .claude/skills/s-specify/ 與 .agents/skills/s-specify/：自建 Skill，含 https://github.com/github/spec-kit
   （MIT License，Copyright GitHub, Inc.）與 https://github.com/Waterball-Software-Academy/aixbdd （Apache License 2.0）
   的衍生內容，衍生部分依各自授權，見該目錄的 LICENSE

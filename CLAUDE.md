@@ -28,6 +28,7 @@ Claude Code 與 Codex 每次輸入時，由 `scripts/hooks/answer-style.sh` 再�
 ├── .claude/skills/        專案 Skills（Claude Code 讀這裡）
 ├── .agents/skills/        與 .claude/skills/ 實體相同（Codex 等讀這裡）
 ├── .claude/agents/        Claude Code 子代理定義（固定 model 與 effort），不同步到 .agents/
+├── .agents/constitution/  專案憲法：約束各 SDD Skill 產出物的規則，只放一份，不同步到 .claude/
 ├── .spec-kit/             Spec-Kit 基因庫：Spec-Kit 的 Skills、commands 與 .specify 設定，未安裝到 agent 目錄
 ├── specs/001-photo-album-organizer/  用 Spec-Kit 實際跑出的 artifacts，作為基因樣本
 ├── docs/待確認.md         尚未確認的事項；確認後更新
