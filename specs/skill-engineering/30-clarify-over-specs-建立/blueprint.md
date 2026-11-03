@@ -316,3 +316,20 @@ To-Be RuleFile 概要（由 W5、W6 抽取，內容以約束分配表為準）�
 ### 個案驗收條件調整建議
 
 - 無。
+
+### 使用者實際驗證（2026-11-03）
+
+- 方式：使用者在主專案的 Claude Code 主 session（Opus 5.5）直接執行。先以 `/s-specify` 輸入課程第三章〈【基因工程】把 clarify 需求訪談基礎 Skill 的基因提煉出來！〉約 17:00 的同一段需求「這個 1A2B 的遊戲我想要多增加聊天的功能，讓玩家之間可以在房間跟遊戲都可以聊天」，產出 `specs/002-room-game-chat/spec.md`（s-specify 委派 clarify 3 題）；再執行 `/clarify-over-specs`，不帶路徑與題數。
+- 權限處理：bypass permissions 模式，沒有出現權限確認。
+- 結果：
+  - 第一輪 3 題：聊天區收合與未讀數量（互動與 UX 流程）、洗頻門檻（邊界情境與錯誤處理）、傳送失敗處理（邊界情境與錯誤處理），使用者都選推薦選項。
+  - 第二輪 2 題：靜音期間是否計入未讀（互動與 UX 流程，由第一輪答案引出）、訊息字數上限（邊界情境與錯誤處理），使用者都選推薦選項。
+  - 寫回：新增 FR-014～FR-016 與對應驗收情境，更新故事敘述、Edge Cases、Key Entities 與 Clarifications，刪除 2 條已確認的推定引用。寫回後驗證抓到一條驗收情境含多個結果，以及 FR-014 與 FR-016 互相矛盾，都已修正。
+  - 回報：10 個分類的狀態表，互動與 UX 流程、邊界情境與錯誤處理為 Resolved，5 個分類為 Outstanding，3 個為 Clear，沒有 Deferred。
+- 觀察：
+  - 目標 spec 自動定位為 `002-room-game-chat`，預設 5 題，每輪不超過 3 題；每題 `Context` 第一行都有「分類：」。
+  - FR-003（加入者看得到房主先前的訊息）被判定已由既有 Clarifications 涵蓋，沒有重問。
+  - 「對手」同時表示非房主角色與同房另一位玩家。Skill 只列為 Outstanding，使用者在 Skill 結束後另外決定改用「加入者」，由主 session 手動寫回。見 `docs/待確認.md` 第 16 項。
+  - 回報中 Resolved、Outstanding 等狀態名稱沒有說明，使用者看不懂「Outstanding 影響都低」。見 `docs/待確認.md` 第 17 項。
+  - 這次只問到 2 個分類，其他分類的提問能力沒有實際驗證。
+- 結論：使用者判定通過，移除 `description` 的「（未驗證）」前綴。上面兩個缺口先記錄，之後以 `skill-engineering` 優化。

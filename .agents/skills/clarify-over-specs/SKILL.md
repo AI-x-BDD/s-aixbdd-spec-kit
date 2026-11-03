@@ -1,6 +1,6 @@
 ---
 name: clarify-over-specs
-description: （未驗證）s-specify 產出 spec.md 之後，要對整份規格做多面向需求澄清時使用的可選步驟：以 10 類分類表找出整份 spec.md 的缺漏、矛盾與歧義，依影響與不確定性排序，委派 clarify 向使用者提問並在每題標出分類，把答案寫回 spec.md 最適合的段落與 Clarifications，取代矛盾敘述並統一術語，最後回報每個分類的狀態與尚未解決的項目。題數可由使用者指定，預設 5 題；實作方法與技術選型留到技術規劃。使用者提到 clarify-over-specs、澄清規格、spec 澄清、需求澄清、掃描 spec 缺口時使用。還沒有 spec.md 時改用 s-specify；只需訪談釐清需求、不寫回 spec.md 時改用 clarify；做技術選型改用 technical-research。
+description: s-specify 產出 spec.md 之後，要對整份規格做多面向需求澄清時使用的可選步驟：以 10 類分類表找出整份 spec.md 的缺漏、矛盾與歧義，依影響與不確定性排序，委派 clarify 向使用者提問並在每題標出分類，把答案寫回 spec.md 最適合的段落與 Clarifications，取代矛盾敘述並統一術語，最後回報每個分類的狀態與尚未解決的項目。題數可由使用者指定，預設 5 題；實作方法與技術選型留到技術規劃。使用者提到 clarify-over-specs、澄清規格、spec 澄清、需求澄清、掃描 spec 缺口時使用。還沒有 spec.md 時改用 s-specify；只需訪談釐清需求、不寫回 spec.md 時改用 clarify；做技術選型改用 technical-research。
 ---
 
 # SOP
