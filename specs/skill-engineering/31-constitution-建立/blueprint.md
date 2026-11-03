@@ -256,3 +256,19 @@ description: 要為專案新增或修改憲法規則、約束某個 SDD Skill �
 - 約束分配：C1–C16 各只出現在指定的存放位置。
 - 個案驗收條件：無。
 - 調整建議（未施工，待使用者決定）：P1-1 可指定以 `find .agents/constitution -type f` 列出全部既有憲法檔，降低 S1 那種列檔被截斷而誤判檔案不存在的風險。
+
+### 使用者實際驗證（2026-11-03）
+
+- 方式：以 `user-verify-skill` 在 scratchpad 的暫存專案實跑，用 Herdr 在主 session 下方開新 pane，啟動全新的 Claude Code，測試模型為 `sonnet`（Sonnet 5.5），推理強度 `medium`。暫存專案的 `.claude/skills/` 只放 `constitution` 與 `clarify`；測試素材為 `.agents/skills/` 的 9 個 SDD Skill、`.agents/constitution/` 的 `shared.md` 與 `skills/data-plan/data-model.md`（刪除 `skills/api-plan/openapi.md`，讓 Skill 重新產生），以及 `specs/001-online-pvp-1a2b`、`specs/002-room-game-chat`。實跑需求：「我希望查詢 API 的 Request 都要說第幾頁、每頁幾筆，Response 也要回傳第幾頁和總共幾筆」，以自然語言送出，不指名 Skill。
+- 權限處理：信任資料夾由使用者選擇「Yes, I trust this folder」。執行者沒有自行放行任何權限；測試 session 開著 auto mode，一次唯讀的 `cd … && cat`（讀取 `clarify` 的 rules 與樣板，範圍在暫存專案內）由 auto mode 自動放行。
+- 結果（第 1 輪，通過）：
+  - 測試 session 自行觸發 `constitution`；判斷落點為 `.agents/constitution/skills/api-plan/openapi.md`（新建），沒有詢問寫入位置。
+  - 委派 `clarify` 1 輪 3 題（分頁參數名稱與起算、Response 欄位名稱與位置、適用的 operation），使用者回覆「1:1, 2:1, 3:1」（`page` 從 1 起算與 `pageSize`；外層物件含 `items`、`page`、`total`；所有回傳清單的查詢 operation，含 POST 搜尋，不含以 ID 取單筆）。
+  - 寫入前沒有確認閘門；新建 `openapi.md`，只有 Rule 1「回傳清單的查詢 operation 必須支援分頁」，Good／Bad Example 為 OpenAPI YAML 並使用專案的 `listChatMessages`；`shared.md` 不變；暫存專案 `git status` 只有該檔案；回報寫出路徑、落點理由與「拒絕清單：沒有」。
+  - 核對：E1、E2、E3、E4、E5、E10、E11、E13、E14 符合；E6 部分符合（見觀察）；E7、E8、E9、E12 不適用（測試 session 有讀取 `check_contracts.py` 檢查鎖定項目）。
+- 觀察：
+  - 規則多了一句「GET 放在 query，POST 放在 request body」，沒有向使用者詢問；這句來自使用者選擇「含 POST 搜尋」後必須說明參數位置，判定為選項的直接結果。範例中的 `required: true`、`minimum: 1` 只出現在範例，不在規則條文。
+  - 測試 session 列檔時用 `ls -R … | head -80`，與 S1 列檔被截斷是同一種寫法；這次之後逐一 `cat` 既有憲法檔，沒有誤判。仍支持第 8 節的調整建議（P1-1 指定以 `find .agents/constitution -type f` 列出全部既有憲法檔），預定在接入 9 個 SDD Skill 時一併處理。
+  - 產出的規則沒有預設值、上限、錯誤碼與 `totalPages`，因為需求沒有提到這些細節，符合 E6；主專案手寫的 `openapi.md`（5 條）不受影響。
+  - 判定依課程 23:56–25:45 的標準：落點寫在 `api-plan`，規則與需求對齊（Request 帶分頁參數、Response 回傳分頁資訊）。
+- 結論：使用者判定通過；已移除 `constitution` 的 description 開頭的「（未驗證）」，其餘文字不變，`./scripts/sync-skills.sh --from agents` 與 `--check` 退出狀態均為零，結果為「兩邊一致」。
