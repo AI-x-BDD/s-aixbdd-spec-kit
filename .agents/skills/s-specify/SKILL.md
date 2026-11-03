@@ -34,6 +34,6 @@ description: 使用者要求把功能描述寫成 SDD 規格文件 spec.md 時�
 2. `READ` 撰寫 spec.md 時，讀取 `rules/spec-文件-格式規範.md` 的所有 Rule，建立「spec 文件檢查清單」。
 3. `WRITE` 依「spec 樣板組」與已載入的「spec 文件檢查清單」，以「需求決策」、Phase 2 的使用者故事與需求、「推定需求」、「未確認事項」及「澄清結果」，將 spec.md 寫入專案根目錄 `specs/<NNN>-<short-name>/spec.md`；內文使用繁體中文，`Feature Branch` 填入 `<NNN>-<short-name>`，`Created` 填入執行當日日期，不建立 git 分支。
 4. `CHECK` 逐條驗證「spec 文件檢查清單」，並逐一比對 spec.md 與「spec 樣板組」的段落順序與各段落的條目格式，條目標題後的括號標記也必須與樣板相同；未通過時修正 spec.md 後重新驗證，最多 3 輪，第 3 輪仍未通過時停止修正，將未通過的 Rule 與 spec.md 中的位置加入「未通過項」。
-5. `WRITE` 向使用者回報 spec.md 路徑、本次是否進入 clarify、使用者故事與 FR／NFR 數量、全域需求與 Assumptions；「需求輸入」含技術偏好（如框架、資料庫、部署方式）時，一併列出並說明這些內容留待技術規劃階段提供；最後給出下一步：有「未通過項」時逐項列出並建議先處理，沒有時建議先審閱 Assumptions 與 Out of Scope，確認後進入技術規劃階段。
+5. `WRITE` 向使用者回報 spec.md 路徑、本次是否進入 clarify、使用者故事與 FR／NFR 數量、全域需求與 Assumptions；「需求輸入」含技術偏好（如框架、資料庫、部署方式）時，一併列出並說明這些內容留待技術規劃階段提供；最後給出下一步：有「未通過項」時逐項列出並建議先處理，沒有時建議先審閱 Assumptions 與 Out of Scope，並提示可選擇執行 `clarify-over-specs` 對 spec.md 做多面向的需求澄清，確認後進入技術規劃階段。
 
 完成條件：spec.md 已寫入 `specs/<NNN>-<short-name>/`，「spec 文件檢查清單」已通過或未通過的項目已記為「未通過項」，且已向使用者回報。

@@ -1,5 +1,14 @@
-本 skill（clarify）原樣複製自水球軟體學院 AI x BDD 開源專案，未修改內容：
+本 skill（clarify）複製自水球軟體學院 AI x BDD 開源專案：
 https://github.com/Waterball-Software-Academy/aixbdd/tree/cdfd997601274a170182b089d96e70ac06f9e41b/.agents/skills/clarify
+
+本 repo 修改了下列內容（2026-11-03，修改者 Steve Tsao），讓呼叫者可以指定題數上限：
+
+1. `rules/盤點高影響需求缺口與提問排序判準.md` Rule 3：整個 session 的題數上限改為「呼叫者有指定時依呼叫者，沒有指定時最多 5 題」。
+2. `SKILL.md` Phase 1 步驟 2：「累計不超過 5 題」改為「累計不超過 Rule 3 的題數上限」。
+3. `SKILL.md` Phase 3 步驟 3：「累計題數尚未達 5 題」改為「累計題數尚未達 Rule 3 的題數上限」。
+4. `SKILL.md` description：呼叫者可指定的項目加入「題數上限」。
+
+其餘內容未修改。
 
 以下為該專案的 Apache License 2.0 全文，依該授權要求予以保留與標註。
 

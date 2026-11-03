@@ -40,6 +40,7 @@ Claude Code 與 Codex 每次輸入時，由 `scripts/hooks/answer-style.sh` 再�
 1. `.spec-kit/` 與 `specs/001-photo-album-organizer/` 是參考素材。只有使用者明確要求參考時才讀取，不要主動拿它們做落差分析或修改。
 2. 外部 Skill 保持原樣，不直接修改內容；要更新時從上游重新複製：
    - `clarify`：來自 https://github.com/Waterball-Software-Academy/aixbdd ，Apache-2.0，授權與來源見 `clarify/LICENSE`
+     - 例外：`clarify` 的題數上限已改為「呼叫者有指定時依呼叫者，沒指定時最多 5 題」，修改處列在 `clarify/LICENSE`。從上游重新複製後，要再套用這些修改。
    - `.spec-kit/`：來自 https://github.com/github/spec-kit ，MIT，授權見 `.spec-kit/LICENSE`
 3. 自建的 Skill（`skill-engineering`、`skill-form-*`、`skill-derive-*`、`conventional-commits`，以及之後新建的 SDD Skills）可以直接修改。參考外部 Skill 改寫時，在該 Skill 目錄放 `LICENSE`，註明來源並保留原授權全文，同時更新根目錄 `LICENSE` 的「授權範圍」，列出該 Skill 含有哪個來源的衍生內容。
 4. 在任一邊建立、修改或刪除 Skill，或修改 `CLAUDE.md`／`AGENTS.md` 之後，從自己編輯的那一邊執行同步：
