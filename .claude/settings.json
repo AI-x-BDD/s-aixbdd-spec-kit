@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/hooks/answer-style.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "description": "每次輸入時提醒 agent 依 AGENTS.md「回答方式」回覆。",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/scripts/hooks/answer-style.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
