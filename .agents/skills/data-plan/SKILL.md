@@ -1,6 +1,6 @@
 ---
 name: data-plan
-description: （未驗證）已有 plan.md、要為資料庫介面設計資料模型時使用：依 plan.md 系統介面盤點中端點類型為資料庫的介面，或 system-analysis 委派的介面編號，參考 spec.md 的 Key Entities 與需求、技術研究採用的資料庫與前面 Wave 的產出，以 DBML 寫出資料表、欄位約束、Enum 與關聯，存成 spec 目錄的 data/data-model.dbml，每張資料表標出所屬介面與需求依據。通常由 system-analysis 依 Wave 委派，也可以單獨使用。使用者提到 data-plan、資料模型、data model、DBML、資料表設計、ER 圖時使用。盤點介面與安排 Wave 改用 system-analysis；設計 API 合約改用 api-plan；設計畫面與雛形改用 ui-plan。
+description: 已有 plan.md、要為資料庫介面設計資料模型時使用：依 plan.md 系統介面盤點中端點類型為資料庫的介面，或 system-analysis 委派的介面編號，參考 spec.md 的 Key Entities 與需求、技術研究採用的資料庫與前面 Wave 的產出，以 DBML 寫出資料表、欄位約束、Enum 與關聯，存成 spec 目錄的 data/data-model.dbml，每張資料表標出所屬介面與需求依據。通常由 system-analysis 依 Wave 委派，也可以單獨使用。使用者提到 data-plan、資料模型、data model、DBML、資料表設計、ER 圖時使用。盤點介面與安排 Wave 改用 system-analysis；設計 API 合約改用 api-plan；設計畫面與雛形改用 ui-plan。
 ---
 
 # SOP

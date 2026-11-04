@@ -1,6 +1,6 @@
 ---
 name: system-analysis
-description: （未驗證）已有 spec.md 與技術研究結果、要做系統分析時使用：依 spec 的需求部位盤點這次涉及的系統介面與技術端點類型（前端、後端、資料庫、手機、硬體、雲端第三方等），寫出需求依據，以技術端點為單位、依分析之間的依賴排成可平行分析的 Wave，連同專案結構寫成與 spec.md 同目錄的 plan.md；接著依 Wave 把前端、後端、資料庫介面分別委派給 ui-plan、api-plan、data-plan 平行產出，只負責規劃、委派、追蹤與回報，不另產總彙整。使用者提到 system analysis、系統分析、plan.md、介面盤點、端點盤點、分析流程規劃、Wave、委派 Planner 時使用。只需要單一種端點的產出（UI 雛形、API 合約、資料模型）時改用 ui-plan、api-plan 或 data-plan；只需把功能描述寫成 spec.md 時改用 s-specify；要做技術選型、產出 research.md 或 techstack.md 時改用 technical-research；要規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram。
+description: 已有 spec.md 與技術研究結果、要做系統分析時使用：依 spec 的需求部位盤點這次涉及的系統介面與技術端點類型（前端、後端、資料庫、手機、硬體、雲端第三方等），寫出需求依據，以技術端點為單位、依分析之間的依賴排成可平行分析的 Wave，連同專案結構寫成與 spec.md 同目錄的 plan.md；接著依 Wave 把前端、後端、資料庫介面分別委派給 ui-plan、api-plan、data-plan 平行產出，只負責規劃、委派、追蹤與回報，不另產總彙整。使用者提到 system analysis、系統分析、plan.md、介面盤點、端點盤點、分析流程規劃、Wave、委派 Planner 時使用。只需要單一種端點的產出（UI 雛形、API 合約、資料模型）時改用 ui-plan、api-plan 或 data-plan；只需把功能描述寫成 spec.md 時改用 s-specify；要做技術選型、產出 research.md 或 techstack.md 時改用 technical-research；要規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram。
 ---
 
 # SOP

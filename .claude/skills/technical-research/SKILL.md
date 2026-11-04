@@ -1,6 +1,6 @@
 ---
 name: technical-research
-description: （未驗證）已有 spec.md、要做技術選型研究並記錄決策時使用：從 spec 的需求與使用者的技術限制盤點需要決策的技術主題，每個主題收斂成單一確定方案，寫出依據與被捨棄的替代方案，產出與 spec.md 同目錄的 research.md，再把採用與不引入的技術整理成同目錄的 techstack.md 技術堆疊總覽；技術限制互相衝突時會先委派 clarify 詢問使用者。使用者提到 technical research、research.md、techstack.md、技術研究、技術選型、技術堆疊、選框架、選資料庫、決策紀錄時使用。只需把功能描述寫成 spec.md 時改用 s-specify；要規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；只查詢單一套件用法或一般資料蒐集、不產出 research.md 時不使用此 Skill。
+description: 已有 spec.md、要做技術選型研究並記錄決策時使用：從 spec 的需求與使用者的技術限制盤點需要決策的技術主題，每個主題收斂成單一確定方案，寫出依據與被捨棄的替代方案，產出與 spec.md 同目錄的 research.md，再把採用與不引入的技術整理成同目錄的 techstack.md 技術堆疊總覽；技術限制互相衝突時會先委派 clarify 詢問使用者。使用者提到 technical research、research.md、techstack.md、技術研究、技術選型、技術堆疊、選框架、選資料庫、決策紀錄時使用。只需把功能描述寫成 spec.md 時改用 s-specify；要規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；只查詢單一套件用法或一般資料蒐集、不產出 research.md 時不使用此 Skill。
 ---
 
 # SOP

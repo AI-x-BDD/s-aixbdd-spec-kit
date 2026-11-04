@@ -295,3 +295,14 @@ Phase 2 標題改為 `## Phase 2 -- 確認視覺風格與憲法衝突`。
   2. 第 2 點不改 SOP：`constitution` 的 E3 只讓「適用全部產出物、寫法不需依產出物改變」的規則寫入 `shared.md`（課程 19:30 把「成功與失敗回應」移回 api-plan），專屬檔與 `shared.md` 依此不會衝突；交接文件「Skill 專屬憲法檔 ＞ `shared.md`」視為被這個門檻取代。
   3. 第 5 點合併到交接文件 8.5（`constitution`）與 8.6（`technical-research` → `system-analysis`，比照課程 32:00）由使用者親自執行；通過後移除對應 Skill 的「（未驗證）」。
 - 未驗證標記：依 CLAUDE.md 與 23、28、29 號紀錄的慣例，10 個 Skill 的 `description` 開頭加上「（未驗證）」，其餘文字不變；重跑同步，結果為「兩邊一致」。
+
+### 使用者實際驗證（2026-11-04）
+
+- 方式：沒有用 `user-verify-skill` 在暫存專案重跑。使用者在主專案對 `specs/002-room-game-chat` 實際執行 `technical-research` → `system-analysis`（比照課程 32:00），主 session 為 Opus 5.5，Wave 1、2 的 `ui-plan`、`data-plan`、`api-plan` 由子代理執行。過程與結果見 `docs/handoff/002-最終驗收紀錄.md`。
+- 權限處理：在主專案執行，沒有建立暫存專案與 Herdr 測試 session。
+- 結果：通過。`data-model.dbml` 的 `chat_messages` 有 4 個生命週期欄位；`listChatMessages` 符合 `openapi.md` Rule 1–5；`check_ui.py`、DBML 檢查、`check_contracts.py` 都沒有問題。
+- 觀察：
+  1. 軟刪除（`data-model.md` Rule 2）和 FR-008 衝突，`data-plan` 子代理沒有委派 `clarify`，自行保留連帶刪除。使用者事後決定在 Rule 2 加例外：「spec 明確要求不保留的資料，可以直接刪除資料列」。
+  2. 視覺風格閘門有向使用者提問，使用者看不懂兩次提問，主 session 改採推薦選項。
+  3. `technical-research` 決定不分頁，`api-plan` 依憲法改成分頁，主 session 事後修改 research §3。
+- 結論：移除 `technical-research`、`system-analysis`、`api-plan`、`data-plan`、`ui-plan` 的「（未驗證）」；重跑同步，結果為「兩邊一致」。`s-specify`、`clarify-over-specs`、`tasks`、`implement` 這次沒有實際執行，保留「（未驗證）」。

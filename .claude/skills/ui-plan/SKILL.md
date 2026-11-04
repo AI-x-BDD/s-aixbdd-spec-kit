@@ -1,6 +1,6 @@
 ---
 name: ui-plan
-description: （未驗證）已有 plan.md、要為前端介面規劃畫面並產出可互動雛形時使用：依 plan.md 系統介面盤點中端點類型為前端的介面，或 system-analysis 委派的介面編號，參考 spec.md 的需求與 Edge Cases，先以 clarify 確認視覺風格，產出 spec 目錄的 ui/plan.md（畫面範疇、視覺風格、畫面與流程、狀態、驗證與錯誤回饋），再依 plan.md 產出 ui/ 下可互動、含假資料的靜態 HTML 雛形，多頁時以 index.html 為入口。通常由 system-analysis 依 Wave 委派，也可以單獨使用。使用者提到 ui-plan、UI 規劃、畫面規劃、wireframe、prototype、雛形、HTML mockup 時使用。盤點介面與安排 Wave 改用 system-analysis；設計 API 合約改用 api-plan；設計資料模型改用 data-plan。
+description: 已有 plan.md、要為前端介面規劃畫面並產出可互動雛形時使用：依 plan.md 系統介面盤點中端點類型為前端的介面，或 system-analysis 委派的介面編號，參考 spec.md 的需求與 Edge Cases，先以 clarify 確認視覺風格，產出 spec 目錄的 ui/plan.md（畫面範疇、視覺風格、畫面與流程、狀態、驗證與錯誤回饋），再依 plan.md 產出 ui/ 下可互動、含假資料的靜態 HTML 雛形，多頁時以 index.html 為入口。通常由 system-analysis 依 Wave 委派，也可以單獨使用。使用者提到 ui-plan、UI 規劃、畫面規劃、wireframe、prototype、雛形、HTML mockup 時使用。盤點介面與安排 Wave 改用 system-analysis；設計 API 合約改用 api-plan；設計資料模型改用 data-plan。
 ---
 
 # SOP

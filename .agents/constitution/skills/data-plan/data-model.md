@@ -44,8 +44,11 @@ Table chat_messages {
 
 - 資料模型描述刪除行為時，必須寫成「設定 `deleted_at`」，不得寫成刪除資料列。
 - 查詢有效資料的說明必須排除 `deleted_at` 不為 null 的資料列。
+- 例外：spec 明確要求不保留的資料，可以直接刪除資料列，包括以 `[delete: cascade]` 連帶刪除。
 
 ## Good Example
+
+### Example 1
 
 - 房間關閉時以 `deleted_at` 標記，查詢等待中房間時排除已軟刪除的資料列。
 
@@ -62,7 +65,24 @@ Table rooms {
 }
 ```
 
+### Example 2
+
+- spec FR-008 明確要求房間關閉後不保留聊天訊息，因此聊天訊息隨房間連帶刪除。
+
+```dbml
+Table chat_messages {
+  id uuid [pk]
+  room_id uuid [not null]
+
+  Note: 'D1：FR-008 房間關閉時連帶刪除。'
+}
+
+Ref: chat_messages.room_id > rooms.id [delete: cascade]
+```
+
 ## Bad Example
+
+### Example 1
 
 - `Note` 寫成刪除資料列，刪除後沒有任何稽核紀錄。
 
@@ -73,4 +93,19 @@ Table rooms {
 
   Note: 'D1：房間關閉時刪除此列。'
 }
+```
+
+### Example 2
+
+- spec 沒有要求不保留猜測紀錄，猜測紀錄卻隨房間連帶刪除。
+
+```dbml
+Table guesses {
+  id uuid [pk]
+  room_id uuid [not null]
+
+  Note: 'D2：房間關閉時一併刪除猜測紀錄。'
+}
+
+Ref: guesses.room_id > rooms.id [delete: cascade]
 ```
