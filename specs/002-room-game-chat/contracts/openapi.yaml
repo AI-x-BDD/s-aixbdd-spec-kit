@@ -1,0 +1,274 @@
+openapi: 3.1.0
+info:
+  title: 1A2B 房間與對局聊天 (Room and Game Chat)
+  version: 0.1.0
+  description: |
+    前端呼叫後端的 HTTP 介面合約，涵蓋 B1 聊天訊息送出 API、B2 本房聊天歷史查詢 API。聊天訊息的即時推播（B3）以 Socket.IO 傳輸，見同目錄的 asyncapi.yaml。本合約延續 `specs/001-online-pvp-1a2b/contracts/openapi.yaml`，只新增聊天端點，不修改既有端點。
+
+    - 身分：沿用既有的 `Authorization: Bearer <token>`，token 為 `POST /api/players` 的回傳值；玩家的 Socket.IO 連線中斷時 token 失效。
+    - 錯誤：所有錯誤回應共用 `Error` schema，格式與既有合約相同，為 `{ "error": { "code": "<錯誤碼>" } }`；後端只回錯誤碼，繁體中文提示由前端 `frontend/src/text/zh-TW.ts` 對應（research §5、NFR-002）。
+    - 發送者：訊息以 `senderRole` 與送出當下的 `senderNickname` 記錄發送者，不回傳玩家 ID；前端以自己在 `RoomState.players` 中的 `role` 判斷哪些是自己的訊息（research §1）。
+    - 純文字：`content` 原樣儲存與回傳，不 trim、不轉換；前端必須以文字節點呈現（NFR-003、research §5）。
+    - 靜音、聊天區展開收合與未讀數量只存在前端，本合約沒有對應端點（research §7）。
+servers:
+  - url: http://localhost:3000/api
+    description: 本機開發用 Express 伺服器；Socket.IO 掛在同一個 HTTP 伺服器，前端開發時由 Vite 代理 `/api`
+tags:
+  - name: B1 聊天訊息送出 API
+    description: US1 情境 1、4–5、7–9、12、16–18；FR-001 接受房內玩家的文字訊息；FR-004 拒絕空白與超過 100 個字的訊息；FR-005 10 秒內最多 5 則；FR-006 送出聊天不改變輪次；FR-007 對手離開後拒絕送出；FR-010 被靜音者的訊息照常接受；FR-015 重送成功後只保存一次；SC-003 10 秒內送出 20 則時對手最多看到 5 則；Edge Cases 靜音期間對手洗頻、剛好 100 個字
+  - name: B2 本房聊天歷史查詢 API
+    description: US1 情境 2–3、13；FR-002 切換階段時保留已送出的訊息；FR-003 加入者取得房主在加入前送出的所有訊息；FR-008 只能查詢目前所在房間的訊息；FR-013 依相同先後順序回傳；SC-002 四個階段的 20 則訊息全部保留且順序正確
+paths:
+  /rooms/{roomId}/chat-messages:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    post:
+      operationId: sendChatMessage
+      tags: [B1 聊天訊息送出 API]
+      summary: 在目前所在的房間送出一則聊天訊息
+      description: |
+        依 FR-001 讓房內玩家送出文字訊息（含輸入法打出的 emoji），寫入後回傳這筆訊息，並在交易提交後以 asyncapi.yaml 的 `chatMessageCreated` 推播給 `room:<roomId>` 內所有連線（含發送者）。依 FR-002，等待對手、設定答案、對戰中與已結束四個階段都能送出。
+
+        後端在同一個交易中依序處理（research §2、§4、§6）：
+        1. 驗證 `clientMessageId` 與 `content`：依 FR-004，`content` 只含空白時回 `400 CHAT_MESSAGE_EMPTY`；超過 100 個字時回 `400 CHAT_MESSAGE_TOO_LONG`。「字」以 Unicode grapheme cluster 計算（`Intl.Segmenter`），所以 JSON Schema 不設 `maxLength`。剛好 100 個字（Edge Cases）照常送出，回 `201`。
+        2. 以 `SELECT … FOR UPDATE` 鎖定房間，確認呼叫者是房內玩家，否則回 `403 NOT_ROOM_MEMBER`。
+        3. 依 FR-015 查詢同一位發送者在本房是否已有相同的 `clientMessageId`：已存在時回 `200` 與既有訊息，不重新寫入、不再推播，也不計入頻率限制；對手聊天區只顯示這則訊息一次（US1 情境 18）。
+        4. 依 FR-007，對局開始後對手已離開或斷線、房內只剩呼叫者時，回 `409 OPPONENT_LEFT`，不寫入（US1 情境 12）。房主在等待對手階段獨自送出訊息不受此限制（US1 情境 2）。
+        5. 依 FR-005 計算呼叫者最近 10 秒已成功寫入的訊息數，已達 5 則時回 `429 CHAT_RATE_LIMITED`，不寫入、不推播（US1 情境 9、SC-003）。依 FR-010 與 Edge Cases 靜音期間對手洗頻，後端不知道靜音設定，被靜音的玩家照常寫入，也照常受頻率限制。
+        6. 以房內 `MAX(sequence) + 1` 取得 `sequence` 並寫入，回 `201`（FR-013）。
+
+        依 FR-006，本端點不讀寫既有的 `rooms.current_turn`，回應與推播也不含輪次，對戰中不論是否輪到呼叫者都能送出（US1 情境 4–5）。在聊天中說出秘密答案（Edge Cases）時照常送出，後端不檢查訊息內容。前端以 5 秒逾時送出；逾時、網路錯誤與 `5xx` 時標示「傳送失敗」，重送時沿用同一個 `clientMessageId`（US1 情境 16–17、research §4）。
+      security:
+        - playerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendChatMessageRequest'
+      responses:
+        '201':
+          description: 已寫入新訊息（含剛好 100 個字、含 emoji 或提到秘密答案的訊息），並已推播 `chatMessageCreated`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
+        '200':
+          description: 同一個 `clientMessageId` 先前已寫入（重送），回傳既有訊息，不重新寫入也不再推播（FR-015）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
+        '400':
+          $ref: '#/components/responses/ChatMessageInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/NotRoomMember'
+        '404':
+          $ref: '#/components/responses/RoomNotFound'
+        '409':
+          $ref: '#/components/responses/OpponentLeft'
+        '429':
+          $ref: '#/components/responses/ChatRateLimited'
+    get:
+      operationId: listChatMessages
+      tags: [B2 本房聊天歷史查詢 API]
+      summary: 分頁查詢目前所在房間的聊天歷史
+      description: |
+        依 FR-002 與 FR-003 回傳本房從建立以來的聊天訊息，加入者可以取得房主在加入前送出的所有訊息（US1 情境 2）；房間切換階段不影響結果（US1 情境 3、SC-002）。
+
+        - 排序：依 `sequence` 由小到大排序；`sequence` 在同一間房間內唯一，每一頁的內容固定（FR-013）。
+        - 分頁：以 `page` 與 `pageSize` 分頁；`page` 大於 `totalPages` 時回應 `200`，`items` 為空陣列，`totalItems` 與 `totalPages` 照常回傳；沒有訊息時 `totalItems` 與 `totalPages` 都是 `0`。`page` 或 `pageSize` 不合法時回 `400 PAGINATION_INVALID`，不自動調整。
+        - 權限：依 FR-008 只允許目前在這間房間的玩家查詢；房外玩家與已離開房間的玩家回 `403 NOT_ROOM_MEMBER`，所以玩家進入另一間房間後查不到先前房間的訊息（US1 情境 13）。房間關閉時訊息隨房間刪除，查詢回 `404 ROOM_NOT_FOUND`。
+        - 載入方式：前端在進入房間、Socket.IO 連線已加入 `room:<roomId>` 之後，以 `pageSize=100` 從 `page=1` 依序取到 `totalPages`，再與期間收到的 `chatMessageCreated` 推播依 `sequence` 合併、以 `id` 去重（research §3）。新訊息的 `sequence` 一定比已存在的大，只會出現在最後一頁之後或由推播補上，不會打亂已取得的頁面。
+      security:
+        - playerToken: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 要取第幾頁
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 每頁幾筆
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 本頁的聊天訊息與分頁資訊；`page` 大於 `totalPages` 時 `items` 為空陣列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessagePage'
+        '400':
+          $ref: '#/components/responses/PaginationInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/NotRoomMember'
+        '404':
+          $ref: '#/components/responses/RoomNotFound'
+components:
+  schemas:
+    Error:
+      type: object
+      description: 本合約所有錯誤回應共用的格式，與 `specs/001-online-pvp-1a2b/contracts/openapi.yaml` 相同；只回錯誤碼，繁體中文提示由前端依錯誤碼對應（research §5、NFR-002）
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              description: 錯誤碼，指出錯誤情況
+              enum:
+                - CHAT_MESSAGE_EMPTY
+                - CHAT_MESSAGE_TOO_LONG
+                - CLIENT_MESSAGE_ID_INVALID
+                - PAGINATION_INVALID
+                - UNAUTHORIZED
+                - NOT_ROOM_MEMBER
+                - ROOM_NOT_FOUND
+                - OPPONENT_LEFT
+                - CHAT_RATE_LIMITED
+    SendChatMessageRequest:
+      type: object
+      required: [clientMessageId, content]
+      properties:
+        clientMessageId:
+          type: string
+          format: uuid
+          description: 前端以 `crypto.randomUUID()` 產生；重送同一則訊息時必須沿用同一個值（FR-015、research §4）。缺少或格式不符時回 `400 CLIENT_MESSAGE_ID_INVALID`
+        content:
+          type: string
+          description: 訊息文字，原樣儲存、不 trim。不得只含空白（`CHAT_MESSAGE_EMPTY`），最多 100 個字（`CHAT_MESSAGE_TOO_LONG`），「字」以 Unicode grapheme cluster 計算，一個 emoji 算 1 個字（FR-004、research §5）
+          examples: ['準備好了嗎', '再來一場 🧋']
+    ChatMessage:
+      type: object
+      description: 一則已送達的聊天訊息，與 asyncapi.yaml 的 `ChatMessage` 相同；只有成功寫入的訊息會出現在本合約與推播中，「傳送失敗」只存在前端（research §4）
+      required: [id, roomId, sequence, clientMessageId, senderRole, senderNickname, content, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 訊息 ID；前端合併歷史查詢與推播時以此去重
+        roomId:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 1
+          description: 房內從 1 開始遞增的先後順序；前端只依此排序與顯示（FR-013）
+        clientMessageId:
+          type: string
+          format: uuid
+          description: 送出時帶入的 `clientMessageId`；發送者以此把「傳送中」或「傳送失敗」的訊息改為已送達
+        senderRole:
+          type: string
+          enum: [host, opponent]
+          description: 發送者在房間中的角色；host 為房主，opponent 為加入者（spec Clarifications，沿用既有 Enum 值）。玩家離開後仍保留，用來分辨自己與對手的訊息
+        senderNickname:
+          type: string
+          minLength: 1
+          maxLength: 12
+          description: 送出當下的發送者暱稱快照（FR-001）
+        content:
+          type: string
+          description: 原樣保存的純文字，前端必須以文字節點呈現，不得解析標記語法或 HTML（NFR-003）
+        createdAt:
+          type: string
+          format: date-time
+          description: 後端寫入時間，供畫面顯示送出時間；排序一律使用 `sequence`
+    ChatMessagePage:
+      type: object
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          description: 本頁訊息，依 `sequence` 由小到大排列
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        page:
+          type: integer
+          minimum: 1
+          description: 本次採用的頁碼
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: 本次採用的每頁筆數
+        totalItems:
+          type: integer
+          minimum: 0
+          description: 本房聊天訊息總筆數
+        totalPages:
+          type: integer
+          minimum: 0
+          description: 總頁數；沒有訊息時為 0
+  parameters:
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      description: 房間 ID，取自既有配對回應的 `room.roomId`
+      schema:
+        type: string
+        format: uuid
+  securitySchemes:
+    playerToken:
+      type: http
+      scheme: bearer
+      description: '沿用既有合約：`POST /api/players` 回傳的不透明 token；玩家的 Socket.IO 連線中斷時失效'
+  responses:
+    ChatMessageInvalid:
+      description: 訊息只含空白（CHAT_MESSAGE_EMPTY）、超過 100 個字（CHAT_MESSAGE_TOO_LONG），或 `clientMessageId` 缺少或格式不符（CLIENT_MESSAGE_ID_INVALID）；不寫入、不推播（FR-004）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PaginationInvalid:
+      description: '`page` 或 `pageSize` 不是整數、小於下限或大於上限（PAGINATION_INVALID）'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未帶 token、token 無效或玩家已斷線而被刪除（UNAUTHORIZED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotRoomMember:
+      description: 房間存在，但呼叫者目前不在這間房間（NOT_ROOM_MEMBER）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RoomNotFound:
+      description: 房間不存在或已關閉，聊天訊息已隨房間刪除（ROOM_NOT_FOUND）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    OpponentLeft:
+      description: 對局開始後對手已離開或斷線，房內只剩呼叫者，不能再送出訊息（OPPONENT_LEFT）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ChatRateLimited:
+      description: 呼叫者最近 10 秒已送出 5 則訊息（CHAT_RATE_LIMITED），前端提示稍後再傳；不寫入、不推播（FR-005）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

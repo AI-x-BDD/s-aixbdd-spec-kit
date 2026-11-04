@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>房間｜1A2B 對戰</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F3F2FF;
+    --surface: #FFFFFF;
+    --ink: #24224A;
+    --muted: #6D6A92;
+    --line: #E2E0F5;
+    --primary: #5B5BD6;
+    --primary-soft: #E7E6FB;
+    --danger: #D2454B;
+    --danger-soft: #FBE6E7;
+    --pending: #A0710B;
+    --pending-soft: #FFF4D6;
+    --success: #2B9468;
+    --success-soft: #DEF3EA;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(36, 34, 74, .06), 0 6px 20px rgba(91, 91, 214, .08);
+    --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  :root {
+    --accent: #FFC83D;
+    --accent-soft: #FFF4D6;
+    --accent-ink: #5C4300;
+    --mono: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font); }
+  a { color: inherit; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 720px; margin: 0 auto; padding: 0 16px; height: 60px; display: flex; align-items: center; gap: 12px; }
+  .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: var(--primary); text-decoration: none; white-space: nowrap; }
+  .brand::before { content: "A"; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 16px; transform: rotate(-8deg); }
+  .site-nav { display: flex; gap: 2px; margin-left: auto; overflow-x: auto; }
+  .site-nav a { padding: 6px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; white-space: nowrap; font-size: 14px; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 700; }
+  .me-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--bg); font-size: 14px; white-space: nowrap; }
+  @media (max-width: 640px) { .me-chip { display: none; } .brand { font-size: 0; gap: 0; } .site-nav a { padding: 6px 8px; } }
+
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 22px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn-sm { height: 34px; padding: 0 14px; font-size: 14px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; border-radius: 12px; font-weight: 600; }
+  .banner-accent { background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent); }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); }
+
+  .avatar { display: inline-grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; }
+  .avatar-guest { background: var(--accent); color: var(--accent-ink); }
+  .avatar-sm { width: 28px; height: 28px; font-size: 13px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: middle; }
+  .tag-host { background: var(--primary-soft); color: var(--primary); }
+  .tag-me { background: var(--bg); color: var(--muted); }
+  .tag-ok { background: var(--success-soft); color: var(--success); }
+  .code-chip { display: inline-block; padding: 2px 12px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 800; letter-spacing: .15em; }
+  .digit-boxes { display: inline-flex; gap: 6px; }
+  .digit-boxes span { display: inline-grid; place-items: center; width: 36px; height: 44px; border-radius: 10px; background: var(--bg); border: 2px solid var(--line); font-family: var(--mono); font-size: 22px; font-weight: 800; }
+  .wait-line { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--muted); font-weight: 600; }
+  .spinner { width: 20px; height: 20px; flex-shrink: 0; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(36, 34, 74, .4); }
+  .modal-box { width: 100%; max-width: 400px; padding: 24px; }
+  .modal-box p { margin: 0 0 20px; color: var(--muted); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+  /* 聊天區（三頁共用） */
+  .chat { margin-top: 16px; overflow: hidden; }
+  .chat-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+  .chat.is-collapsed .chat-head { border-bottom: 0; }
+  .chat-title { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 800; font-size: 17px; cursor: pointer; }
+  .chat-title svg { width: 22px; height: 22px; color: var(--primary); }
+  .unread { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 800; }
+  .mute-tag { padding: 2px 10px; border-radius: 999px; background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .chat-list { height: 300px; margin: 0; padding: 16px; overflow-y: auto; list-style: none; display: flex; flex-direction: column; gap: 12px; background: linear-gradient(var(--surface), var(--bg)); }
+  @media (max-width: 480px) { .chat-list { height: 260px; } }
+  .msg { display: flex; align-items: flex-end; gap: 8px; max-width: 85%; }
+  .msg.mine { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.mine .avatar { display: none; }
+  .msg-body { display: flex; flex-direction: column; min-width: 0; }
+  .msg.mine .msg-body { align-items: flex-end; }
+  .msg-meta { display: flex; gap: 8px; align-items: baseline; margin: 0 4px 2px; font-size: 12px; color: var(--muted); }
+  .msg-meta .who { font-weight: 700; }
+  .bubble { margin: 0; padding: 8px 14px; border-radius: 18px 18px 18px 6px; background: var(--surface); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.mine .bubble { border-radius: 18px 18px 6px 18px; background: var(--primary); border-color: var(--primary); color: #fff; }
+  .msg.is-sending .bubble { opacity: .55; }
+  .msg.is-failed .bubble { background: var(--danger-soft); border: 2px solid var(--danger); color: var(--ink); }
+  .msg-status { display: flex; align-items: center; gap: 8px; margin: 2px 4px 0; font-size: 12px; color: var(--pending); font-weight: 600; }
+  .msg.is-failed .msg-status { color: var(--danger); }
+  .retry-btn { padding: 2px 10px; border: 1px solid var(--danger); border-radius: 999px; background: var(--surface); color: var(--danger); font: inherit; font-weight: 700; cursor: pointer; }
+  .notice { align-self: center; padding: 3px 12px; border-radius: 999px; background: var(--primary-soft); color: var(--muted); font-size: 13px; text-align: center; }
+  .notice.alert { background: var(--danger-soft); color: var(--danger); font-weight: 700; }
+  .chat-empty { margin: auto; max-width: 260px; color: var(--muted); text-align: center; }
+  .skeleton { height: 38px; width: 55%; border-radius: 18px; background: var(--line); animation: pulse 1.2s ease-in-out infinite; }
+  .skeleton.right { align-self: flex-end; width: 40%; }
+  .skeleton.short { width: 30%; }
+  @keyframes pulse { 50% { opacity: .5; } }
+  .chat-form { padding: 12px 16px 10px; border-top: 1px solid var(--line); }
+  .chat-input-row { display: flex; gap: 8px; }
+  .chat-input-row input { flex: 1; min-width: 0; height: 46px; padding: 0 16px; border: 2px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; }
+  .chat-input-row input:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .chat-input-row input:disabled { background: var(--bg); color: var(--muted); }
+  .chat-form.has-error input { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .btn-send { height: 46px; padding: 0 20px; }
+  .chat-foot { display: flex; justify-content: space-between; gap: 12px; min-height: 22px; margin: 4px 8px 0; font-size: 13px; }
+  .chat-error { color: var(--danger); font-weight: 700; }
+  .chat-count { margin-left: auto; color: var(--muted); }
+  .chat-count.over { color: var(--danger); font-weight: 800; }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 房間 */
+  .room-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 16px 20px; margin-bottom: 16px; }
+  .room-head .label { color: var(--muted); font-size: 13px; }
+  .room-head .code-chip { font-size: 26px; }
+  .room-status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 14px; }
+  .room-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .room-status.waiting { background: var(--pending-soft); color: var(--pending); }
+  .room-status.full { background: var(--success-soft); color: var(--success); }
+  .players { padding: 16px; }
+  .player-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px; padding: 0; list-style: none; }
+  @media (max-width: 480px) { .player-list { grid-template-columns: 1fr; } }
+  .player { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--bg); border: 2px solid transparent; }
+  .player .name { font-weight: 800; }
+  .player.is-me { border-color: var(--primary-soft); background: var(--surface); }
+  .player.empty { justify-content: center; gap: 10px; border: 2px dashed var(--line); background: transparent; color: var(--muted); min-height: 68px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html">1A2B 對戰</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html" aria-current="page">房間</a>
+      <a href="secret.html">設定答案</a>
+      <a href="battle.html">對戰</a>
+    </nav>
+    <span class="me-chip" id="me-chip"></span>
+  </div>
+</header>
+
+<main>
+  <section class="card room-head">
+    <div>
+      <div class="label">配對碼</div>
+      <span class="code-chip num" id="room-code"></span>
+    </div>
+    <span class="room-status" id="room-status"><span class="dot"></span><span id="room-status-text"></span></span>
+  </section>
+
+  <section class="card players" aria-label="房內玩家">
+    <ul class="player-list" id="player-list"></ul>
+    <div id="room-actions"></div>
+  </section>
+
+  <section class="card chat" id="chat" aria-label="聊天區">
+    <div class="chat-head">
+      <button class="chat-title" id="chat-title" type="button" aria-controls="chat-body">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
+        聊天
+        <span class="unread num" id="chat-unread" hidden></span>
+      </button>
+      <span class="mute-tag" id="mute-tag" hidden>已靜音</span>
+      <button class="btn btn-sm" id="mute-btn" type="button" aria-pressed="false">靜音</button>
+      <button class="btn btn-sm btn-ghost" id="collapse-btn" type="button" aria-expanded="true" aria-controls="chat-body">收合</button>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <ol class="chat-list" id="chat-list" aria-live="polite"></ol>
+      <form class="chat-form" id="chat-form" novalidate>
+        <div class="chat-input-row">
+          <input id="chat-input" autocomplete="off" enterkeyhint="send" aria-label="聊天訊息" aria-describedby="chat-error">
+          <button class="btn btn-primary btn-send" id="send-btn" type="submit">傳送</button>
+        </div>
+        <div class="chat-foot">
+          <span class="chat-error" id="chat-error" role="alert"></span>
+          <span class="chat-count num" id="chat-count">0/100</span>
+        </div>
+      </form>
+    </div>
+  </section>
+</main>
+
+
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：配對碼 5208 的房間，房主阿哲、加入者小米；與 secret.html、battle.html 同一串聊天紀錄
+  const MOCK = {
+    "roomCode": "5208",
+    "clock": "20:16",
+    "players": {
+      "host": {
+        "nickname": "阿哲",
+        "secret": "7310"
+      },
+      "guest": {
+        "nickname": "小米",
+        "secret": "4096"
+      }
+    },
+    "messages": {
+      "m1": {
+        "from": "host",
+        "text": "有人嗎",
+        "time": "20:15"
+      },
+      "m2": {
+        "from": "host",
+        "text": "等你喔，配對碼 5208",
+        "time": "20:15"
+      },
+      "m3": {
+        "from": "guest",
+        "text": "我來了！",
+        "time": "20:16"
+      },
+      "m4": {
+        "from": "host",
+        "text": "準備好了嗎",
+        "time": "20:16"
+      },
+      "m5": {
+        "from": "guest",
+        "text": "好了，開始吧 😆",
+        "time": "20:16"
+      },
+      "m6": {
+        "from": "guest",
+        "text": "房主快按開始 🙏",
+        "time": "20:16"
+      }
+    },
+    "replies": {
+      "guest": [
+        "好了，開始吧 😆",
+        "房主快按開始 🙏",
+        "哈哈好",
+        "等你喔"
+      ],
+      "host": [
+        "歡迎歡迎！",
+        "準備好就開始囉",
+        "我要按開始了"
+      ]
+    },
+    "collapseChatter": {
+      "guest": [
+        "你在嗎？",
+        "房主快按開始 🙏"
+      ],
+      "host": [
+        "小米準備好了嗎",
+        "我要按開始囉"
+      ]
+    },
+    "countdown": [
+      "我要按開始囉",
+      "3",
+      "2",
+      "1",
+      "開始！"
+    ],
+    "drafts": {
+      "blank": "   ",
+      "exactly100": "先說好規則：三戰兩勝，輸的人請喝飲料🧋，贏的人可以點最大杯，還可以加珍珠跟椰果，不准耍賴也不准偷看答案喔！準備好了就按開始，我已經想好超難的數字了，你最好先想清楚要怎麼猜，不然等一下輸了別哭著說不算！",
+      "over100": "先說好規則：三戰兩勝，輸的人請喝飲料🧋，贏的人可以點最大杯，還可以加珍珠跟椰果，不准耍賴也不准偷看答案喔！準備好了就按開始，我已經想好超難的數字了，你最好先想清楚要怎麼猜，不然等一下輸了別哭著說不算喔！",
+      "tooFast": "真的要開始囉"
+    }
+  };
+
+  const LIMIT = { maxChars: 100, windowMs: 10000, maxInWindow: 5 };
+  const TEXT = {
+    placeholder: '輸入訊息，按 Enter 傳送',
+    loadingPlaceholder: '載入聊天紀錄中…',
+    leftPlaceholder: '對手已離開，無法再傳送訊息',
+    emptyChat: '還沒有訊息，先打聲招呼吧，對手進房後也看得到',
+    blank: '訊息不可空白',
+    tooLong: n => `訊息最多 100 個字，目前 ${n} 個字`,
+    tooFast: '傳太快了，10 秒內最多傳 5 則，請稍後再傳',
+    sending: '傳送中…',
+    failed: '傳送失敗',
+    retry: '重送',
+    opponentLeft: '對手已離開',
+    muted: name => `已將 ${name} 靜音，之後的新訊息不會顯示`,
+    unmuted: name => `已取消靜音，會顯示 ${name} 之後的新訊息`,
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const segmenter = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('zh-TW', { granularity: 'grapheme' }) : null;
+  const countGraphemes = text => segmenter ? Array.from(segmenter.segment(text)).length : Array.from(text).length;
+  const other = role => role === 'host' ? 'guest' : 'host';
+  const nick = role => MOCK.players[role].nickname;
+  const avatarHtml = role => `<span class="avatar avatar-sm${role === 'guest' ? ' avatar-guest' : ''}">${nick(role)[0]}</span>`;
+  const msg = data => ({ kind: 'msg', status: 'sent', hidden: false, ...data });
+  const pick = (...ids) => ids.map(id => msg(MOCK.messages[id]));
+  const notice = (text, tone) => ({ kind: 'notice', text, tone: tone || '' });
+  const input = $('#chat-input');
+  const chatForm = $('#chat-form');
+  let timers = [];
+  const chat = { viewer: 'host', items: [], opponentPresent: true, opponentLeft: false, collapsed: false, unread: 0, muted: false, loading: false, sendTimes: [], replyIndex: 0 };
+
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+  function syncState(key) { if (STATES.some(s => s.key === key)) markState(key); }
+
+  function setMe(role) { $('#me-chip').innerHTML = avatarHtml(role) + nick(role); }
+
+  function resetChat(options) {
+    const { items = [], draft = '', ...rest } = options;
+    Object.assign(chat, { viewer: 'host', opponentPresent: true, opponentLeft: false, collapsed: false, unread: 0, muted: false, loading: false, sendTimes: [], replyIndex: 0 }, rest);
+    chat.items = items.map(item => ({ ...item }));
+    input.value = draft;
+    clearError();
+    setMe(chat.viewer);
+    renderChat();
+  }
+
+  function messageEl(item) {
+    const mine = item.from === chat.viewer;
+    const li = document.createElement('li');
+    li.className = `msg ${mine ? 'mine' : 'theirs'}${item.status === 'sent' ? '' : ' is-' + item.status}`;
+    li.innerHTML = `${avatarHtml(item.from)}<div class="msg-body"><div class="msg-meta"><span class="who"></span><span class="time num"></span></div><p class="bubble"></p><div class="msg-status"></div></div>`;
+    li.querySelector('.who').textContent = mine ? `${nick(item.from)}（你）` : nick(item.from);
+    li.querySelector('.time').textContent = item.status === 'sent' ? item.time : '';
+    li.querySelector('.bubble').textContent = item.text;
+    const status = li.querySelector('.msg-status');
+    if (item.status === 'sending') status.textContent = TEXT.sending;
+    else if (item.status === 'failed') {
+      status.innerHTML = `<span>${TEXT.failed}</span><button class="retry-btn" type="button">${TEXT.retry}</button>`;
+      status.querySelector('button').addEventListener('click', () => retry(item));
+    } else status.remove();
+    return li;
+  }
+
+  function noticeEl(item) {
+    const li = document.createElement('li');
+    li.className = `notice${item.tone ? ' ' + item.tone : ''}`;
+    li.textContent = item.text;
+    return li;
+  }
+
+  function renderChat() {
+    const list = $('#chat-list');
+    list.innerHTML = '';
+    const visible = chat.items.filter(item => !item.hidden);
+    if (chat.loading) {
+      list.innerHTML = '<li class="skeleton"></li><li class="skeleton right"></li><li class="skeleton short"></li>';
+    } else if (!visible.length) {
+      const li = document.createElement('li');
+      li.className = 'chat-empty';
+      li.textContent = TEXT.emptyChat;
+      list.append(li);
+    } else {
+      visible.forEach(item => list.append(item.kind === 'notice' ? noticeEl(item) : messageEl(item)));
+    }
+    list.scrollTop = list.scrollHeight;
+
+    $('#chat').classList.toggle('is-collapsed', chat.collapsed);
+    $('#chat-body').hidden = chat.collapsed;
+    const collapseBtn = $('#collapse-btn');
+    collapseBtn.textContent = chat.collapsed ? '展開' : '收合';
+    collapseBtn.setAttribute('aria-expanded', String(!chat.collapsed));
+    const unread = $('#chat-unread');
+    unread.hidden = !(chat.collapsed && chat.unread > 0);
+    unread.textContent = chat.unread;
+    unread.setAttribute('aria-label', `${chat.unread} 則未讀訊息`);
+
+    const canMute = chat.opponentPresent && !chat.opponentLeft;
+    const muteBtn = $('#mute-btn');
+    muteBtn.disabled = !canMute;
+    muteBtn.textContent = !canMute ? '靜音' : chat.muted ? '取消靜音' : `靜音 ${nick(other(chat.viewer))}`;
+    muteBtn.setAttribute('aria-pressed', String(chat.muted));
+    $('#mute-tag').hidden = !chat.muted;
+
+    const locked = chat.loading || chat.opponentLeft;
+    input.disabled = locked;
+    $('#send-btn').disabled = locked;
+    input.placeholder = chat.loading ? TEXT.loadingPlaceholder : chat.opponentLeft ? TEXT.leftPlaceholder : TEXT.placeholder;
+    updateCount();
+  }
+
+  function updateCount() {
+    const n = countGraphemes(input.value);
+    const count = $('#chat-count');
+    count.textContent = `${n}/${LIMIT.maxChars}`;
+    count.classList.toggle('over', n > LIMIT.maxChars);
+  }
+
+  function showError(message) {
+    $('#chat-error').textContent = message;
+    chatForm.classList.add('has-error');
+  }
+
+  function clearError() {
+    $('#chat-error').textContent = '';
+    chatForm.classList.remove('has-error');
+  }
+
+  function checkDraft(text) {
+    if (!text.trim()) return ['blank', TEXT.blank];
+    const n = countGraphemes(text);
+    if (n > LIMIT.maxChars) return ['too-long', TEXT.tooLong(n)];
+    const now = Date.now();
+    chat.sendTimes = chat.sendTimes.filter(t => now - t < LIMIT.windowMs);
+    if (chat.sendTimes.length >= LIMIT.maxInWindow) return ['too-fast', TEXT.tooFast];
+    return null;
+  }
+
+  function submitDraft() {
+    if (input.disabled) return;
+    const text = input.value;
+    const problem = checkDraft(text);
+    if (problem) { showError(problem[1]); syncState(problem[0]); return; }
+    clearError();
+    chat.sendTimes.push(Date.now());
+    const item = msg({ from: chat.viewer, text, time: MOCK.clock, status: 'sending' });
+    chat.items.push(item);
+    input.value = '';
+    renderChat();
+    syncState('sending');
+    deliver(item);
+  }
+
+  function deliver(item) {
+    later(700, () => {
+      item.status = 'sent';
+      renderChat();
+      syncState(baseStateKey());
+      afterOwnDelivered(item);
+    });
+  }
+
+  function retry(item) {
+    item.status = 'sending';
+    renderChat();
+    syncState('sending');
+    deliver(item);
+  }
+
+  function receive(text) {
+    if (!chat.opponentPresent || chat.opponentLeft) return;
+    const item = msg({ from: other(chat.viewer), text, time: MOCK.clock, hidden: chat.muted });
+    chat.items.push(item);
+    if (chat.collapsed && !item.hidden) chat.unread += 1;
+    renderChat();
+    onReceived(item);
+  }
+
+  function opponentReplies(delay) {
+    const lines = MOCK.replies[other(chat.viewer)];
+    later(delay || 1500, () => receive(lines[chat.replyIndex++ % lines.length]));
+  }
+
+  function toggleCollapse() {
+    chat.collapsed = !chat.collapsed;
+    if (!chat.collapsed) chat.unread = 0;
+    renderChat();
+    onCollapseChanged();
+    if (!chat.collapsed) input.focus();
+  }
+
+  chatForm.addEventListener('submit', event => { event.preventDefault(); submitDraft(); });
+  input.addEventListener('keydown', event => { if (event.key === 'Enter' && event.isComposing) event.preventDefault(); });
+  input.addEventListener('input', () => { updateCount(); clearError(); });
+  $('#collapse-btn').addEventListener('click', toggleCollapse);
+  $('#chat-title').addEventListener('click', () => { if (chat.collapsed) toggleCollapse(); });
+  $('#mute-btn').addEventListener('click', () => {
+    chat.muted = !chat.muted;
+    const name = nick(other(chat.viewer));
+    chat.items.push(notice(chat.muted ? TEXT.muted(name) : TEXT.unmuted(name)));
+    renderChat();
+    onMuteChanged();
+  });
+
+  function playerCard(role) {
+    const me = role === chat.viewer;
+    return `<li class="player${me ? ' is-me' : ''}">${avatarHtml(role)}<div><div class="name">${nick(role)}</div>
+      ${role === 'host' ? '<span class="tag tag-host">房主</span> ' : ''}${me ? '<span class="tag tag-me">你</span>' : ''}</div></li>`;
+  }
+
+  function renderRoom() {
+    const full = chat.opponentPresent;
+    $('#room-code').textContent = MOCK.roomCode;
+    $('#room-status').className = `room-status ${full ? 'full' : 'waiting'}`;
+    $('#room-status-text').textContent = full ? '對手已加入' : '等待對手加入';
+    $('#player-list').innerHTML = playerCard('host') + (full ? playerCard('guest')
+      : '<li class="player empty"><span class="spinner"></span>等待對手加入…</li>');
+    let actions;
+    if (!full) actions = '<p class="wait-line">對手還沒進來，可以先在聊天區留言</p>';
+    else if (chat.viewer === 'host') actions = '<a class="btn btn-primary btn-block" href="secret.html">開始遊戲</a>';
+    else actions = `<p class="wait-line"><span class="spinner"></span>等房主 ${nick('host')} 開始遊戲</p>`;
+    $('#room-actions').innerHTML = actions;
+  }
+
+  function setRoom(options) {
+    resetChat(options);
+    renderRoom();
+  }
+
+  const joinNotice = () => notice(`${nick('guest')} 加入了房間`);
+  const chattingItems = () => [...pick('m1', 'm2'), joinNotice(), ...pick('m3', 'm4', 'm5')];
+
+  function baseStateKey() {
+    if (chat.viewer === 'guest') return 'joined';
+    return chat.opponentPresent ? 'chatting' : 'host-sent';
+  }
+
+  function afterOwnDelivered() {
+    if (!chat.opponentPresent) {
+      later(1800, () => {
+        chat.opponentPresent = true;
+        chat.items.push(joinNotice());
+        renderChat();
+        renderRoom();
+        syncState('chatting');
+        later(1200, () => receive(MOCK.messages.m3.text));
+      });
+      return;
+    }
+    opponentReplies();
+  }
+
+  function onReceived() { if (chat.collapsed && chat.unread > 0) syncState('collapsed-unread'); }
+
+  function onCollapseChanged() {
+    if (!chat.collapsed) { syncState(baseStateKey()); return; }
+    const lines = MOCK.collapseChatter[other(chat.viewer)];
+    later(1200, () => receive(lines[0]));
+    later(2400, () => receive(lines[1]));
+  }
+
+  function onMuteChanged() { opponentReplies(); }
+
+  function withDraft(key, extra) {
+    setRoom({ items: chattingItems(), draft: MOCK.drafts[key], ...extra });
+  }
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'loading', label: '載入聊天紀錄中', apply: () => { setRoom({ viewer: 'guest', loading: true }); later(1500, () => applyState('joined')); } },
+    { key: 'empty', label: '空聊天室', apply: () => setRoom({ opponentPresent: false }) },
+    { key: 'host-sent', label: '房主等待中已傳訊息', apply: () => setRoom({ opponentPresent: false, items: pick('m1', 'm2') }) },
+    { key: 'joined', label: '加入者看到先前訊息', apply: () => setRoom({ viewer: 'guest', items: [...pick('m1', 'm2'), joinNotice()] }) },
+    { key: 'chatting', label: '雙方在房間聊天', apply: () => setRoom({ items: chattingItems() }) },
+    { key: 'sending', label: '訊息傳送中', apply: () => setRoom({ items: [...pick('m1', 'm2'), joinNotice(), ...pick('m3'), msg({ ...MOCK.messages.m4, status: 'sending' })] }) },
+    { key: 'failed', label: '傳送失敗', apply: () => setRoom({ items: [...pick('m1', 'm2'), joinNotice(), ...pick('m3'), msg({ ...MOCK.messages.m4, status: 'failed' })] }) },
+    { key: 'collapsed-unread', label: '收合且有未讀訊息', apply: () => setRoom({ items: [...chattingItems(), ...pick('m6')], collapsed: true, unread: 2 }) },
+    { key: 'blank', label: '訊息空白', apply: () => { withDraft('blank'); submitDraft(); } },
+    { key: 'too-long', label: '訊息超過 100 個字', apply: () => { withDraft('over100'); submitDraft(); } },
+    { key: 'exactly-100', label: '輸入剛好 100 個字', apply: () => withDraft('exactly100') },
+    { key: 'too-fast', label: '送出太頻繁', apply: () => {
+      const now = Date.now();
+      setRoom({ items: [...chattingItems(), ...MOCK.countdown.map(text => msg({ from: 'host', text, time: MOCK.clock }))], draft: MOCK.drafts.tooFast, sendTimes: MOCK.countdown.map(() => now) });
+      submitDraft();
+    } },
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  applyState('empty');
+</script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+asyncapi: 3.0.0
+info:
+  title: 1A2B 房間與對局聊天 (Room and Game Chat)
+  version: 0.1.0
+  description: |
+    後端推播給前端的 Socket.IO 事件合約，涵蓋 B3 聊天訊息即時推播。送出聊天訊息與查詢本房聊天歷史都走 HTTP，見同目錄的 openapi.yaml；本合約只有伺服器推播，不接收任何玩家指令（research §2）。本合約延續 `specs/001-online-pvp-1a2b/contracts/asyncapi.yaml`，連線方式、連線驗證與既有事件都不改變。
+
+    - 連線與驗證：沿用既有合約，前端以 `io({ auth: { token }, reconnection: false, transports: ["websocket"] })` 連線；token 缺少、無效或重複連線時，沿用既有的 `connect_error`（UNAUTHORIZED、ALREADY_CONNECTED），本合約不另外定義錯誤事件。
+    - 房間：配對成功時伺服器把玩家的連線加入 Socket.IO room `room:<roomId>`，離開房間或斷線時移出；以下事件都只推播給該 room。
+    - 推播時機：REST 指令的交易提交後才推播；交易失敗或請求沒有到達伺服器時不推播，對手不會看到沒有送達的訊息（FR-015、research §2）。
+    - 對手已離開（FR-007）沿用既有事件，不重複定義：
+      - 對戰中一方離開房間或斷線：沿用既有 `game:ended`（`reason` 為 `PLAYER_LEFT`、`leftPlayerId` 為離開的玩家）。留下的玩家收到後在聊天區顯示「對手已離開」，並停用送出。
+      - 設定答案階段或對局開始前一方離開：沿用既有 `room:closed`，房間關閉，聊天隨之結束、訊息不保留（FR-008、Edge Cases 設定答案階段對手離開）；這不是 FR-007「留下的玩家仍在房間」的情況。
+      - 對局已結束、雙方停留在結果畫面時一方離開：既有合約在這個階段不推播任何事件，所以本合約新增 `room:player-left`（US1 情境 11）。
+    - 靜音、聊天區展開收合與未讀數量只存在前端：伺服器推播給房內所有連線，前端依靜音設定決定是否顯示與是否計入未讀數量（research §7）。
+servers:
+  development:
+    host: localhost:3000
+    protocol: ws
+    description: 本機開發用 Socket.IO 伺服器（路徑 `/socket.io`，只用 WebSocket 傳輸），與 Express 共用同一個 HTTP 伺服器；沿用既有合約的連線設定
+channels:
+  chatMessageCreated:
+    address: chatMessageCreated
+    title: 新聊天訊息
+    messages:
+      chatMessageCreated:
+        $ref: '#/components/messages/ChatMessageCreated'
+  roomPlayerLeft:
+    address: room:player-left
+    title: 對局結束後對手離開房間
+    messages:
+      roomPlayerLeft:
+        $ref: '#/components/messages/RoomPlayerLeft'
+operations:
+  sendChatMessageCreated:
+    action: send
+    channel:
+      $ref: '#/channels/chatMessageCreated'
+    tags:
+      - name: B3 聊天訊息即時推播
+    summary: 推播剛送達的聊天訊息給房內所有玩家
+    description: |
+      依 FR-001，openapi.yaml 的 `sendChatMessage` 寫入新訊息（回應 `201`）並提交交易後，以 `io.to("room:<roomId>").emit("chatMessageCreated", message)` 推播給房內所有連線，含發送者；內容與 HTTP 回應的 `ChatMessage` 相同（US1 情境 1、4、6）。
+      - 順序：依 FR-013 每則訊息帶房內遞增的 `sequence`，雙方前端只依 `sequence` 排序，幾乎同時送出的訊息在雙方畫面的順序相同（US1 情境 10）。
+      - 去重：以同一個 `clientMessageId` 重送、後端回應 `200` 時不再推播，對手只收到一次（FR-015）；發送者收到自己 `clientMessageId` 的推播時，把該訊息改為已送達。前端合併歷史查詢與推播時以 `id` 去重。
+      - 頻率限制：依 FR-005 被拒絕（`429`）的訊息不寫入、不推播（SC-003）。
+      - 靜音：依 FR-010 被靜音者的訊息照常推播；依 FR-009、FR-016 由設定靜音的玩家前端決定不顯示、不計入未讀數量。
+      - 時效：依 NFR-001 與 SC-001，95% 以上的訊息從送出到對手收到本事件必須低於 1 秒。
+    messages:
+      - $ref: '#/channels/chatMessageCreated/messages/chatMessageCreated'
+  sendRoomPlayerLeft:
+    action: send
+    channel:
+      $ref: '#/channels/roomPlayerLeft'
+    tags:
+      - name: B3 聊天訊息即時推播
+    summary: 通知留下的玩家：對局結束後對手已離開
+    description: 依 FR-007，房間狀態為已結束（`finished`）、雙方停留在結果畫面時，一方以既有的離開房間端點離開或 Socket.IO 斷線，伺服器把該連線移出 `room:<roomId>` 後推播本事件給留下的玩家（US1 情境 11）。留下的玩家收到後在聊天區顯示「對手已離開」並停用送出；之後送出訊息時後端回 `409 OPPONENT_LEFT`（US1 情境 12）。對戰中有人離開時不推播本事件，沿用既有 `game:ended`（`reason` 為 `PLAYER_LEFT`）；房間關閉時沿用既有 `room:closed`。
+    messages:
+      - $ref: '#/channels/roomPlayerLeft/messages/roomPlayerLeft'
+components:
+  messages:
+    ChatMessageCreated:
+      name: chatMessageCreated
+      title: 新聊天訊息
+      payload:
+        $ref: '#/components/schemas/ChatMessage'
+    RoomPlayerLeft:
+      name: room:player-left
+      title: 對手已離開
+      payload:
+        $ref: '#/components/schemas/RoomPlayerLeftNotice'
+  schemas:
+    ChatMessage:
+      type: object
+      description: 一則已送達的聊天訊息，與 openapi.yaml 的 `ChatMessage` 相同
+      required: [id, roomId, sequence, clientMessageId, senderRole, senderNickname, content, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 訊息 ID；前端合併歷史查詢與推播時以此去重
+        roomId:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 1
+          description: 房內從 1 開始遞增的先後順序；前端只依此排序與顯示（FR-013）
+        clientMessageId:
+          type: string
+          format: uuid
+          description: 送出時帶入的 `clientMessageId`；發送者以此把「傳送中」或「傳送失敗」的訊息改為已送達
+        senderRole:
+          type: string
+          enum: [host, opponent]
+          description: 發送者在房間中的角色；host 為房主，opponent 為加入者（沿用既有 Enum 值）
+        senderNickname:
+          type: string
+          minLength: 1
+          maxLength: 12
+          description: 送出當下的發送者暱稱快照（FR-001）
+        content:
+          type: string
+          description: 原樣保存的純文字，前端必須以文字節點呈現，不得解析標記語法或 HTML（NFR-003）
+        createdAt:
+          type: string
+          format: date-time
+          description: 後端寫入時間，供畫面顯示送出時間；排序一律使用 `sequence`
+    RoomPlayerLeftNotice:
+      type: object
+      required: [roomId, leftPlayerId, leftPlayerNickname, leftRole]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        leftPlayerId:
+          type: string
+          format: uuid
+          description: 離開或斷線的玩家
+        leftPlayerNickname:
+          type: string
+          description: 離開的玩家暱稱，供畫面顯示「<暱稱> 離開了房間」
+        leftRole:
+          type: string
+          enum: [host, opponent]
+          description: 離開的玩家角色；host 為房主，opponent 為加入者

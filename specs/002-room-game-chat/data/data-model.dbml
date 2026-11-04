@@ -1,0 +1,57 @@
+// Data Model: 1A2B 房間與對局聊天 (Room and Game Chat)
+// Spec: specs/002-room-game-chat/spec.md
+// Date: 2026-11-04
+
+Project "room-game-chat" {
+  database_type: 'PostgreSQL'
+  Note: '涵蓋 D1 聊天訊息持久化，對應 PostgreSQL 18 與 Prisma 7.10（research §1）。延續 specs/001-online-pvp-1a2b/data/data-model.dbml：本檔只新增 chat_messages；rooms 與 room_role 沿用既有定義，只列出本次關聯需要的部分，不修改既有欄位。聊天訊息只在房間存在期間保存，房間關閉時刪除 rooms 列並以 ON DELETE CASCADE 連帶刪除該房間所有聊天訊息（FR-008、research §1）。靜音設定、聊天區展開收合與未讀數量只存在前端狀態，不建立資料表（research §7）；「傳送失敗」的訊息沒有寫入資料庫，傳送狀態只存在前端（research §4）。'
+}
+
+// ---------- Enums ----------
+
+Enum room_role {
+  host [note: '房主；沿用 specs/001-online-pvp-1a2b 的既有 Enum']
+  opponent [note: '加入房間的玩家，本 spec 稱「加入者」（spec Clarifications）；沿用既有 Enum 值，不改名']
+}
+
+// ---------- Tables ----------
+
+// D1 聊天訊息持久化
+Table rooms {
+  id uuid [pk]
+
+  Note: 'D1：既有資料表，完整定義見 specs/001-online-pvp-1a2b/data/data-model.dbml，本檔只列出 chat_messages 關聯需要的主鍵，不新增或修改欄位。Key Entities 聊天室併入此表：每間房間恰好一個聊天室，以 chat_messages.room_id 表示；FR-008 房間關閉時刪除此列並連帶刪除聊天訊息；FR-002 rooms.status 切換階段不影響聊天訊息；Edge Cases 房主等待時傳訊息後離開、設定答案階段對手離開'
+}
+
+Table chat_messages {
+  id uuid [pk, note: '訊息 ID；前端合併歷史查詢與推播時以此去重（research §3）']
+  room_id uuid [not null, note: '所屬房間；只關聯房間、不關聯階段（FR-002）']
+  sequence integer [not null, note: '房內從 1 開始遞增的先後順序；在鎖定房間的交易中以 MAX(sequence) + 1 取得，前端只依此排序（FR-013、research §4）']
+  sender_role room_role [not null, note: '發送者在房間中的角色；不以外鍵指向 players，玩家斷線刪除後訊息仍完整（research §1）；頻率限制依此區分玩家（FR-005）']
+  sender_nickname varchar(12) [not null, note: '送出當下的發送者暱稱快照，1–12 字，沿用 players.nickname 的長度（FR-001）']
+  client_message_id uuid [not null, note: '前端以 crypto.randomUUID() 產生，重送時沿用同一個值；已存在時回傳既有訊息，不重新寫入（FR-015、research §4）']
+  content text [not null, note: '原樣儲存、不 trim 的純文字（NFR-003）；不得只含空白，最多 100 個字，「字」以 Unicode grapheme cluster 計算，由後端以 Intl.Segmenter 驗證（FR-004、research §5）。不使用 varchar(100)：PostgreSQL 以 code point 計算長度，含 emoji 的 100 個字可能超過 100 個 code point']
+  created_at timestamptz [not null, default: `now()`, note: '送出時間；頻率限制以 created_at > now() - interval \'10 seconds\' 計算最近 10 秒的訊息數（FR-005、research §6）']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；聊天訊息送出後不提供修改，建立後與 created_at 相同']
+  updated_by uuid [note: '最後修改者的玩家 ID；建立時為送出玩家的 players.id，不設外鍵，玩家刪除後仍保留原值']
+  deleted_at timestamptz [note: '軟刪除時間；本功能不提供刪除單則訊息，一律為 null；歷史查詢與頻率計數都排除 deleted_at 不為 null 的資料列']
+
+  indexes {
+    (room_id, sequence) [unique, name: 'uq_chat_messages_room_sequence', note: '房內順序不重複，並支援依 sequence 由小到大列出本房所有訊息（FR-013、FR-003、SC-002）']
+    (room_id, sender_role, client_message_id) [unique, name: 'uq_chat_messages_room_sender_client', note: '同一則重送訊息只存一筆（FR-015）']
+    (room_id, sender_role, created_at) [name: 'idx_chat_messages_room_sender_created', note: '支援交易內計算該玩家最近 10 秒已送出的訊息數（FR-005、SC-003）']
+  }
+
+  Note: 'D1：Key Entities 聊天訊息；Key Entities 聊天室併入 rooms，以 room_id 表示所屬聊天室；Key Entities 的「發送玩家」以 sender_role 記錄、「傳送狀態」不存於資料庫：只有成功送達的訊息會寫入，「傳送失敗」只存在前端（FR-015、research §4）。FR-001 保存訊息與發送者暱稱；FR-002 四個階段共用同一串訊息；FR-005 依最近 10 秒的訊息計數；FR-008 房間關閉時連帶刪除；FR-013 房內遞增順序；FR-015 以 client_message_id 去重。有效訊息為 deleted_at 為 null 的資料列'
+}
+
+// ---------- Table Groups ----------
+
+TableGroup d1_chat_message_persistence [note: 'D1 聊天訊息持久化；rooms 為既有資料表的關聯參照'] {
+  chat_messages
+  rooms
+}
+
+// ---------- Relationships ----------
+
+Ref: chat_messages.room_id > rooms.id [delete: cascade]
