@@ -265,6 +265,20 @@ description: （未驗證）要為專案新增或修改憲法規則、約束某�
 
 無。
 
+### 真實需求測試執行（2026-11-07，B2）
+
+- 方式：使用者不在場，由 `skill-tester` 子代理（Claude Sonnet、`effort: medium`）在真實專案執行 `constitution`；這不是使用者實際驗證，`description` 的「（未驗證）」保留。
+- 輸入：`shared.md` Rule 1 加例外「Skill 樣板規定保留原文的英文固定段落（例如 `tasks.md` 的 Format、各 Phase 的 Purpose、Implementation Strategy、Notes）不在此限」（`docs/待確認.md` 第 24 項）。
+- 結果：
+  1. 修改 `shared.md` Rule 1（同一面向，依落點 Rule 4 修改，沒有新增 Rule），例外文字與範圍符合輸入；Good／Bad Example 各補 Example 2。
+  2. 一致性檢查列出 `tasks` 的 `SKILL.md`、樣板、RuleFile（符合），`specs/001-online-pvp-1a2b/tasks.md` 的英文固定段落（例外成立）與任務描述（符合）；`specs/002-room-game-chat/tasks.md` 列為無法檢查（找不到路徑）；沒有讀取兩個排除目錄；衝突清單為空。
+  3. `git status --short` 只有 `.agents/constitution/shared.md`。
+- 觀察：子代理判斷「待澄清項目」為空，沒有委派 `clarify`；目標 Skill 以外的 Skill 只以 grep 掃描。
+
+### 待使用者實際驗證
+
+- 依 CLAUDE.md，使用者實際驗證通過後才移除「（未驗證）」。建議以 `user-verify-skill` 或直接執行 `/constitution` 新增一條真實規則，確認回報含「一致性檢查結果」。
+
 ## 9. 確認紀錄
 
 使用者不在場，授權 Claude 與 Codex 討論後決定（2026-11-07）。
