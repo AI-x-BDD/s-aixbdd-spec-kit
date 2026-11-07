@@ -215,7 +215,7 @@
     <p id="leave-desc"></p>
     <div class="modal-actions">
       <button id="stay-btn" class="btn" type="button">繼續對戰</button>
-      <a class="btn btn-danger" href="index.html">離開</a>
+      <a class="btn btn-danger" href="index.html?from=left">離開</a>
     </div>
   </div>
 </div>
@@ -422,6 +422,14 @@
       input.value = MOCK.opponent.secret;
       $('#turn-error').textContent = `還沒輪到你，這次猜測沒有送出，請等 ${MOCK.opponent.nickname} 猜完`;
       $('#turn-error').hidden = false;
+    } },
+    { key: 'not-in-progress', label: '目前不在猜測階段', apply: () => {
+      startGame(MOCK.baseLog, 'me');
+      input.value = MOCK.opponent.secret;
+      $('#turn-error').textContent = '對局目前不在猜測階段，這次猜測沒有送出，正在帶你進入目前的畫面';
+      $('#turn-error').hidden = false;
+      // 依最新事件切換：對局剛結束（game:ended）時顯示結果卡
+      later(1500, () => { showResult('lose'); markState('lose'); });
     } },
     { key: 'repeat', label: '重複猜同一組數字', apply: () => startGame([...MOCK.baseLog, { by: 'me', guess: '1234' }], 'opp') },
     { key: 'opp-left', label: '對手離線', apply: () => { startGame(MOCK.baseLog, 'end'); showResult('left'); } },

@@ -6,7 +6,7 @@
 
 ## 1. 前端架構與建置工具 (React + Vite)
 
-- **Decision**: 前端採用 **React 19**，以 **Vite 8** 搭配 **`@vitejs/plugin-react` 6** 作為開發伺服器與打包工具；不引入路由與全域狀態管理套件，畫面（入口、房間、設定秘密答案、對戰、結束）由頂層元件的 `useReducer` 狀態機切換，狀態依 REST 回應與 Socket.IO 事件轉換；所有介面文字與錯誤提示集中在單一模組 `frontend/src/text/zh-TW.ts`，後端錯誤碼也在此對應成繁體中文；開發時以 Vite `server.proxy` 把 `/api` 與 `/socket.io`（`ws: true`）轉給後端。
+- **Decision**: 前端採用 **React 19**，以 **Vite 8** 搭配 **`@vitejs/plugin-react` 6** 作為開發伺服器與打包工具；不引入路由與全域狀態管理套件，畫面（入口、房間、設定秘密答案、對戰（含結果））由頂層元件的 `useReducer` 狀態機切換，狀態依 REST 回應與 Socket.IO 事件轉換；所有介面文字與錯誤提示集中在單一模組 `frontend/src/text/zh-TW.ts`，後端錯誤碼也在此對應成繁體中文；開發時以 Vite `server.proxy` 把 `/api` 與 `/socket.io`（`ws: true`）轉給後端。
 - **Rationale**:
   - 符合使用者限制「前端 React＋Vite」。
   - spec 的 Assumptions 寫明「不支援斷線重連」，FR-016 要求對局結束後回到入口；玩家無法靠網址回到房間，所以以畫面狀態機切換畫面即可，不需要網址路由。
@@ -84,7 +84,7 @@
 
 ## 6. 資料庫與資料存取 (PostgreSQL + Prisma ORM)
 
-- **Decision**: 資料庫採用 **PostgreSQL 18**，以 **Prisma ORM 7.10** 存取：`schema.prisma` 使用 `prisma-client` generator 並開啟 `previewFeatures = ["partialIndexes"]`，連線透過 driver adapter **`@prisma/adapter-pg`** 與 **`pg`**，連線設定寫在 `prisma.config.ts`，資料表以 `prisma migrate` 建立與遷移；Prisma Client 以全域 `omit` 設定預設排除秘密答案欄位（§8）。資料庫存放進行中的玩家、房間、秘密答案與猜測紀錄；房間關閉或對局結束且雙方都離開後刪除該房間與其猜測紀錄。開發與測試環境以 **Docker Compose** 啟動 `postgres:18` 容器。
+- **Decision**: 資料庫採用 **PostgreSQL 18**，以 **Prisma ORM 7.10** 存取：`schema.prisma` 使用 `prisma-client` generator 並開啟 `previewFeatures = ["partialIndexes"]`，連線透過 driver adapter **`@prisma/adapter-pg`** 與 **`pg`**，連線設定寫在 `prisma.config.ts`，資料表以 `prisma migrate` 建立與遷移；Prisma Client 以全域 `omit` 設定預設排除秘密答案欄位（§8）。資料庫存放進行中的玩家、房間、秘密答案與猜測紀錄；房間關閉（含對局結束後最後一位玩家離開）時依 FR-019 直接刪除該房間與其秘密答案、猜測紀錄。開發與測試環境以 **Docker Compose** 啟動 `postgres:18` 容器。
 - **Rationale**:
   - 符合使用者限制「資料庫 PostgreSQL（保存進行中的對局）」；本決策把這項限制解讀為「進行中的對局狀態以 PostgreSQL 為準，不放在 Node.js 行程記憶體」，結束的對局不保留，同時符合 FR-001「不得保存跨連線的戰績」。
   - 使用者在 clarify 中選擇 Prisma 作為資料存取層。
@@ -101,13 +101,13 @@
 ## 7. 配對碼原子配對 (部分唯一索引 + 交易內 `FOR UPDATE`)
 
 - **Decision**: 配對在一個 Prisma 互動式交易 `prisma.$transaction(async (tx) => { … })`（PostgreSQL 預設 `READ COMMITTED`）內完成：
-  1. 以 `tx.$queryRaw` 執行 `SELECT id FROM rooms WHERE pair_code = ${pairCode} AND status = 'waiting' LIMIT 1 FOR UPDATE`，鎖定符合的等待中房間。
-  2. 找到時把玩家加入為對手，並把房間狀態從 `waiting` 改為已滿（其餘狀態值由 data-plan 定義）。
-  3. 找不到時建立狀態為 `waiting` 的新房間，玩家成為房主；`rooms` 以 `@@unique([pairCode], where: { status: "waiting" })` 保證同一配對碼最多一間等待中房間。
+  1. 以 `tx.$queryRaw` 執行 `SELECT id FROM rooms WHERE pair_code = ${pairCode} AND status = 'waiting_for_opponent' LIMIT 1 FOR UPDATE`，鎖定符合的等待中房間。
+  2. 找到時把玩家加入為對手，並把房間狀態從 `waiting_for_opponent` 改為 `ready_to_start`。
+  3. 找不到時建立狀態為 `waiting_for_opponent` 的新房間，玩家成為房主；`rooms` 以 `@@unique([pairCode], where: { status: "waiting_for_opponent" })` 保證同一配對碼最多一間等待中房間。
   4. 同時建立同一配對碼的第二個交易會在唯一索引上等待第一個交易提交，然後收到 Prisma 錯誤碼 `P2002`；後端捕捉後重新執行整個交易，最多 3 次，重試時就會在步驟 1 找到並加入第一位玩家的房間。
 - **Rationale**:
   - Edge Cases「同時輸入同一配對碼」要求先被處理的玩家成為房主、另一位加入，不得各自開房；部分唯一索引在資料庫層擋下第二間等待中房間，重試後第二位玩家加入第一間，滿足 FR-002、FR-003。
-  - FR-004 要求房間最多兩人、已滿或已開始時視為沒有符合的房間；`FOR UPDATE` 鎖住等待中房間，兩人同時加入同一間時，第二人在鎖釋放後重新比對條件，房間已不是 `waiting`，於是進入步驟 3 建立新房間。
+  - FR-004 要求房間最多兩人、已滿或已開始時視為沒有符合的房間；`FOR UPDATE` 鎖住等待中房間，兩人同時加入同一間時，第二人在鎖釋放後重新比對條件，房間已不是 `waiting_for_opponent`，於是進入步驟 3 建立新房間。
   - SC-002 要求 50 組隨機配對碼的配對正確率 100%；約束由資料庫保證，不依賴請求到達的時間順序，可以用並行請求的整合測試驗證（§9）。
   - NFR-001 要求送出配對碼到看見房間 `< 2 秒`；單一交易包含一次索引查詢與一次寫入，預估 `< 20ms`，重試 3 次也在 `100ms` 以內。
 - **Alternatives considered**:
@@ -121,7 +121,7 @@
 ## 8. 秘密答案保護、輪次控制與 A／B 判定
 
 - **Decision**:
-  - 秘密答案只存在 PostgreSQL，以 Prisma Client 全域設定 `omit` 預設排除秘密答案欄位；只有 A／B 判定與對局結束揭曉的查詢以 `omit: { secret: false }` 明確取回。
+  - 秘密答案只存在 PostgreSQL，以 Prisma Client 全域設定 `omit` 預設排除秘密答案欄位；只有 A／B 判定與對局結束揭曉的查詢以 `omit: { digits: false }` 明確取回。
   - Socket.IO 的 `ServerToClientEvents`（§4）與 REST 回應型別中，除了對局結束事件之外，都沒有秘密答案欄位；對局結束事件同時帶雙方答案（FR-014）。
   - A／B 判定由後端純函式 `scoreGuess(secret: string, guess: string): { a: number; b: number }` 計算，不在前端計算。
   - 提交猜測時，在 Prisma 互動式交易中以 `FOR UPDATE` 鎖定房間，確認輪到提交者，寫入帶遞增序號的猜測紀錄，`4A` 時結束對局，否則把輪次交給對手；提交交易後才推播（§4）。
@@ -147,7 +147,8 @@
 - **Rationale**:
   - SC-005 要求 100 組答案與猜測組合的 A／B 一致率 100%；以 Vitest 對 `scoreGuess` 做表格式測試（§8）。
   - SC-002 要求 50 組隨機配對碼的配對正確率 100%，且 Edge Cases 要求同時輸入不得雙開；以 Supertest 對真實 PostgreSQL 並行送出配對請求，才能驗證部分唯一索引與 `FOR UPDATE`（§7）。
-  - SC-003 要求對手畫面在 1 秒內更新的比率達 95% 以上；以兩個 `socket.io-client` 連線，量測 100 次猜測從 REST 回應到對手收到事件的時間，檢查第 95 百分位 `< 1 秒`。
+  - SC-003 要求對手畫面在 1 秒內更新的比率達 95% 以上；以 Playwright 的兩個 `browser.newContext()`，量測 100 次猜測：從輪到的玩家送出 `submitGuess` 請求（按下「送出猜測」）開始計時，到對手畫面完成顯示該次猜測與輪次為止，檢查第 95 百分位 `< 1 秒`。
+  - NFR-001 要求送出配對碼到看見房間畫面 `< 2 秒`；以 Playwright 量測從按下「進入配對」到該玩家畫面顯示房間畫面的時間，包含進站、連線與配對請求。
   - spec 各使用者故事的 Independent Test 都以兩個互不相干的瀏覽器工作階段驗證；Playwright 的兩個 browser context 各自獨立，可以在同一個測試中操作兩位玩家。
 - **Alternatives considered**:
   - **Jest**：TypeScript 與 ESM 需要額外的轉譯設定，Vitest 直接沿用 Vite 的設定。

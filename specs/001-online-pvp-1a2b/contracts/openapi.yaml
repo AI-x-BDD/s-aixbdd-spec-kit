@@ -15,7 +15,7 @@ tags:
   - name: B1 玩家進站 API
     description: FR-001 只以暱稱進站、不得要求註冊登入、暱稱為空時拒絕
   - name: B2 房間配對與離開 API
-    description: US1 情境 1–5；FR-002 配對碼相同且等待中時加入；FR-003 沒有符合時建立新房；FR-004 已滿或已開始視為沒有符合；FR-005 配對碼格式驗證；FR-007 房主離開時關閉房間並釋出配對碼；FR-016 對局結束後離開房間；Edge Cases 同時輸入同一配對碼、配對碼被占用；SC-002 配對正確率 100%
+    description: US1 情境 1–8；US3 情境 6–7；FR-002 配對碼相同且等待中時加入；FR-003 沒有符合時建立新房；FR-004 已滿或已開始視為沒有符合；FR-005 配對碼格式驗證；FR-007 開始前房主或對手離開時關閉房間並釋出配對碼；FR-016 對局結束後離開房間；FR-018 設定答案階段一方離開時關閉房間；FR-019 房間關閉時不保留資料；Edge Cases 同時輸入同一配對碼、配對碼被占用；SC-002 配對正確率 100%
   - name: B3 對局進行 API
     description: US2 情境 1–6；US3 情境 1–5；FR-008 只有房主在滿兩人時可開始；FR-009 各自設定秘密答案；FR-011 依對手答案回報 A／B；FR-012 輪流制、房主先手；FR-014 猜出 4A 立即結束；FR-017 答案與猜測格式驗證；SC-005 A／B 與標準規則 100% 一致
 paths:
@@ -24,7 +24,7 @@ paths:
       operationId: enterAsPlayer
       tags: [B1 玩家進站 API]
       summary: 以暱稱進站並取得玩家 token
-      description: 依 FR-001 只需暱稱即可進站，不需註冊或登入；暱稱 trim 後為空或超過 12 字時拒絕（NICKNAME_INVALID）。暱稱不要求唯一，玩家以回傳的 token 區分；token 只在本次連線有效，不保存跨連線的戰績。取得 token 後，前端應立即以它建立 Socket.IO 連線（見 asyncapi.yaml），才能進行配對。
+      description: 依 FR-001 只需暱稱即可進站，不需註冊或登入；暱稱 trim 後為空或超過 12 字時拒絕（NICKNAME_INVALID）。暱稱不要求唯一，玩家以回傳的 token 區分；token 只在本次連線有效，不保存跨連線的戰績；離開房間不會讓 token 失效，同一個 token 可以再呼叫 `matchRoom`，Socket.IO 連線真正斷線後 token 才失效，必須重新進站。取得 token 後，前端應立即以它建立 Socket.IO 連線（見 asyncapi.yaml），才能進行配對。
       security: []
       requestBody:
         required: true
@@ -50,7 +50,7 @@ paths:
         依 FR-005 只接受恰好四位 0–9 數字的配對碼，格式不符時拒絕且不建立也不加入房間（US1 情境 4，PAIR_CODE_INVALID）。依 FR-002 有配對碼相同且只有房主一人的等待中房間時加入成為對手（matchResult 為 JOINED，US1 情境 2）；依 FR-003 沒有符合時建立新房間並成為房主（matchResult 為 CREATED，US1 情境 1）。
         依 FR-004，配對碼相同但房間已滿或對局已開始時視為沒有符合（Edge Cases 配對碼被占用），照常回 200 並建立新房間（matchResult 為 CREATED，US1 情境 3），不得拒絕。
         Edge Cases 同時輸入同一配對碼：後端以原子配對保證先被處理的玩家成為房主、另一位加入同一間，不會各自建立房間（SC-002）；重試仍失敗時回 503（MATCH_BUSY）。
-        配對成功後，伺服器把該玩家的 Socket.IO 連線加入 `room:<roomId>`，並對該 room 推播 `room:updated`，讓房主看到對手加入（FR-006）。玩家尚未建立 Socket.IO 連線時拒絕（SOCKET_NOT_CONNECTED），玩家已在其他房間時拒絕（ALREADY_IN_ROOM）。NFR-001 要求送出到看見房間低於 2 秒。
+        配對成功後，伺服器把該玩家的 Socket.IO 連線加入 `room:<roomId>`，並對該 room 推播 `room:updated`，讓房主看到對手加入（FR-006）。玩家尚未建立 Socket.IO 連線時拒絕（SOCKET_NOT_CONNECTED），玩家已在其他房間時拒絕（ALREADY_IN_ROOM）；玩家離開上一間房間後（`leaveRoom`，或收到 `room:closed`），可以用同一個 token 與原本的 Socket.IO 連線再次呼叫本操作。NFR-001 要求送出到看見房間低於 2 秒。
       security:
         - playerToken: []
       requestBody:
@@ -82,12 +82,13 @@ paths:
       tags: [B2 房間配對與離開 API]
       summary: 離開目前所在的房間
       description: |
-        玩家主動離開房間，伺服器把其 Socket.IO 連線移出 `room:<roomId>`，依房間狀態處理（Socket.IO 斷線時伺服器以相同規則處理）：
+        玩家主動離開房間，伺服器把其 Socket.IO 連線移出 `room:<roomId>`，依房間狀態處理（Socket.IO 斷線時伺服器以相同規則處理）。「關閉房間」都是刪除房間資料列並連帶刪除秘密答案與猜測紀錄（FR-019）：
         - 等待對手（只有房主）：依 FR-007 關閉房間並釋出配對碼，之後輸入同一配對碼的玩家會建立新房間（US1 情境 5、Edge Cases 等待中房主離開）。
-        - 已滿兩人、尚未開始：房主離開時依 FR-007 關閉房間；對手離開時同樣關閉房間（spec 未規定，採最小假設）；兩者都對留下的玩家推播 `room:closed`。
-        - 設定秘密答案：依 FR-018 關閉房間、不判定勝負，對另一方推播 `room:closed`（US2 情境 7）。
-        - 猜測階段：依 FR-015 判另一方獲勝並結束對局，對 room 推播 `game:ended`（US3 情境 6）。
-        - 對局已結束：依 FR-016 直接離開，雙方都離開後刪除房間。
+        - 已滿兩人、尚未開始：依 FR-007，房主或對手任一方離開都關閉房間並釋出配對碼，對留下的玩家推播 `room:closed`（`HOST_LEFT_BEFORE_START` 或 `OPPONENT_LEFT_BEFORE_START`，US1 情境 6、7）。
+        - 設定秘密答案：依 FR-018 關閉房間、不判定勝負，對留下的玩家推播 `room:closed`（`PLAYER_LEFT_DURING_SETUP`，US2 情境 7）。
+        - 猜測階段：依 FR-015 判另一方獲勝並結束對局，房間轉為已結束，對 room 推播 `game:ended`（US3 情境 6）。
+        - 對局已結束：依 FR-016 直接離開，最後一位玩家離開時刪除房間（FR-019，US3 情境 7）。
+        收到 `room:closed` 的玩家，房間已不存在，不必呼叫本操作（再呼叫會得到 ROOM_NOT_FOUND）；收到 `game:ended` 的玩家留在結果畫面，按「回到入口」時才呼叫本操作。離開房間後，玩家的 Socket.IO 連線保留，只退出舊 room，同一個 token 可以再呼叫 `matchRoom`，不必重新呼叫 `enterAsPlayer`。
       security:
         - playerToken: []
       responses:
@@ -164,7 +165,7 @@ paths:
         依 FR-011 以對手的秘密答案計算 A（數字與位置皆正確）與 B（數字正確但位置錯誤），由後端判定，前端不計算（US3 情境 1、SC-005）。依 FR-017 猜測必須恰好四位、0–9 且互不重複，不符時拒絕且仍輪到同一位玩家（US3 情境 4，GUESS_INVALID）。
         依 FR-012 只有輪到的玩家可以提交，未輪到時拒絕且不新增紀錄（US3 情境 3，NOT_YOUR_TURN）；對局不在猜測階段時拒絕（GAME_NOT_IN_PROGRESS）。
         Edge Cases 重複猜同一組數字：照常判定、記入猜測紀錄並交換輪次，回 201，不另外限制。
-        成功後對 room 推播 `room:updated`，雙方畫面顯示該次猜測與輪次（US3 情境 2、FR-013、NFR-003）。猜出 4A 時依 FR-014 立即結束對局，回應的 status 為 finished、winnerPlayerId 為提交者，雙方答案由 `game:ended` 事件揭曉，本回應不含任何秘密答案（NFR-002）。
+        對局未結束時，成功後對 room 推播 `room:updated`，雙方畫面顯示該次猜測與輪次（US3 情境 2、FR-013、NFR-003）。猜出 4A 時依 FR-014 立即結束對局，不推播 `room:updated`，回應 `SubmitGuessResponse` 的 status 為 finished、winnerPlayerId 為提交者，雙方答案由 `game:ended` 事件揭曉，本回應不含任何秘密答案（NFR-002）。
       security:
         - playerToken: []
       requestBody:
@@ -298,7 +299,7 @@ components:
           description: 猜出 4A 時為提交者，否則為 null
     RoomState:
       type: object
-      description: 房間狀態快照，與 asyncapi.yaml 的 `room:updated` 事件內容相同；不含任何秘密答案（NFR-002）
+      description: 房間狀態快照，與 asyncapi.yaml 的 `RoomState` 完全相同（`room:updated` 事件的內容）；只描述對局結束前的房間，對局結束時不以 `RoomState` 表示：猜出 4A 時 `SubmitGuessResponse` 的 status 為 finished，結束時只推播 `game:ended`；不含任何秘密答案（NFR-002）
       required: [roomId, pairCode, status, hostPlayerId, players, currentTurnPlayerId, guesses]
       properties:
         roomId:
@@ -309,8 +310,8 @@ components:
           pattern: '^\d{4}$'
         status:
           type: string
-          enum: [waiting_for_opponent, ready_to_start, setting_secrets, in_progress, finished]
-          description: waiting_for_opponent 只有房主；ready_to_start 已滿兩人、尚未開始；setting_secrets 設定秘密答案；in_progress 輪流猜測；finished 對局已結束
+          enum: [waiting_for_opponent, ready_to_start, setting_secrets, in_progress]
+          description: waiting_for_opponent 只有房主；ready_to_start 已滿兩人、尚未開始；setting_secrets 設定秘密答案；in_progress 輪流猜測；沒有 finished，對局結束時只推播 game:ended
         hostPlayerId:
           type: string
           format: uuid

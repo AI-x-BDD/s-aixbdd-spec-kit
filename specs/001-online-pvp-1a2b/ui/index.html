@@ -180,6 +180,15 @@
     notices: {
       finished: { tone: 'info', text: '上一局已結束，輸入配對碼開始新的一局' },
       aborted: { tone: 'accent', text: '小米 離開了房間，這局無法繼續，不判定勝負' },
+      hostLeft: { tone: 'accent', text: '阿哲 離開了房間，房間已關閉，請重新輸入配對碼' },
+      opponentLeft: { tone: 'accent', text: '小米 離開了房間，房間已關閉，請重新輸入配對碼' },
+      disconnected: { tone: 'danger', text: '連線中斷了，請重新輸入暱稱和配對碼進站' },
+      unauthorized: { tone: 'danger', text: '你的身分已失效，請重新輸入暱稱和配對碼進站' },
+      alreadyConnected: { tone: 'danger', text: '這個身分已在另一個連線使用，請重新輸入暱稱和配對碼進站' },
+      alreadyInRoom: { tone: 'danger', text: '你還在另一間房間裡，請重新輸入暱稱和配對碼進站' },
+      roomGone: { tone: 'accent', text: '這間房間已經關閉，請重新輸入配對碼' },
+      socketNotReady: { tone: 'accent', text: '連線還沒準備好，請稍後再按一次「進入配對」' },
+      matchBusy: { tone: 'accent', text: '現在同時配對的人太多，請稍後再按一次「進入配對」' },
     },
   };
 
@@ -200,8 +209,11 @@
   let timers = [];
   let submitted = false;
 
-  function fillForm(values) {
+  // lockNickname：回到入口時連線仍在，暱稱沿用目前身分，同一連線內不可編輯
+  let nicknameLocked = false;
+  function fillForm(values, { lockNickname = false } = {}) {
     submitted = false;
+    nicknameLocked = lockNickname;
     Object.keys(FIELD_RULES).forEach(name => { form.elements[name].value = values ? values[name] : ''; });
     clearErrors();
     setSubmitting(false);
@@ -236,6 +248,7 @@
     submitBtn.disabled = on;
     submitBtn.innerHTML = on ? '<span class="spinner"></span>配對中…' : '進入配對';
     Object.keys(FIELD_RULES).forEach(name => { form.elements[name].disabled = on; });
+    if (!on && nicknameLocked) form.elements.nickname.disabled = true;
   }
 
   function showNotice(key) {
@@ -263,9 +276,19 @@
   const STATES = [
     { key: 'form', label: '填寫暱稱與配對碼', apply: () => { fillForm(); showNotice(null); setMe(null); } },
     { key: 'matching', label: '配對中', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: MOCK.pairCode }); showNotice(null); setMe(null); setSubmitting(true); } },
-    { key: 'finished', label: '對局結束後回到入口', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: '' }); showNotice('finished'); setMe(MOCK.me.nickname); } },
-    { key: 'aborted', label: '對手離開後回到入口', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: '' }); showNotice('aborted'); setMe(MOCK.me.nickname); } },
+    { key: 'finished', label: '對局結束後回到入口', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: '' }, { lockNickname: true }); showNotice('finished'); setMe(MOCK.me.nickname); } },
+    { key: 'aborted', label: '對手離開後回到入口', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: '' }, { lockNickname: true }); showNotice('aborted'); setMe(MOCK.me.nickname); } },
+    { key: 'host-left', label: '房主在開始前離開後回到入口', apply: () => { fillForm({ nickname: MOCK.opponent.nickname, pairCode: '' }, { lockNickname: true }); showNotice('hostLeft'); setMe(MOCK.opponent.nickname); } },
+    { key: 'opponent-left', label: '對手在開始前離開後回到入口', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: '' }, { lockNickname: true }); showNotice('opponentLeft'); setMe(MOCK.me.nickname); } },
+    { key: 'left', label: '離開房間後回到入口', apply: () => { const nick = new URLSearchParams(location.search).get('nick') || MOCK.me.nickname; fillForm({ nickname: nick, pairCode: '' }, { lockNickname: true }); showNotice(null); setMe(nick); } },
+    { key: 'disconnected', label: '連線中斷後回到入口', apply: () => { fillForm(); showNotice('disconnected'); setMe(null); } },
     { key: 'invalid', label: '欄位驗證錯誤', apply: () => { fillForm(MOCK.invalidForm); showNotice(null); setMe(null); submitted = true; validate(false); } },
+    { key: 'socket-not-ready', label: '連線尚未完成', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: MOCK.pairCode }, { lockNickname: true }); showNotice('socketNotReady'); setMe(null); } },
+    { key: 'match-busy', label: '配對人數過多', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: MOCK.pairCode }, { lockNickname: true }); showNotice('matchBusy'); setMe(null); } },
+    { key: 'already-in-room', label: '已在其他房間', apply: () => { fillForm(); showNotice('alreadyInRoom'); setMe(null); } },
+    { key: 'already-connected', label: '連線被其他頁面占用', apply: () => { fillForm(); showNotice('alreadyConnected'); setMe(null); } },
+    { key: 'unauthorized', label: '身分已失效', apply: () => { fillForm(); showNotice('unauthorized'); setMe(null); } },
+    { key: 'room-gone', label: '房間已不存在', apply: () => { fillForm({ nickname: MOCK.me.nickname, pairCode: '' }, { lockNickname: true }); showNotice('roomGone'); setMe(MOCK.me.nickname); } },
   ];
 
   const protoBody = $('.proto-body');
@@ -291,7 +314,7 @@
   }
 
   const from = new URLSearchParams(location.search).get('from');
-  applyState(from === 'finished' || from === 'aborted' ? from : 'form');
+  applyState(from === 'finished' || from === 'aborted' || from === 'left' ? from : 'form');
 </script>
 </body>
 </html>

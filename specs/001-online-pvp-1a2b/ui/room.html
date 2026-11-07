@@ -153,6 +153,7 @@
   </section>
 
   <div id="join-toast" class="banner banner-success" role="status" hidden></div>
+  <div id="room-error" class="banner banner-accent" role="alert" hidden></div>
 
   <section class="card players" aria-live="polite">
     <h2>房內玩家 <span class="num muted" id="player-count"></span></h2>
@@ -180,7 +181,7 @@
     <p id="leave-desc"></p>
     <div class="modal-actions">
       <button id="stay-btn" class="btn" type="button">留在房間</button>
-      <a class="btn btn-danger" href="index.html">離開</a>
+      <a id="leave-link" class="btn btn-danger" href="index.html?from=left">離開</a>
     </div>
   </div>
 </div>
@@ -196,6 +197,9 @@
     host: { nickname: '阿哲' },
     guest: { nickname: '小米' },
     pairCode: '5208',
+    // 目前房間狀態（最新的 room:updated）；遊戲已開始時依此切換畫面
+    currentStatus: 'setting_secrets',
+    pageForStatus: { setting_secrets: 'secret.html', in_progress: 'battle.html' },
   };
 
   const $ = sel => document.querySelector(sel);
@@ -244,6 +248,7 @@
     $('#guest-wait').hidden = viewerIsHost;
     $('#guest-wait-text').textContent = `等房主 ${MOCK.host.nickname} 開始遊戲`;
     $('#start-hint').hidden = true;
+    $('#room-error').hidden = true;
     startBtn.disabled = false;
     startBtn.textContent = '開始遊戲';
     startBtn.classList.toggle('is-waiting', !hasGuest);
@@ -252,6 +257,8 @@
       ? `你是房主，離開後房間會關閉，配對碼 ${MOCK.pairCode} 會開放給其他人使用。`
       : '離開後你會回到入口。';
     $('#leave-modal').hidden = true;
+    // 正常離開回入口：保留目前暱稱，入口停用暱稱欄
+    $('#leave-link').href = `index.html?from=left&nick=${encodeURIComponent(viewerIsHost ? MOCK.host.nickname : MOCK.guest.nickname)}`;
   }
 
   function waitForOpponent() {
@@ -287,7 +294,19 @@
     { key: 'guest', label: '以對手身分檢視', apply: () => render('guest') },
     { key: 'starting', label: '開始遊戲中', apply: () => { render('full'); setStarting(); } },
     { key: 'leave', label: '確認離開房間', apply: () => { render('waiting'); $('#leave-modal').hidden = false; } },
+    { key: 'guest-leave', label: '以對手身分確認離開房間', apply: () => { render('guest'); $('#leave-modal').hidden = false; } },
     { key: 'not-full', label: '對手尚未加入就開始', apply: () => { render('waiting'); $('#start-hint').hidden = false; } },
+    { key: 'not-host', label: '只有房主能開始', apply: () => {
+      render('guest');
+      $('#room-error').textContent = `只有房主 ${MOCK.host.nickname} 可以開始遊戲，請等房主開始`;
+      $('#room-error').hidden = false;
+    } },
+    { key: 'already-started', label: '遊戲已經開始', apply: () => {
+      render('full');
+      $('#room-error').textContent = '遊戲已經開始了，正在帶你進入目前的畫面';
+      $('#room-error').hidden = false;
+      later(1500, () => { location.href = MOCK.pageForStatus[MOCK.currentStatus]; });
+    } },
   ];
 
   const protoBody = $('.proto-body');

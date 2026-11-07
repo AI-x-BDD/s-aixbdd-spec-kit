@@ -6,8 +6,8 @@ info:
     後端推播給前端的 Socket.IO 事件合約，涵蓋 B4 房間與對局即時推播。進站、配對、離開房間、開始遊戲、設定秘密答案與提交猜測等玩家指令都走 HTTP，見同目錄的 openapi.yaml；本合約只有伺服器推播與連線驗證，不接收任何玩家指令（research §4）。
 
     - 連線：前端以 `io({ auth: { token }, reconnection: false, transports: ["websocket"] })` 連線，`token` 為 `POST /api/players` 的回傳值；每個 token 只允許一條連線（research §5）。
-    - 房間：配對成功時伺服器把玩家的連線加入 Socket.IO room `room:<roomId>`，離開房間時移出；以下事件都只推播給該 room。REST 指令的交易提交後才推播（research §4、§8）。
-    - 斷線：伺服器收到 `disconnect` 時比照玩家離開房間處理，並刪除該玩家；前端不自動重連（spec Assumptions 不支援斷線重連）。
+    - 房間：配對成功時伺服器把玩家的連線加入 Socket.IO room `room:<roomId>`，離開房間時移出；以下事件都只推播給該 room。離開房間後（`leaveRoom` 或收到 `room:closed`），原本的 Socket.IO 連線保留、只退出舊 room，同一個 token 可以再呼叫 `matchRoom`，不必重新 `enterAsPlayer`。REST 指令的交易提交後才推播（research §4、§8）。
+    - 斷線：伺服器收到 `disconnect` 時比照玩家離開房間處理，並刪除該玩家（FR-019），token 隨即失效；前端不自動重連（spec Assumptions 不支援斷線重連），真正斷線後要回到入口，由使用者主動進站、重新呼叫 `enterAsPlayer` 取得新 token。
     - 秘密答案：除了 `game:ended` 之外，所有事件都不含任何秘密答案（NFR-002、SC-004）。
 servers:
   development:
@@ -29,7 +29,7 @@ channels:
         $ref: '#/components/messages/GameEnded'
   roomClosed:
     address: room:closed
-    title: 房間關閉、對局取消
+    title: 房間關閉
     messages:
       roomClosed:
         $ref: '#/components/messages/RoomClosed'
@@ -64,7 +64,7 @@ operations:
     tags:
       - name: B4 房間與對局即時推播
     summary: 推播對局結果並揭曉雙方答案
-    description: 依 FR-014，任一玩家猜出 4A 時（reason 為 GUESSED_4A，US3 情境 5）推播勝者並揭曉雙方秘密答案；依 FR-015，猜測階段一方離開房間或斷線時（reason 為 PLAYER_LEFT，US3 情境 6）判另一方獲勝並推播。這是本合約唯一含秘密答案的事件，只在對局結束後推播（NFR-002）。之後雙方可依 FR-016 離開房間回到入口。
+    description: 依 FR-014，任一玩家猜出 4A 時（reason 為 GUESSED_4A，US3 情境 5）推播勝者並揭曉雙方秘密答案；依 FR-015，猜測階段一方離開房間或斷線時（reason 為 PLAYER_LEFT，US3 情境 6）判另一方獲勝並推播。這是本合約唯一含秘密答案的事件，只在對局結束後推播（NFR-002）。收到本事件的玩家留在結果畫面，按「回到入口」時呼叫 `leaveRoom` 離開房間（FR-016）；最後一位玩家離開時刪除房間與猜測紀錄（FR-019）；離開後保留原 Socket.IO 連線，同一個 token 可以再呼叫 `matchRoom`。
     messages:
       - $ref: '#/channels/gameEnded/messages/gameEnded'
   sendRoomClosed:
@@ -75,10 +75,11 @@ operations:
       - name: B4 房間與對局即時推播
     summary: 通知留下的玩家房間已關閉、不判定勝負
     description: |
-      對局開始前或設定秘密答案階段有一方離開房間或斷線時，房間關閉並推播給留下的玩家，不判定勝負，前端回到入口：
-      - HOST_LEFT_BEFORE_START：已滿兩人、尚未開始時房主離開，依 FR-007 關閉房間並釋出配對碼。
-      - OPPONENT_LEFT_BEFORE_START：已滿兩人、尚未開始時對手離開；spec 未規定，採最小假設比照關閉房間。
+      對局開始前或設定秘密答案階段有一方離開房間或斷線時，伺服器關閉房間（刪除房間資料列並連帶刪除秘密答案與猜測紀錄，FR-019）並推播給留下的玩家，不判定勝負，前端回到入口：
+      - HOST_LEFT_BEFORE_START：已滿兩人、尚未開始時房主離開，依 FR-007 關閉房間並釋出配對碼（US1 情境 6）。
+      - OPPONENT_LEFT_BEFORE_START：已滿兩人、尚未開始時對手離開，依 FR-007 關閉房間並釋出配對碼（US1 情境 7）。
       - PLAYER_LEFT_DURING_SETUP：依 FR-018 設定秘密答案階段一方離開或斷線，通知另一方對局無法繼續（US2 情境 7）。
+      收到本事件時房間已不存在，留下的玩家不必呼叫 `leaveRoom`；前端直接回到入口，保留原 Socket.IO 連線與 token，同一個 token 可以再呼叫 `matchRoom`。
       只有房主一人的等待中房間因房主離開而關閉時（US1 情境 5），房內沒有其他玩家，不推播。
     messages:
       - $ref: '#/channels/roomClosed/messages/roomClosed'
@@ -132,7 +133,7 @@ components:
                 - ALREADY_CONNECTED
     RoomState:
       type: object
-      description: 房間狀態快照，與 openapi.yaml 的 `RoomState` 相同；不含任何秘密答案（NFR-002）
+      description: 房間狀態快照，與 openapi.yaml 的 `RoomState` 完全相同；只描述對局結束前的房間，所以沒有 finished，對局結束時只推播 `game:ended`；不含任何秘密答案（NFR-002）
       required: [roomId, pairCode, status, hostPlayerId, players, currentTurnPlayerId, guesses]
       properties:
         roomId:
@@ -144,7 +145,7 @@ components:
         status:
           type: string
           enum: [waiting_for_opponent, ready_to_start, setting_secrets, in_progress]
-          description: 本事件只在對局結束前推播，所以沒有 finished
+          description: waiting_for_opponent 只有房主；ready_to_start 已滿兩人、尚未開始；setting_secrets 設定秘密答案；in_progress 輪流猜測；沒有 finished，對局結束時只推播 game:ended
         hostPlayerId:
           type: string
           format: uuid
@@ -175,6 +176,7 @@ components:
         role:
           type: string
           enum: [host, opponent]
+          description: host 為房主，opponent 為對手
         secretSet:
           type: boolean
           description: 是否已設定秘密答案；只揭露是否設定，不含答案內容
@@ -185,9 +187,11 @@ components:
         sequence:
           type: integer
           minimum: 1
+          description: 本場猜測的提交順序
         playerId:
           type: string
           format: uuid
+          description: 提交猜測的玩家
         guess:
           type: string
           pattern: '^(?!.*(\d).*\1)\d{4}$'
