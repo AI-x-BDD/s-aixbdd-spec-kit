@@ -48,29 +48,29 @@ description: "Task list for 設備借用與預約系統 implementation"
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 依 plan.md 的 Source Code 建立 `apps/equipment-loan/`、`apps/equipment-loan/frontend/`、`apps/equipment-loan/backend/` 與 `apps/equipment-loan/e2e/` 目錄結構，並在 `apps/equipment-loan/.gitignore` 設定忽略 `node_modules/`、`dist/`、`.env`、`playwright-report/` 與 `test-results/`（plan.md 未列 `.gitignore`，見 Notes）（research §1）
+- [X] T001 依 plan.md 的 Source Code 建立 `apps/equipment-loan/`、`apps/equipment-loan/frontend/`、`apps/equipment-loan/backend/` 與 `apps/equipment-loan/e2e/` 目錄結構，並在 `apps/equipment-loan/.gitignore` 設定忽略 `node_modules/`、`dist/`、`.env`、`playwright-report/` 與 `test-results/`（plan.md 未列 `.gitignore`，見 Notes）（research §1）
   - **Must Read**
     - `plan.md` → `Source Code (repository root)` — Why：專案頂層與前後端目錄及檔案配置
     - `research.md` → §1 — Why：原始碼放置於 `apps/equipment-loan/` 並拆分為 `frontend/` 與 `backend/`
-- [ ] T002 在 `apps/equipment-loan/backend/package.json` 與 `apps/equipment-loan/backend/tsconfig.json` 初始化後端專案：設定 TypeScript 6.0（`strict: true`）、Node.js 24 LTS 以上環境，安裝相依套件 `express`（Express 5）、`zod`（zod 4）、`@prisma/client`、`@prisma/adapter-pg`、`pg`，以及開發相依 `typescript`、`tsx`、`prisma`（Prisma 7.10）、`@types/express`、`@types/pg`；設定 scripts `dev`、`build`、`db:migrate`、`db:seed`（research §2、§3、§5）
+- [X] T002 在 `apps/equipment-loan/backend/package.json` 與 `apps/equipment-loan/backend/tsconfig.json` 初始化後端專案：設定 TypeScript 6.0（`strict: true`）、Node.js 24 LTS 以上環境，安裝相依套件 `express`（Express 5）、`zod`（zod 4）、`@prisma/client`、`@prisma/adapter-pg`、`pg`，以及開發相依 `typescript`、`tsx`、`prisma`（Prisma 7.10）、`@types/express`、`@types/pg`；設定 scripts `dev`、`build`、`db:migrate`、`db:seed`（research §2、§3、§5）
   - **Must Read**
     - `techstack.md` → `技術堆疊總覽` — Why：後端與資料庫存取採用的套件及版本
     - `techstack.md` → `本次開發不引入的技術` — Why：確認不引入 `socket.io`、`bcrypt`、`express-session`、`jsonwebtoken`、`luxon`、`moment`
     - `research.md` → §2、§3、§5 — Why：TypeScript 6.0、Node.js 24 LTS 以上、`tsx`、Express 5、zod 4 與 Prisma 7.10 設定方式
-- [ ] T003 [P] 在 `apps/equipment-loan/frontend/package.json`、`apps/equipment-loan/frontend/tsconfig.json` 與 `apps/equipment-loan/frontend/vite.config.ts` 初始化前端專案：安裝 React 19（`react`、`react-dom`）、Vite 8（`vite`）、`@vitejs/plugin-react` 6 與 TypeScript 6.0，不引入 `react-router`、`zustand`、`@reduxjs/toolkit`、`react-i18next` 或 `socket.io-client`；在 `vite.config.ts` 設定 `server.proxy` 將 `/api` 轉發至 `http://localhost:3000`（research §1、§2）
+- [X] T003 [P] 在 `apps/equipment-loan/frontend/package.json`、`apps/equipment-loan/frontend/tsconfig.json` 與 `apps/equipment-loan/frontend/vite.config.ts` 初始化前端專案：安裝 React 19（`react`、`react-dom`）、Vite 8（`vite`）、`@vitejs/plugin-react` 6 與 TypeScript 6.0，不引入 `react-router`、`zustand`、`@reduxjs/toolkit`、`react-i18next` 或 `socket.io-client`；在 `vite.config.ts` 設定 `server.proxy` 將 `/api` 轉發至 `http://localhost:3000`（research §1、§2）
   - **Must Read**
     - `techstack.md` → `技術堆疊總覽` — Why：前端採用的 React 19、Vite 8、`@vitejs/plugin-react` 6 與 TypeScript 6.0 版本
     - `techstack.md` → `本次開發不引入的技術` — Why：確認不引入前端路由、全域狀態管理與國際化套件
     - `research.md` → §1 — Why：Vite `/api` 代理與頂層狀態切換架構
-- [ ] T004 [P] 在 `apps/equipment-loan/docker-compose.yml` 設定 `postgres:18` 容器（連接埠與開發／測試資料庫設定），並在 `apps/equipment-loan/backend/.env.example` 提供 `DATABASE_URL` 與 `PORT=3000` 範例（research §5）
+- [X] T004 [P] 在 `apps/equipment-loan/docker-compose.yml` 設定 `postgres:18` 容器（連接埠與開發／測試資料庫設定），並在 `apps/equipment-loan/backend/.env.example` 提供 `DATABASE_URL` 與 `PORT=3000` 範例（research §5）
   - **Must Read**
     - `research.md` → §5 — Why：以 Docker Compose 啟動 PostgreSQL 18 容器供開發與測試使用
     - `plan.md` → `Source Code (repository root)` — Why：`docker-compose.yml` 與 `.env.example` 的放置路徑
-- [ ] T005 [P] 在 `apps/equipment-loan/backend/` 與 `apps/equipment-loan/frontend/` 設定 ESLint 10（`typescript-eslint` 8）與 Prettier（建立 `eslint.config.mjs` 與 `.prettierrc`，見 Notes），並在兩邊 `package.json` 加入 `check` script 執行 `tsc --noEmit`、ESLint 與 `prettier --check`（research §2、§6）
+- [X] T005 [P] 在 `apps/equipment-loan/backend/` 與 `apps/equipment-loan/frontend/` 設定 ESLint 10（`typescript-eslint` 8）與 Prettier（建立 `eslint.config.mjs` 與 `.prettierrc`，見 Notes），並在兩邊 `package.json` 加入 `check` script 執行 `tsc --noEmit`、ESLint 與 `prettier --check`（research §2、§6）
   - **Must Read**
     - `research.md` → §2、§6 — Why：靜態檢查、型別檢查與格式化工具鏈版本及設定要求
     - `techstack.md` → `技術堆疊總覽` — Why：ESLint 10、`typescript-eslint` 8 與 Prettier 版本
-- [ ] T006 [P] 在 `apps/equipment-loan/package.json`、`apps/equipment-loan/playwright.config.ts`、`apps/equipment-loan/backend/vitest.config.ts` 與 `apps/equipment-loan/frontend/vitest.config.ts` 設定測試工具：後端安裝 Vitest 5 與 Supertest 7，前端安裝 Vitest 5，頂層安裝 `@playwright/test` 1.65（plan.md 未列 `vitest.config.ts`，見 Notes）（research §6）
+- [X] T006 [P] 在 `apps/equipment-loan/package.json`、`apps/equipment-loan/playwright.config.ts`、`apps/equipment-loan/backend/vitest.config.ts` 與 `apps/equipment-loan/frontend/vitest.config.ts` 設定測試工具：後端安裝 Vitest 5 與 Supertest 7，前端安裝 Vitest 5，頂層安裝 `@playwright/test` 1.65（plan.md 未列 `vitest.config.ts`，見 Notes）（research §6）
   - **Must Read**
     - `research.md` → §6 — Why：Vitest 5、Supertest 7 與 Playwright 1.65 的測試架構分工
     - `techstack.md` → `技術堆疊總覽` — Why：品質與測試分層的採用技術與版本
