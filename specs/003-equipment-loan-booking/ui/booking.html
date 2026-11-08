@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設備清單與單日固定時段預約｜精密實驗設備借用中心</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-muted: #F1F5F9;
+    --ink: #0F172A;
+    --muted: #475569;
+    --line: #E2E8F0;
+    --primary: #2563EB;
+    --primary-soft: #DBEAFE;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+    --pending: #D97706;
+    --pending-soft: #FEF3C7;
+    --success: #16A34A;
+    --success-soft: #DCFCE7;
+    --occupied: #64748B;
+    --occupied-soft: #F1F5F9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+    --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-muted: #162032;
+    --ink: #F8FAFC;
+    --muted: #94A3B8;
+    --line: #334155;
+    --primary: #3B82F6;
+    --primary-soft: #1E3A8A;
+    --danger: #EF4444;
+    --danger-soft: #7F1D1D;
+    --pending: #F59E0B;
+    --pending-soft: #78350F;
+    --success: #22C55E;
+    --success-soft: #14532D;
+    --occupied: #94A3B8;
+    --occupied-soft: #334155;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .35), 0 6px 20px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); transition: background-color .15s, color .15s; }
+  a { color: inherit; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .04em; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .brand-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #FFFFFF; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .site-nav a { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .user-pill { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .btn-theme, .btn-logout { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-theme:hover, .btn-logout:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 720px) { .user-pill { display: none; } .site-header .inner { padding: 8px 12px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  .page-lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFFFFF; }
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .banner-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .banner-info { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .badge-available { background: var(--success-soft); color: var(--success); }
+  .badge-mine { background: var(--primary-soft); color: var(--primary); }
+  .badge-occupied { background: var(--occupied-soft); color: var(--occupied); }
+  .badge-cancelled { background: var(--danger-soft); color: var(--danger); }
+
+  .spinner { width: 20px; height: 20px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { background: var(--surface-muted); border-radius: 8px; min-height: 20px; border: 1px dashed var(--line); }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 設備清單與時段預約頁專屬樣式 */
+  .toolbar-card { padding: 18px 20px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .date-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .date-chip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+  .date-chip.active { background: var(--primary); border-color: var(--primary); color: #FFFFFF; font-weight: 600; }
+  .filter-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .filter-controls select, .filter-controls input[type="date"] { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
+  .date-error { color: var(--danger); font-size: 13px; font-weight: 500; }
+
+  .legend-bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot-available { background: var(--success); }
+  .dot-mine { background: var(--primary); }
+  .dot-occupied { background: var(--occupied); }
+
+  .booking-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+  @media (max-width: 920px) { .booking-layout { grid-template-columns: 1fr; } }
+
+  .equipment-list { display: grid; gap: 16px; }
+  .equipment-card { padding: 20px; }
+  .eq-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .eq-code { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--primary); padding: 2px 8px; border-radius: 6px; background: var(--primary-soft); }
+  .eq-title { margin: 4px 0 2px; font-size: 17px; font-weight: 700; }
+  .eq-meta { font-size: 13px; color: var(--muted); }
+
+  .slots-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 640px) { .slots-grid { grid-template-columns: 1fr; } }
+  .slot-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .slot-btn:hover:not(:disabled) { border-color: var(--primary); }
+  .slot-btn.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 2px var(--primary-soft); }
+  .slot-btn:disabled { cursor: not-allowed; opacity: .88; background: var(--surface-muted); }
+  .slot-name { font-weight: 700; font-size: 14px; }
+  .slot-time { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+
+  .confirm-panel { position: sticky; top: 84px; padding: 22px; }
+  .summary-box { margin: 12px 0 16px; padding: 14px 16px; border-radius: 10px; background: var(--surface-muted); border: 1px solid var(--line); font-size: 14px; }
+  .summary-row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .summary-row:last-child { border-bottom: 0; }
+  .summary-row .label { color: var(--muted); }
+  .summary-row .val { font-weight: 600; text-align: right; }
+  .panel-error { margin-top: 10px; color: var(--danger); font-size: 13px; font-weight: 500; }
+
+  .empty-state { padding: 40px 24px; text-align: center; }
+  .skeleton-card { padding: 20px; display: grid; gap: 12px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="brand-mark">EL</span>精密實驗設備借用中心</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">登入</a>
+      <a href="booking.html" aria-current="page">設備預約</a>
+      <a href="my-reservations.html">我的預約</a>
+      <a href="admin.html">全體預約管理</a>
+    </nav>
+    <div class="header-actions">
+      <span id="header-user" class="user-pill">林雅婷（一般成員）</span>
+      <button id="theme-toggle" class="btn-theme" type="button" aria-label="切換深淺色主題">深色模式</button>
+      <a id="header-logout" class="btn-logout" href="index.html?state=logged-out">登出</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>預建單件設備清單與單日固定時段預約</h1>
+  <p class="page-lead">選擇當日起算 7 天內的借用日期（台灣時間 <span class="mono">2026-11-08</span> 至 <span class="mono">2026-11-14</span>），並點選任一單件設備尚未開始的可預約時段送出預約。</p>
+
+  <div id="page-banner" class="banner" role="alert" hidden>
+    <span id="page-banner-text"></span>
+    <a id="page-banner-link" class="btn btn-sm" href="my-reservations.html" hidden>查看我的預約</a>
+  </div>
+
+  <!-- 載入中骨架 -->
+  <section id="view-loading" hidden>
+    <div class="card toolbar-card" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--muted);">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>正在載入預建設備與單日固定時段狀態…</span>
+      </div>
+      <div class="skeleton" style="height:36px;"></div>
+    </div>
+    <div class="equipment-list">
+      <div class="card skeleton-card"><div class="skeleton" style="height:24px;width:45%;"></div><div class="skeleton" style="height:68px;"></div></div>
+      <div class="card skeleton-card"><div class="skeleton" style="height:24px;width:52%;"></div><div class="skeleton" style="height:68px;"></div></div>
+      <div class="card skeleton-card"><div class="skeleton" style="height:24px;width:48%;"></div><div class="skeleton" style="height:68px;"></div></div>
+      <div class="card skeleton-card"><div class="skeleton" style="height:24px;width:40%;"></div><div class="skeleton" style="height:68px;"></div></div>
+    </div>
+  </section>
+
+  <!-- 主要預約內容 -->
+  <section id="view-main">
+    <div class="card toolbar-card">
+      <div class="toolbar-row">
+        <div>
+          <strong>選擇借用日期（7 天開放範圍）</strong>
+          <span class="muted" style="font-size:13px;margin-left:8px;">目前業務時間：<span class="mono">2026-11-08 10:30</span>（Asia/Taipei）</span>
+        </div>
+        <div class="filter-controls">
+          <label for="date-input" class="muted" style="font-size:13px;">指定日期：</label>
+          <input id="date-input" class="mono" type="date" value="2026-11-09">
+          <label for="category-select" class="muted" style="font-size:13px;">設備分類：</label>
+          <select id="category-select">
+            <option value="ALL">全部分類（4 台）</option>
+            <option value="光學檢測">光學檢測</option>
+            <option value="電子量測">電子量測</option>
+            <option value="熱流分析">熱流分析</option>
+            <option value="生醫分析">生醫分析</option>
+            <option value="聲學量測">聲學量測（0 台）</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="date-chips" class="date-chips" role="group" aria-label="7 天開放預約日期"></div>
+      <div id="date-range-error" class="date-error" hidden></div>
+
+      <div class="legend-bar">
+        <span>時段狀態說明：</span>
+        <span class="legend-item"><span class="dot dot-available"></span>可預約（點擊可選取）</span>
+        <span class="legend-item"><span class="dot dot-mine"></span>本人已預約（林雅婷）</span>
+        <span class="legend-item"><span class="dot dot-occupied"></span>已被預約（不揭露其他成員身分）</span>
+      </div>
+    </div>
+
+    <!-- 空狀態 -->
+    <div id="view-empty" class="card empty-state" hidden>
+      <h2>目前分類下沒有符合條件的設備</h2>
+      <p class="muted">請切換其他設備分類，或檢視全部預建單件設備。</p>
+      <button id="reset-category-btn" class="btn btn-primary" type="button">顯示全部設備</button>
+    </div>
+
+    <div id="booking-columns" class="booking-layout">
+      <div id="equipment-list" class="equipment-list"></div>
+
+      <aside class="card confirm-panel" aria-label="預約確認面板">
+        <h2>單日固定時段預約確認</h2>
+        <p class="muted" style="margin:0;font-size:13px;">每次選取一台單件設備與一個固定時段，送出後立即生效並占用該時段。</p>
+
+        <div class="summary-box">
+          <div class="summary-row">
+            <span class="label">預約成員</span>
+            <span class="val">林雅婷 (<span class="mono">lin.yating</span>)</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">預約日期</span>
+            <span id="summary-date" class="val mono">2026-11-09（一）</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">所選設備</span>
+            <span id="summary-equipment" class="val">尚未選擇設備</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">固定時段</span>
+            <span id="summary-slot" class="val mono">尚未選擇時段</span>
+          </div>
+        </div>
+
+        <button id="submit-booking-btn" class="btn btn-primary btn-block" type="button">確認送出預約</button>
+        <div id="panel-error" class="panel-error" role="alert" hidden></div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 index.html、my-reservations.html、admin.html 共用同一批預建設備、固定時段與預約紀錄
+  const MOCK = {
+    today: '2026-11-08',
+    maxDate: '2026-11-14',
+    openDates: [
+      { date: '2026-11-08', label: '11/08（日）今日' },
+      { date: '2026-11-09', label: '11/09（一）' },
+      { date: '2026-11-10', label: '11/10（二）' },
+      { date: '2026-11-11', label: '11/11（三）' },
+      { date: '2026-11-12', label: '11/12（四）' },
+      { date: '2026-11-13', label: '11/13（五）' },
+      { date: '2026-11-14', label: '11/14（六）' }
+    ],
+    slots: [
+      { id: 'SLOT-AM', name: '上午', timeRange: '09:00–12:00', startHour: 9 },
+      { id: 'SLOT-PM', name: '下午', timeRange: '13:00–17:00', startHour: 13 },
+      { id: 'SLOT-EV', name: '晚間', timeRange: '18:00–21:00', startHour: 18 }
+    ],
+    equipments: [
+      { id: 'EQ-101', name: '高解析度光學顯微鏡 Olympus BX53', category: '光學檢測', status: '可供借用', location: 'A 棟 302 光學實驗室' },
+      { id: 'EQ-102', name: '四通道數位示波器 Keysight DSOX3024T', category: '電子量測', status: '可供借用', location: 'B 棟 205 電子量測室' },
+      { id: 'EQ-103', name: '高精度工業熱像儀 FLIR E86', category: '熱流分析', status: '可供借用', location: 'B 棟 208 熱流實驗室' },
+      { id: 'EQ-104', name: '微量分光光度計 Thermo NanoDrop One', category: '生醫分析', status: '可供借用', location: 'C 棟 401 生醫分析室' }
+    ],
+    baseOccupancy: {
+      '2026-11-08|EQ-102|SLOT-AM': 'mine',
+      '2026-11-09|EQ-101|SLOT-AM': 'mine',
+      '2026-11-09|EQ-101|SLOT-PM': 'occupied',
+      '2026-11-10|EQ-104|SLOT-AM': 'mine'
+    }
+  };
+
+  const $ = sel => document.querySelector(sel);
+  let timers = [];
+  let selectedDate = '2026-11-09';
+  let selectedCategory = 'ALL';
+  let selectedSlotKey = null;
+  let occupancy = { ...MOCK.baseOccupancy };
+  let isSubmitting = false;
+
+  function initTheme() {
+    const saved = localStorage.getItem('el-theme') || 'light';
+    applyTheme(saved);
+    $('#theme-toggle').addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      $('#theme-toggle').textContent = '淺色模式';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      $('#theme-toggle').textContent = '深色模式';
+    }
+    localStorage.setItem('el-theme', theme);
+  }
+
+  function resetData() {
+    occupancy = { ...MOCK.baseOccupancy };
+    selectedDate = '2026-11-09';
+    selectedCategory = 'ALL';
+    selectedSlotKey = null;
+    isSubmitting = false;
+    $('#date-input').value = selectedDate;
+    $('#category-select').value = selectedCategory;
+    $('#date-range-error').hidden = true;
+    $('#panel-error').hidden = true;
+    $('#page-banner').hidden = true;
+  }
+
+  function isDateInOpenRange(dateStr) {
+    return dateStr >= MOCK.today && dateStr <= MOCK.maxDate;
+  }
+
+  function isSlotStarted(dateStr, slotId) {
+    return dateStr === '2026-11-08' && slotId === 'SLOT-AM';
+  }
+
+  function showBanner(tone, text, showMyReservationsLink) {
+    const banner = $('#page-banner');
+    banner.className = `banner banner-${tone}`;
+    $('#page-banner-text').textContent = text;
+    $('#page-banner-link').hidden = !showMyReservationsLink;
+    banner.hidden = false;
+  }
+
+  function renderDateChips() {
+    $('#date-chips').innerHTML = MOCK.openDates.map(d => `
+      <button type="button" class="date-chip mono${d.date === selectedDate ? ' active' : ''}" data-date="${d.date}">${d.label}</button>
+    `).join('');
+  }
+
+  function renderEquipments() {
+    renderDateChips();
+    const filtered = selectedCategory === 'ALL'
+      ? MOCK.equipments
+      : MOCK.equipments.filter(eq => eq.category === selectedCategory);
+
+    if (filtered.length === 0) {
+      $('#view-empty').hidden = false;
+      $('#booking-columns').hidden = true;
+      return;
+    }
+    $('#view-empty').hidden = true;
+    $('#booking-columns').hidden = false;
+
+    const outOfRange = !isDateInOpenRange(selectedDate);
+    $('#equipment-list').innerHTML = filtered.map(eq => {
+      const slotButtons = MOCK.slots.map(slot => {
+        const key = `${selectedDate}|${eq.id}|${slot.id}`;
+        const state = occupancy[key] || 'available';
+        const started = isSlotStarted(selectedDate, slot.id);
+        const isSelected = selectedSlotKey === key;
+
+        let badgeClass = 'badge-available';
+        let badgeText = '可預約';
+        if (state === 'mine') {
+          badgeClass = 'badge-mine';
+          badgeText = '本人已預約';
+        } else if (state === 'occupied') {
+          badgeClass = 'badge-occupied';
+          badgeText = '已被預約';
+        } else if (started) {
+          badgeClass = 'badge-occupied';
+          badgeText = '時段已開始';
+        }
+
+        const disabled = isSubmitting || outOfRange || state === 'mine' || state === 'occupied';
+        return `
+          <button type="button" class="slot-btn${isSelected ? ' selected' : ''}" data-slot-key="${key}" data-started="${started}" ${disabled ? 'disabled' : ''}>
+            <div style="display:flex;justify-content:space-between;width:100%;align-items:center;gap:6px;">
+              <span class="slot-name">${slot.name}時段</span>
+              <span class="badge ${badgeClass}">${badgeText}</span>
+            </div>
+            <span class="slot-time">${slot.timeRange}</span>
+          </button>
+        `;
+      }).join('');
+
+      return `
+        <article class="card equipment-card">
+          <div class="eq-header">
+            <div>
+              <div><span class="eq-code">${eq.id}</span> <span class="badge badge-available">${eq.status}</span></div>
+              <h2 class="eq-title">${eq.name}</h2>
+              <div class="eq-meta">分類：${eq.category}｜放置位置：${eq.location}</div>
+            </div>
+          </div>
+          <div class="slots-grid">${slotButtons}</div>
+        </article>
+      `;
+    }).join('');
+
+    updateSummaryPanel();
+  }
+
+  function updateSummaryPanel() {
+    const dateObj = MOCK.openDates.find(d => d.date === selectedDate);
+    $('#summary-date').textContent = dateObj ? `${selectedDate}（${dateObj.label.slice(6, 7)}）` : selectedDate;
+    const submitBtn = $('#submit-booking-btn');
+
+    if (!isDateInOpenRange(selectedDate)) {
+      $('#summary-equipment').textContent = '日期超出開放範圍';
+      $('#summary-slot').textContent = '—';
+      submitBtn.disabled = true;
+      submitBtn.textContent = '確認送出預約';
+      return;
+    }
+
+    if (!selectedSlotKey) {
+      $('#summary-equipment').textContent = '尚未選擇設備';
+      $('#summary-slot').textContent = '尚未選擇時段';
+      submitBtn.disabled = isSubmitting;
+      submitBtn.textContent = isSubmitting ? '送出預約中…' : '確認送出預約';
+      return;
+    }
+
+    const [dateStr, eqId, slotId] = selectedSlotKey.split('|');
+    const eq = MOCK.equipments.find(e => e.id === eqId);
+    const slot = MOCK.slots.find(s => s.id === slotId);
+    $('#summary-date').textContent = dateStr;
+    $('#summary-equipment').textContent = `${eq.id} ${eq.name}`;
+    $('#summary-slot').textContent = `${slot.name} ${slot.timeRange}`;
+    submitBtn.disabled = isSubmitting;
+    submitBtn.textContent = isSubmitting ? '送出預約中…' : '確認送出預約';
+  }
+
+  $('#date-chips').addEventListener('click', e => {
+    const btn = e.target.closest('[data-date]');
+    if (!btn) return;
+    selectedDate = btn.dataset.date;
+    selectedSlotKey = null;
+    $('#date-input').value = selectedDate;
+    $('#date-range-error').hidden = true;
+    $('#panel-error').hidden = true;
+    $('#page-banner').hidden = true;
+    renderEquipments();
+  });
+
+  $('#date-input').addEventListener('change', e => {
+    selectedDate = e.target.value;
+    selectedSlotKey = null;
+    $('#panel-error').hidden = true;
+    if (!isDateInOpenRange(selectedDate)) {
+      applyState('out-of-range-date');
+      return;
+    }
+    $('#date-range-error').hidden = true;
+    $('#page-banner').hidden = true;
+    renderEquipments();
+  });
+
+  $('#category-select').addEventListener('change', e => {
+    selectedCategory = e.target.value;
+    selectedSlotKey = null;
+    if (selectedCategory === '聲學量測') {
+      applyState('empty-filter');
+      return;
+    }
+    renderEquipments();
+  });
+
+  $('#reset-category-btn').addEventListener('click', () => {
+    applyState('browse');
+  });
+
+  $('#equipment-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-slot-key]');
+    if (!btn || btn.disabled) return;
+    selectedSlotKey = btn.dataset.slotKey;
+    $('#panel-error').hidden = true;
+    if (btn.dataset.started === 'true') {
+      applyState('started-slot');
+      return;
+    }
+    renderEquipments();
+    markState('slot-selected');
+  });
+
+  $('#submit-booking-btn').addEventListener('click', () => {
+    if (!selectedSlotKey) {
+      applyState('no-slot-selected');
+      return;
+    }
+    const [dateStr, slotId] = [selectedSlotKey.split('|')[0], selectedSlotKey.split('|')[2]];
+    if (isSlotStarted(dateStr, slotId)) {
+      applyState('started-slot');
+      return;
+    }
+    isSubmitting = true;
+    renderEquipments();
+    markState('submitting');
+    timers.push(setTimeout(() => {
+      isSubmitting = false;
+      occupancy[selectedSlotKey] = 'mine';
+      const [d, eqId, sId] = selectedSlotKey.split('|');
+      const eq = MOCK.equipments.find(item => item.id === eqId);
+      const sl = MOCK.slots.find(item => item.id === sId);
+      renderEquipments();
+      showBanner('success', `預約已成立！預約編號 RV-20261108-06（${eq.id} ${eq.name}，${d} ${sl.name} ${sl.timeRange}）已立即生效並占用時段。`, true);
+      markState('booking-success');
+    }, 600));
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    {
+      key: 'loading',
+      label: '載入中',
+      apply: () => {
+        $('#view-loading').hidden = false;
+        $('#view-main').hidden = true;
+        $('#page-banner').hidden = true;
+      }
+    },
+    {
+      key: 'browse',
+      label: '檢視設備與時段',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        renderEquipments();
+      }
+    },
+    {
+      key: 'slot-selected',
+      label: '已選取可預約時段',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        selectedSlotKey = '2026-11-09|EQ-102|SLOT-PM';
+        renderEquipments();
+      }
+    },
+    {
+      key: 'submitting',
+      label: '送出預約中',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        selectedSlotKey = '2026-11-09|EQ-102|SLOT-PM';
+        isSubmitting = true;
+        renderEquipments();
+      }
+    },
+    {
+      key: 'booking-success',
+      label: '預約成功',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        selectedSlotKey = '2026-11-09|EQ-102|SLOT-PM';
+        occupancy['2026-11-09|EQ-102|SLOT-PM'] = 'mine';
+        renderEquipments();
+        showBanner('success', '預約已成立！預約編號 RV-20261108-06（EQ-102 四通道數位示波器 Keysight DSOX3024T，2026-11-09 下午 13:00–17:00）已立即生效並占用時段。', true);
+      }
+    },
+    {
+      key: 'empty-filter',
+      label: '無符合篩選的設備',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        selectedCategory = '聲學量測';
+        $('#category-select').value = '聲學量測';
+        renderEquipments();
+      }
+    },
+    {
+      key: 'no-slot-selected',
+      label: '未選擇可預約時段',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        renderEquipments();
+        const err = $('#panel-error');
+        err.textContent = '請先從上方設備卡片點選一個狀態為「可預約」的固定時段。';
+        err.hidden = false;
+      }
+    },
+    {
+      key: 'conflict',
+      label: '同時搶約時段衝突',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        occupancy['2026-11-09|EQ-101|SLOT-EV'] = 'occupied';
+        renderEquipments();
+        showBanner('danger', '預約失敗：EQ-101 高解析度光學顯微鏡 Olympus BX53 於 2026-11-09 晚間 18:00–21:00 剛剛已被其他成員預約，請改選其他可預約時段。', false);
+      }
+    },
+    {
+      key: 'started-slot',
+      label: '選擇已開始或已結束時段',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        selectedDate = '2026-11-08';
+        $('#date-input').value = '2026-11-08';
+        selectedSlotKey = '2026-11-08|EQ-101|SLOT-AM';
+        renderEquipments();
+        showBanner('danger', '無法預約：2026-11-08 上午 09:00–12:00 時段已開始或已結束，請選擇尚未開始的固定時段。', false);
+      }
+    },
+    {
+      key: 'out-of-range-date',
+      label: '選擇超出開放範圍日期',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        resetData();
+        selectedDate = '2026-11-16';
+        $('#date-input').value = '2026-11-16';
+        const dateErr = $('#date-range-error');
+        dateErr.textContent = '僅開放預約當日起算 7 天內（2026-11-08 至 2026-11-14）尚未開始的固定時段，所選日期不在開放範圍內。';
+        dateErr.hidden = false;
+        renderEquipments();
+        showBanner('danger', '僅開放預約當日起算 7 天內（2026-11-08 至 2026-11-14）尚未開始的固定時段，所選日期不在開放範圍內。', false);
+      }
+    }
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  initTheme();
+  applyState('browse');
+</script>
+</body>
+</html>

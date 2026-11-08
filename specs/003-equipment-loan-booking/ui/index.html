@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>帳號密碼與 7 位數驗證碼登入｜精密實驗設備借用中心</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-muted: #F1F5F9;
+    --ink: #0F172A;
+    --muted: #475569;
+    --line: #E2E8F0;
+    --primary: #2563EB;
+    --primary-soft: #DBEAFE;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+    --pending: #D97706;
+    --pending-soft: #FEF3C7;
+    --success: #16A34A;
+    --success-soft: #DCFCE7;
+    --occupied: #64748B;
+    --occupied-soft: #F1F5F9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+    --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-muted: #162032;
+    --ink: #F8FAFC;
+    --muted: #94A3B8;
+    --line: #334155;
+    --primary: #3B82F6;
+    --primary-soft: #1E3A8A;
+    --danger: #EF4444;
+    --danger-soft: #7F1D1D;
+    --pending: #F59E0B;
+    --pending-soft: #78350F;
+    --success: #22C55E;
+    --success-soft: #14532D;
+    --occupied: #94A3B8;
+    --occupied-soft: #334155;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .35), 0 6px 20px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); transition: background-color .15s, color .15s; }
+  a { color: inherit; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .04em; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .brand-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #FFFFFF; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .site-nav a { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .user-pill { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .btn-theme, .btn-logout { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-theme:hover, .btn-logout:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 720px) { .user-pill { display: none; } .site-header .inner { padding: 8px 12px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  .page-lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFFFFF; }
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .banner-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .banner-info { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .badge-available { background: var(--success-soft); color: var(--success); }
+  .badge-mine { background: var(--primary-soft); color: var(--primary); }
+  .badge-occupied { background: var(--occupied-soft); color: var(--occupied); }
+  .badge-cancelled { background: var(--danger-soft); color: var(--danger); }
+
+  .spinner { width: 20px; height: 20px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { background: var(--surface-muted); border-radius: 8px; min-height: 20px; border: 1px dashed var(--line); }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 登入頁專屬樣式 */
+  .auth-grid { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .auth-grid { grid-template-columns: 1fr; } }
+  .auth-card { padding: 28px; }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+  .field .req { margin-left: 2px; color: var(--danger); }
+  .field input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+  .field input:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field input:disabled { background: var(--surface-muted); color: var(--muted); }
+  .field.has-error input { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
+  .field .error { margin-top: 4px; color: var(--danger); font-size: 13px; font-weight: 500; }
+
+  .captcha-panel { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-muted); }
+  .captcha-display { display: flex; flex-direction: column; gap: 2px; }
+  .captcha-code { font-family: var(--font-mono); font-size: 24px; font-weight: 700; letter-spacing: .18em; color: var(--primary); user-select: all; }
+  .captcha-meta { font-size: 12px; color: var(--muted); }
+  .captcha-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+
+  .quick-accounts { padding: 24px; }
+  .account-list { display: grid; gap: 12px; margin-top: 12px; }
+  .account-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-muted); }
+  .account-item .meta { font-size: 13px; color: var(--muted); }
+  .rule-box { margin-top: 20px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-muted); font-size: 13px; }
+  .rule-box ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+
+  .success-card { max-width: 520px; margin: 12px auto; padding: 32px; text-align: center; }
+  .success-icon { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: var(--success-soft); color: var(--success); font-size: 26px; font-weight: 700; }
+  .success-detail { margin: 18px 0 24px; padding: 14px 18px; border-radius: 10px; background: var(--surface-muted); text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 14px; }
+  .success-detail dt { color: var(--muted); }
+  .success-detail dd { margin: 0; font-weight: 600; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="brand-mark">EL</span>精密實驗設備借用中心</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html" aria-current="page">登入</a>
+      <a href="booking.html">設備預約</a>
+      <a href="my-reservations.html">我的預約</a>
+      <a href="admin.html">全體預約管理</a>
+    </nav>
+    <div class="header-actions">
+      <span id="header-user" class="user-pill">尚未登入</span>
+      <button id="theme-toggle" class="btn-theme" type="button" aria-label="切換深淺色主題">深色模式</button>
+      <a id="header-logout" class="btn-logout" href="index.html?state=logged-out">登出</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>系統登入與身分驗證</h1>
+  <p class="page-lead">請使用組織預建的成員或管理員帳號登入，並輸入畫面上 7 位數區分英文大小寫的英數驗證碼。</p>
+
+  <div id="page-banner" class="banner" role="alert" hidden>
+    <span id="page-banner-text"></span>
+    <span id="page-banner-code" class="mono"></span>
+  </div>
+
+  <!-- 登入表單與預建帳號區塊 -->
+  <section id="view-login" class="auth-grid">
+    <form id="login-form" class="card auth-card" novalidate>
+      <h2>帳號密碼與驗證碼登入</h2>
+
+      <div class="field" data-field="username">
+        <label for="username">登入帳號<span class="req">*</span></label>
+        <input id="username" name="username" class="mono" autocomplete="username" placeholder="例如 lin.yating">
+        <div class="error" hidden></div>
+      </div>
+
+      <div class="field" data-field="password">
+        <label for="password">登入密碼<span class="req">*</span></label>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="請輸入登入密碼">
+        <div class="error" hidden></div>
+      </div>
+
+      <div class="field" data-field="captcha">
+        <label for="captchaInput">7 位數英數驗證碼（區分大小寫）<span class="req">*</span></label>
+        <div class="captcha-panel">
+          <div id="captcha-loading" class="captcha-loading" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span>正在產生 7 位數驗證碼…</span>
+          </div>
+          <div id="captcha-ready" class="captcha-display">
+            <span id="captcha-code" class="captcha-code">A7k9M2x</span>
+            <span id="captcha-meta" class="captcha-meta">挑戰編號 <span id="captcha-id" class="mono">CAP-20261108-01</span>｜有效期限 5 分鐘</span>
+          </div>
+          <button id="refresh-captcha-btn" class="btn btn-sm" type="button">重整驗證碼</button>
+        </div>
+        <input id="captchaInput" name="captcha" class="mono" maxlength="7" autocomplete="off" placeholder="請依上方大小寫輸入 7 位數驗證碼">
+        <div class="hint">驗證碼由英文（A–Z、a–z）與阿拉伯數字（0–9）組成；送出驗證或手動重整後原驗證碼立即失效。</div>
+        <div class="error" hidden></div>
+      </div>
+
+      <button id="login-submit-btn" class="btn btn-primary btn-block" type="submit">登入系統</button>
+    </form>
+
+    <aside class="card quick-accounts" aria-label="預建測試帳號">
+      <h2>預建展示帳號快速帶入</h2>
+      <p class="muted" style="margin:0;font-size:13px;">點選下方預建帳號可自動填入帳號、密碼與目前畫面上的 7 位數驗證碼：</p>
+      <div class="account-list" id="account-list"></div>
+      <div class="rule-box">
+        <strong>驗證碼與借用規範提醒</strong>
+        <ul>
+          <li>驗證碼嚴格區分大小寫（例如 <code class="mono">A7k9M2x</code> 與 <code class="mono">a7k9m2x</code> 視為不同）。</li>
+          <li>開放當日起算 7 天內（<span class="mono">2026-11-08</span> 至 <span class="mono">2026-11-14</span>）尚未開始的單日固定時段。</li>
+          <li>每日固定 3 個時段：上午 <span class="mono">09:00–12:00</span>、下午 <span class="mono">13:00–17:00</span>、晚間 <span class="mono">18:00–21:00</span>。</li>
+        </ul>
+      </div>
+    </aside>
+  </section>
+
+  <!-- 登入成功畫面 -->
+  <section id="view-success" class="card success-card" aria-live="polite" hidden>
+    <div class="success-icon" aria-hidden="true">✓</div>
+    <h2 id="success-title"></h2>
+    <p id="success-desc" class="muted"></p>
+    <dl id="success-detail" class="success-detail"></dl>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a id="success-primary-link" class="btn btn-primary" href="booking.html">前往設備預約</a>
+      <button id="switch-account-btn" class="btn" type="button">切換其他帳號登入</button>
+    </div>
+  </section>
+</main>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 booking.html、my-reservations.html、admin.html 共用同一批預建帳號与驗證碼挑戰
+  const MOCK = {
+    accounts: [
+      { username: 'lin.yating', password: 'Member@2026', displayName: '林雅婷', role: 'member', roleLabel: '一般成員', dept: '光電材料實驗室' },
+      { username: 'chen.guanting', password: 'Member@2026', displayName: '陳冠廷', role: 'member', roleLabel: '一般成員', dept: '嵌入式系統實驗室' },
+      { username: 'wu.chenghan', password: 'Admin@2026', displayName: '吳承翰', role: 'admin', roleLabel: '管理員', dept: '研發設備管理組' }
+    ],
+    captchas: [
+      { id: 'CAP-20261108-01', code: 'A7k9M2x', expiresAt: '10:35' },
+      { id: 'CAP-20261108-02', code: 'B4p8Q1z', expiresAt: '10:36' },
+      { id: 'CAP-20261108-03', code: 'm3R7v9K', expiresAt: '10:37' },
+      { id: 'CAP-20261108-04', code: 'T6n2W8c', expiresAt: '10:38' },
+      { id: 'CAP-20261108-05', code: 'h5L4d9P', expiresAt: '10:39' }
+    ]
+  };
+
+  const FIELD_RULES = {
+    username: v => v.trim() ? '' : '請輸入登入帳號',
+    password: v => v.trim() ? '' : '請輸入登入密碼',
+    captcha: v => {
+      const val = v.trim();
+      if (!val || val.length !== 7 || !/^[A-Za-z0-9]{7}$/.test(val)) {
+        return '請輸入完整的 7 位數英數驗證碼（區分英文大小寫）';
+      }
+      return '';
+    }
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const form = $('#login-form');
+  const submitBtn = $('#login-submit-btn');
+  const refreshBtn = $('#refresh-captcha-btn');
+  let timers = [];
+  let currentCaptchaIndex = 0;
+
+  function initTheme() {
+    const saved = localStorage.getItem('el-theme') || 'light';
+    applyTheme(saved);
+    $('#theme-toggle').addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      $('#theme-toggle').textContent = '淺色模式';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      $('#theme-toggle').textContent = '深色模式';
+    }
+    localStorage.setItem('el-theme', theme);
+  }
+
+  function renderQuickAccounts() {
+    $('#account-list').innerHTML = MOCK.accounts.map((acc, idx) => `
+      <div class="account-item">
+        <div>
+          <div><strong>${acc.displayName}</strong> <span class="badge ${acc.role === 'admin' ? 'badge-mine' : 'badge-available'}">${acc.roleLabel}</span></div>
+          <div class="meta">帳號：<span class="mono">${acc.username}</span>｜密碼：<span class="mono">${acc.password}</span></div>
+        </div>
+        <button class="btn btn-sm" type="button" data-fill-account="${idx}">帶入帳號</button>
+      </div>
+    `).join('');
+
+    $('#account-list').addEventListener('click', e => {
+      const btn = e.target.closest('[data-fill-account]');
+      if (!btn) return;
+      const acc = MOCK.accounts[Number(btn.dataset.fillAccount)];
+      const cap = MOCK.captchas[currentCaptchaIndex];
+      fillForm({ username: acc.username, password: acc.password, captcha: cap.code });
+    });
+  }
+
+  function setCaptchaByIndex(index, noteText) {
+    currentCaptchaIndex = index % MOCK.captchas.length;
+    const cap = MOCK.captchas[currentCaptchaIndex];
+    $('#captcha-loading').hidden = true;
+    $('#captcha-ready').hidden = false;
+    $('#captcha-code').textContent = cap.code;
+    $('#captcha-id').textContent = cap.id;
+    $('#captcha-meta').innerHTML = `挑戰編號 <span id="captcha-id" class="mono">${cap.id}</span>｜${noteText || '有效期限 5 分鐘'}`;
+  }
+
+  function showBanner(tone, text, codeText) {
+    const banner = $('#page-banner');
+    banner.className = `banner banner-${tone}`;
+    $('#page-banner-text').textContent = text;
+    $('#page-banner-code').textContent = codeText || '';
+    banner.hidden = false;
+  }
+
+  function hideBanner() {
+    $('#page-banner').hidden = true;
+  }
+
+  function clearErrors() {
+    document.querySelectorAll('.field').forEach(field => {
+      field.classList.remove('has-error');
+      const err = field.querySelector('.error');
+      if (err) err.hidden = true;
+    });
+  }
+
+  function fillForm(values) {
+    const v = values || { username: '', password: '', captcha: '' };
+    form.elements.username.value = v.username || '';
+    form.elements.password.value = v.password || '';
+    form.elements.captcha.value = v.captcha || '';
+    clearErrors();
+    setSubmitting(false);
+  }
+
+  function setSubmitting(on) {
+    submitBtn.disabled = on;
+    submitBtn.textContent = on ? '登入驗證中…' : '登入系統';
+    form.elements.username.disabled = on;
+    form.elements.password.disabled = on;
+    form.elements.captcha.disabled = on;
+    refreshBtn.disabled = on;
+  }
+
+  function validate(focusFirst) {
+    let firstInvalid = null;
+    Object.entries(FIELD_RULES).forEach(([name, rule]) => {
+      const input = form.elements[name];
+      const field = input.closest('.field');
+      const message = rule(input.value);
+      field.classList.toggle('has-error', Boolean(message));
+      const errorEl = field.querySelector('.error');
+      errorEl.textContent = message;
+      errorEl.hidden = !message;
+      if (message && !firstInvalid) firstInvalid = input;
+    });
+    if (firstInvalid && focusFirst) firstInvalid.focus();
+    return !firstInvalid;
+  }
+
+  function showLoginSuccess(account) {
+    $('#view-login').hidden = true;
+    $('#view-success').hidden = false;
+    hideBanner();
+    $('#header-user').textContent = `${account.displayName}（${account.roleLabel}）`;
+    $('#success-title').textContent = `登入成功，歡迎${account.displayName}（${account.roleLabel}）`;
+    $('#success-desc').textContent = '已通過 7 位數區分大小寫驗證碼與帳號密碼驗證，工作階段已建立。';
+    $('#success-detail').innerHTML = `
+      <dt>登入帳號</dt><dd class="mono">${account.username}</dd>
+      <dt>所屬單位</dt><dd>${account.dept}</dd>
+      <dt>角色權限</dt><dd>${account.roleLabel} (${account.role})</dd>
+    `;
+    const primaryLink = $('#success-primary-link');
+    if (account.role === 'admin') {
+      primaryLink.textContent = '前往全體預約管理';
+      primaryLink.setAttribute('href', 'admin.html');
+    } else {
+      primaryLink.textContent = '前往設備預約';
+      primaryLink.setAttribute('href', 'booking.html');
+    }
+  }
+
+  refreshBtn.addEventListener('click', () => {
+    setCaptchaByIndex(currentCaptchaIndex + 1, '已更換為新的 7 位數驗證碼，有效期限 5 分鐘');
+    form.elements.captcha.value = '';
+    showBanner('info', `原驗證碼已作廢，已更換為新的 7 位數驗證碼 ${MOCK.captchas[currentCaptchaIndex].code}（有效期限 5 分鐘）。`);
+    markState('refreshed');
+  });
+
+  $('#switch-account-btn').addEventListener('click', () => {
+    applyState('ready');
+  });
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    hideBanner();
+    if (!validate(true)) {
+      markState('invalid');
+      return;
+    }
+    const username = form.elements.username.value.trim();
+    const password = form.elements.password.value;
+    const captchaVal = form.elements.captcha.value.trim();
+    const activeCaptcha = MOCK.captchas[currentCaptchaIndex].code;
+
+    setSubmitting(true);
+    markState('submitting');
+
+    timers.push(setTimeout(() => {
+      setSubmitting(false);
+      if (captchaVal !== activeCaptcha) {
+        if (captchaVal.toLowerCase() === activeCaptcha.toLowerCase()) {
+          applyState('case-mismatch');
+        } else {
+          applyState('expired-captcha');
+        }
+        return;
+      }
+      const matched = MOCK.accounts.find(a => a.username === username && a.password === password);
+      if (!matched) {
+        applyState('wrong-credentials');
+        return;
+      }
+      if (matched.role === 'admin') {
+        applyState('admin-success');
+      } else {
+        applyState('member-success');
+      }
+    }, 600));
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    {
+      key: 'loading-captcha',
+      label: '載入驗證碼中',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        hideBanner();
+        fillForm({ username: '', password: '', captcha: '' });
+        $('#captcha-loading').hidden = false;
+        $('#captcha-ready').hidden = true;
+        submitBtn.disabled = true;
+        $('#header-user').textContent = '尚未登入';
+      }
+    },
+    {
+      key: 'ready',
+      label: '待登入',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        hideBanner();
+        setCaptchaByIndex(0, '有效期限 5 分鐘');
+        fillForm({ username: 'lin.yating', password: 'Member@2026', captcha: 'A7k9M2x' });
+        $('#header-user').textContent = '尚未登入';
+      }
+    },
+    {
+      key: 'refreshed',
+      label: '已重整驗證碼',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        setCaptchaByIndex(1, '已更換為新的 7 位數驗證碼，有效期限 5 分鐘');
+        fillForm({ username: 'lin.yating', password: 'Member@2026', captcha: '' });
+        showBanner('info', '已更換為新的 7 位數驗證碼 B4p8Q1z，原驗證碼 A7k9M2x 已立即失效。');
+      }
+    },
+    {
+      key: 'submitting',
+      label: '登入驗證中',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        hideBanner();
+        setCaptchaByIndex(0);
+        fillForm({ username: 'lin.yating', password: 'Member@2026', captcha: 'A7k9M2x' });
+        setSubmitting(true);
+      }
+    },
+    {
+      key: 'member-success',
+      label: '成員登入成功',
+      apply: () => {
+        showLoginSuccess(MOCK.accounts[0]);
+      }
+    },
+    {
+      key: 'admin-success',
+      label: '管理員登入成功',
+      apply: () => {
+        showLoginSuccess(MOCK.accounts[2]);
+      }
+    },
+    {
+      key: 'logged-out',
+      label: '已登出',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        setCaptchaByIndex(2, '有效期限 5 分鐘');
+        fillForm({ username: '', password: '', captcha: '' });
+        $('#header-user').textContent = '尚未登入';
+        showBanner('info', '您已安全登出工作階段，請重新輸入帳號、密碼與新的 7 位數驗證碼登入。', 'm3R7v9K');
+      }
+    },
+    {
+      key: 'invalid',
+      label: '欄位驗證錯誤',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        hideBanner();
+        setCaptchaByIndex(0);
+        fillForm({ username: '', password: '', captcha: 'A7k9' });
+        validate(false);
+      }
+    },
+    {
+      key: 'case-mismatch',
+      label: '驗證碼大小寫不符',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        setCaptchaByIndex(1, '原驗證碼 A7k9M2x 已作廢，已換發新驗證碼');
+        fillForm({ username: 'lin.yating', password: 'Member@2026', captcha: '' });
+        showBanner('danger', '驗證碼輸入錯誤（英文須區分大小寫，例如 a 與 A 不同），原驗證碼已失效，請輸入新驗證碼 B4p8Q1z 後重試。');
+      }
+    },
+    {
+      key: 'expired-captcha',
+      label: '驗證碼已過期或重複使用',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        setCaptchaByIndex(3, '原驗證碼已過期失效，已換發新驗證碼');
+        fillForm({ username: 'lin.yating', password: 'Member@2026', captcha: '' });
+        showBanner('danger', '此 7 位數驗證碼已超過 5 分鐘有效期限或已失效，系統已換發新驗證碼 T6n2W8c，請重新輸入。');
+      }
+    },
+    {
+      key: 'wrong-credentials',
+      label: '帳號或密碼錯誤',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        setCaptchaByIndex(4, '原驗證碼已單次消耗失效，已換發新驗證碼');
+        fillForm({ username: 'lin.yating', password: 'WrongPass123', captcha: '' });
+        showBanner('danger', '帳號或密碼不正確，且原驗證碼已單次消耗失效，請確認密碼並輸入新驗證碼 h5L4d9P。');
+      }
+    },
+    {
+      key: 'unauthorized-redirect',
+      label: '未登入存取受保護頁面',
+      apply: () => {
+        $('#view-login').hidden = false;
+        $('#view-success').hidden = true;
+        setCaptchaByIndex(0);
+        fillForm({ username: '', password: '', captcha: '' });
+        $('#header-user').textContent = '尚未登入';
+        showBanner('danger', '請先完成帳號密碼與 7 位數驗證碼登入，才能檢視設備清單或執行預約操作。');
+      }
+    }
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  initTheme();
+  renderQuickAccounts();
+  const params = new URLSearchParams(window.location.search);
+  const initialState = params.get('state') && STATES.some(s => s.key === params.get('state')) ? params.get('state') : 'ready';
+  applyState(initialState);
+</script>
+</body>
+</html>

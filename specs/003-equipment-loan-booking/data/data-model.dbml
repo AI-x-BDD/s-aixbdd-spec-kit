@@ -1,0 +1,160 @@
+// Data Model: 設備借用與預約系統 (Equipment Loan and Booking System)
+// Spec: specs/003-equipment-loan-booking/spec.md
+// Date: 2026-11-08
+
+Project "equipment-loan-booking" {
+  database_type: 'PostgreSQL'
+  Note: '涵蓋 D1 帳號、驗證碼挑戰與工作階段資料存取與 D2 設備、固定時段與預約紀錄持久化。每張持久化資料表皆具備生命週期欄位並採用軟刪除（設定 deleted_at），查詢有效資料時皆排除 deleted_at 不為 null 的資料列。'
+}
+
+// ---------- Enums ----------
+
+Enum user_role {
+  member [note: '一般成員：可查看預建設備、預約當日起 7 天內固定時段，並查看及取消本人預約（FR-002、FR-004、FR-006、FR-007）']
+  admin [note: '管理員：可查看所有預建設備清單與全體成員預約紀錄（FR-002、FR-009、FR-010）']
+}
+
+Enum equipment_status {
+  available [note: '可供預約借用（FR-003、FR-011）']
+  unavailable [note: '暫停借用（第一版預建設備皆為 available，停用管理留待後續迭代）']
+}
+
+Enum reservation_status {
+  confirmed [note: '有效預約：已確認並立即占用該設備於該日該固定時段（FR-004、FR-005）']
+  cancelled [note: '已取消：於時段開始前由本人取消並釋出時段，保留歷史紀錄列（FR-007、SC-003）']
+}
+
+// ---------- Tables ----------
+
+// D1 帳號、驗證碼挑戰與工作階段資料存取
+Table users {
+  id uuid [pk, note: '使用者唯一識別碼']
+  username varchar(64) [not null, unique, note: '登入帳號（例如 lin.yating、chen.guanting、wu.chenghan，FR-002、FR-011）']
+  password_hash varchar(255) [not null, note: '以 crypto.scrypt 雜湊後的密碼字串（FR-002）']
+  display_name varchar(100) [not null, note: '顯示名稱（例如林雅婷、陳冠廷、吳承翰，FR-009、FR-011）']
+  role user_role [not null, default: 'member', note: '使用者角色：一般成員 member 或管理員 admin（FR-002、FR-009、FR-010）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統預建或匿名操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (role, deleted_at) [name: 'idx_users_role_active', note: '依角色篩選未軟刪除的有效帳號（FR-002、FR-010）']
+  }
+
+  Note: 'D1：Key Entities 使用者帳號；US1、US3；FR-002 支援預建成員與管理員測試帳號登入、FR-009 管理員檢視預約成員識別資訊、FR-010 限制管理員全體預約清單僅供管理員存取、FR-011 預建至少 2 組一般成員帳號與 1 組管理員帳號；SC-005 100% 攔截一般成員越權存取。刪除帳號時設定 deleted_at，不物理刪除資料列；查詢有效帳號時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table captcha_challenges {
+  id uuid [pk, note: '驗證碼挑戰唯一識別碼']
+  captcha_code varchar(7) [not null, note: '以 A–Z、a–z、0–9 隨機產生且同時含英文與阿拉伯數字的 7 位數驗證碼，比對時嚴格區分大小寫（FR-001、SC-001）']
+  expires_at timestamptz [not null, note: '到期時間點（建立後 5 分鐘，FR-001、SC-001）']
+  consumed_at timestamptz [note: '送出登入驗證（無論成功或失敗）或手動重整替換而立即失效的時間點；尚未使用時為 null（FR-001、SC-001）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；未登入操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (expires_at, consumed_at) [name: 'idx_captcha_challenges_validity', note: '加速驗證挑戰是否仍在 5 分鐘有效期限內且尚未被消耗（FR-001、NFR-002、SC-001、SC-004）']
+  }
+
+  Note: 'D1：Key Entities 登入驗證碼挑戰；US1；FR-001 提供 7 位數區分大小寫英數驗證碼、5 分鐘有效期限與送出驗證或手動重整後立即失效；NFR-002、SC-001 100% 強制檢查大小寫與單次有效、SC-004 登入回應時間低於 2 秒。刪除驗證碼挑戰時設定 deleted_at，不物理刪除資料列；查詢有效驗證碼挑戰時排除 deleted_at 不為 null、consumed_at 不為 null 或已超過 expires_at 的資料列。'
+}
+
+Table sessions {
+  id uuid [pk, note: '工作階段唯一識別碼']
+  token varchar(128) [not null, unique, note: '登入成功後簽發的不透明 Bearer session token（FR-002）']
+  user_id uuid [not null, note: '所屬使用者帳號 ID（FR-002）']
+  expires_at timestamptz [not null, note: '工作階段到期時間點（FR-002）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間（登出時設定 deleted_at 使工作階段立即失效）；未刪除時為 null']
+
+  indexes {
+    (user_id, deleted_at) [name: 'idx_sessions_user_active', note: '依使用者查詢未軟刪除的有效工作階段（FR-002、NFR-002、SC-004）']
+    expires_at [name: 'idx_sessions_expires_at', note: '加速檢查工作階段有效期限']
+  }
+
+  Note: 'D1：登入工作階段持久化（支撐 Key Entities 使用者帳號之工作階段管理）；US1、US3；FR-002 在登入後維持工作階段、提供登出功能並拒絕未登入存取；NFR-002、SC-004 操作回應時間低於 2 秒。登出或撤銷工作階段時設定 deleted_at，不物理刪除資料列；查詢有效工作階段時排除 deleted_at 不為 null 或已超過 expires_at 的資料列。'
+}
+
+// D2 設備、固定時段與預約紀錄持久化
+Table equipments {
+  id uuid [pk, note: '設備唯一識別碼']
+  equipment_code varchar(32) [not null, unique, note: '唯一設備編號（例如 EQ-101～EQ-104，FR-003、FR-011）']
+  name varchar(120) [not null, note: '單件獨立設備名稱（FR-003、FR-011）']
+  category varchar(64) [not null, note: '設備分類（例如光學檢測、電子量測、熱流分析、生醫分析，FR-003、FR-011）']
+  status equipment_status [not null, default: 'available', note: '設備目前可用狀態（FR-003、FR-011）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統預建時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (category, status) [name: 'idx_equipments_category_status', note: '依分類與可用狀態查詢預建設備清單（FR-003、NFR-002、SC-004）']
+  }
+
+  Note: 'D2：Key Entities 設備；US1、US3；FR-003 以單件獨立設備為管理單位展示唯一設備編號、名稱、分類與可用狀態、FR-009 管理員查看所有預建設備清單、FR-011 預建至少 4 台單件獨立設備；NFR-002、SC-004 查詢回應時間低於 2 秒。刪除設備時設定 deleted_at，不物理刪除資料列；查詢有效設備時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table time_slots {
+  id uuid [pk, note: '固定時段唯一識別碼']
+  slot_code varchar(32) [not null, unique, note: '固定時段代碼（morning、afternoon、evening，FR-003、FR-011）']
+  name varchar(32) [not null, note: '時段名稱（上午、下午、晚間，FR-003、FR-011）']
+  start_time varchar(5) [not null, note: '單日時段開始時間 HH:mm（09:00、13:00、18:00，依 Asia/Taipei 業務時區解讀，FR-003、FR-004）']
+  end_time varchar(5) [not null, note: '單日時段結束時間 HH:mm（12:00、17:00、21:00，依 Asia/Taipei 業務時區解讀，FR-003、FR-004）']
+  sort_order integer [not null, unique, note: '時段排序順序（1=上午、2=下午、3=晚間，供時段顯示與預約清單排序，FR-003、FR-006、FR-009）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統預建時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  Note: 'D2：Key Entities 固定時段定義；US1、US2、US3；FR-003 預建每日 3 個單日固定時段（上午 09:00–12:00、下午 13:00–17:00、晚間 18:00–21:00）、FR-004 檢查時段是否尚未開始、FR-006 與 FR-009 依固定時段順序排序預約紀錄、FR-011 預建 3 個單日固定時段。刪除時段定義時設定 deleted_at，不物理刪除資料列；查詢有效時段定義時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table reservations {
+  id uuid [pk, note: '預約紀錄唯一識別碼']
+  reservation_no varchar(32) [not null, unique, note: '顯示用唯一預約編號（例如 RV-20261108-01，FR-006、FR-009）']
+  user_id uuid [not null, note: '預約成員的使用者 ID（FR-004、FR-006、FR-009）']
+  equipment_id uuid [not null, note: '預約的單件設備 ID（FR-004、FR-005）']
+  reservation_date date [not null, note: '預約借用日期 YYYY-MM-DD（依 Asia/Taipei 業務時區解讀，FR-004、FR-006、FR-009）']
+  slot_id uuid [not null, note: '預約的單日固定時段 ID（FR-004、FR-005）']
+  status reservation_status [not null, default: 'confirmed', note: '預約狀態：confirmed 為有效預約，cancelled 為已取消（FR-004、FR-007）']
+  cancelled_at timestamptz [note: '取消時間點（UTC）；取消時填入時間並將 status 改為 cancelled，保留原資料列不物理刪除（FR-007、SC-003）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間（預約成立時間點，FR-004、FR-006、FR-009）']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；建立或取消預約時記錄操作者 ID']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (equipment_id, reservation_date, slot_id) [unique, name: 'uq_reservations_active_slot', note: '僅在 status = confirmed 且 deleted_at IS NULL 時生效（PostgreSQL partial unique index），強制同一設備、同一日期與同一固定時段在有效狀態下最多只有一筆預約，取消後立即釋出時段（FR-005、FR-007、SC-002、SC-003）']
+    (user_id, reservation_date, created_at) [name: 'idx_reservations_user_date_created', note: '加速成員查詢本人預約紀錄並依預約日期由新到舊與建立時間排序（FR-006、NFR-002、SC-004）']
+    (reservation_date, slot_id, created_at) [name: 'idx_reservations_date_slot_created', note: '加速管理員查詢全體成員預約清單並依預約日期、固定時段與建立時間排序（FR-009、NFR-002、SC-004）']
+    (reservation_date, equipment_id, status) [name: 'idx_reservations_date_equipment_status', note: '加速依所選日期查詢各單件設備的 3 個固定時段預約狀態（FR-003、NFR-002、SC-004）']
+  }
+
+  Note: 'D2：Key Entities 預約紀錄；US1、US2、US3；FR-004 送出預約立即生效並占用時段、FR-005 保證同一設備同一日期同一固定時段最多一筆有效預約、FR-006 成員查看個人預約紀錄、FR-007 時段開始前取消有效預約並保留已取消歷史紀錄與立即釋出時段、FR-008 拒絕取消非本人或已開始或已取消的預約、FR-009 管理員查看全體成員預約紀錄、FR-011 預建範例預約紀錄並持久化保存；NFR-002、SC-002 10 個並發搶約僅 1 筆成功且重複占用率 0%、SC-003 取消後 1 秒內恢復可預約狀態並 100% 保留已取消歷史紀錄、SC-004 操作回應時間低於 2 秒。取消預約時將 status 更新為 cancelled 並記錄 cancelled_at，保留原資料列不物理刪除且不覆寫歷史紀錄；刪除資料時設定 deleted_at，查詢有效資料時排除 deleted_at 不為 null 的資料列。'
+}
+
+// ---------- Table Groups ----------
+
+TableGroup d1_auth_and_session_access [note: 'D1 帳號、驗證碼挑戰與工作階段資料存取'] {
+  users
+  captcha_challenges
+  sessions
+}
+
+TableGroup d2_equipment_and_reservation_persistence [note: 'D2 設備、固定時段與預約紀錄持久化'] {
+  equipments
+  time_slots
+  reservations
+}
+
+// ---------- Relationships ----------
+
+Ref: sessions.user_id > users.id
+Ref: reservations.user_id > users.id
+Ref: reservations.equipment_id > equipments.id
+Ref: reservations.slot_id > time_slots.id

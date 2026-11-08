@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>管理員設備與全體成員預約檢視｜精密實驗設備借用中心</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-muted: #F1F5F9;
+    --ink: #0F172A;
+    --muted: #475569;
+    --line: #E2E8F0;
+    --primary: #2563EB;
+    --primary-soft: #DBEAFE;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+    --pending: #D97706;
+    --pending-soft: #FEF3C7;
+    --success: #16A34A;
+    --success-soft: #DCFCE7;
+    --occupied: #64748B;
+    --occupied-soft: #F1F5F9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+    --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-muted: #162032;
+    --ink: #F8FAFC;
+    --muted: #94A3B8;
+    --line: #334155;
+    --primary: #3B82F6;
+    --primary-soft: #1E3A8A;
+    --danger: #EF4444;
+    --danger-soft: #7F1D1D;
+    --pending: #F59E0B;
+    --pending-soft: #78350F;
+    --success: #22C55E;
+    --success-soft: #14532D;
+    --occupied: #94A3B8;
+    --occupied-soft: #334155;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .35), 0 6px 20px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); transition: background-color .15s, color .15s; }
+  a { color: inherit; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .04em; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .brand-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #FFFFFF; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .site-nav a { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .user-pill { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .btn-theme, .btn-logout { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-theme:hover, .btn-logout:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 720px) { .user-pill { display: none; } .site-header .inner { padding: 8px 12px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  .page-lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFFFFF; }
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .banner-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .banner-info { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .badge-available { background: var(--success-soft); color: var(--success); }
+  .badge-mine { background: var(--primary-soft); color: var(--primary); }
+  .badge-occupied { background: var(--occupied-soft); color: var(--occupied); }
+  .badge-cancelled { background: var(--danger-soft); color: var(--danger); }
+
+  .spinner { width: 20px; height: 20px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { background: var(--surface-muted); border-radius: 8px; min-height: 20px; border: 1px dashed var(--line); }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 管理員頁專屬樣式 */
+  .eq-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
+  @media (max-width: 920px) { .eq-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .eq-overview-grid { grid-template-columns: 1fr; } }
+  .eq-mini-card { padding: 16px; display: grid; gap: 6px; }
+  .eq-mini-card .code { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--primary); }
+  .eq-mini-card .name { font-size: 14px; font-weight: 700; }
+  .eq-mini-card .cat { font-size: 12px; color: var(--muted); }
+
+  .admin-filter-bar { padding: 16px 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .admin-filter-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .admin-filter-controls select { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
+
+  .table-card { overflow-x: auto; }
+  table.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+  table.admin-table th, table.admin-table td { padding: 13px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.admin-table th { background: var(--surface-muted); color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  table.admin-table tr:last-child td { border-bottom: 0; }
+
+  .forbidden-card { max-width: 560px; margin: 24px auto; padding: 32px; text-align: center; border-color: var(--danger); }
+  .forbidden-icon { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center; background: var(--danger-soft); color: var(--danger); font-size: 24px; font-weight: 700; }
+  .empty-state { padding: 44px 24px; text-align: center; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="brand-mark">EL</span>精密實驗設備借用中心</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">登入</a>
+      <a href="booking.html">設備預約</a>
+      <a href="my-reservations.html">我的預約</a>
+      <a href="admin.html" aria-current="page">全體預約管理</a>
+    </nav>
+    <div class="header-actions">
+      <span id="header-user" class="user-pill">吳承翰（管理員）</span>
+      <button id="theme-toggle" class="btn-theme" type="button" aria-label="切換深淺色主題">深色模式</button>
+      <a id="header-logout" class="btn-logout" href="index.html?state=logged-out">登出</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>管理員預建設備與全體成員預約總覽</h1>
+  <p class="page-lead">集中檢視組織內所有預建單件獨立設備，以及全體成員的有效與已取消預約紀錄（預設依預約日期由新到舊、固定時段順序及建立時間排序）。</p>
+
+  <!-- 載入中骨架 -->
+  <section id="view-loading" hidden>
+    <div class="card admin-filter-bar">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--muted);">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>正在載入全組織預建設備與全體成員預約紀錄…</span>
+      </div>
+    </div>
+    <div class="eq-overview-grid">
+      <div class="card eq-mini-card"><div class="skeleton" style="height:64px;"></div></div>
+      <div class="card eq-mini-card"><div class="skeleton" style="height:64px;"></div></div>
+      <div class="card eq-mini-card"><div class="skeleton" style="height:64px;"></div></div>
+      <div class="card eq-mini-card"><div class="skeleton" style="height:64px;"></div></div>
+    </div>
+    <div class="card" style="padding:20px;"><div class="skeleton" style="height:180px;"></div></div>
+  </section>
+
+  <!-- 一般成員越權攔截畫面 -->
+  <section id="view-forbidden" class="card forbidden-card" role="alert" hidden>
+    <div class="forbidden-icon" aria-hidden="true">!</div>
+    <h2>權限不足：拒絕存取管理員全體預約清單</h2>
+    <p class="muted" style="margin:8px 0 22px;">權限不足：「管理員全體成員預約清單」僅供管理員（admin）角色存取，您目前的身分為一般成員（林雅婷），系統已拒絕存取。</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a class="btn btn-primary" href="booking.html">返回設備預約</a>
+      <a class="btn" href="index.html">切換管理員帳號登入</a>
+    </div>
+  </section>
+
+  <!-- 管理員總覽主內容 -->
+  <section id="view-main">
+    <h2>預建單件獨立設備清單（共 4 台）</h2>
+    <div id="admin-eq-grid" class="eq-overview-grid"></div>
+
+    <div class="card admin-filter-bar">
+      <div>
+        <strong>全體成員預約紀錄清單</strong>
+        <span id="record-count" class="muted" style="font-size:13px;margin-left:8px;"></span>
+      </div>
+      <div class="admin-filter-controls">
+        <label for="status-filter" class="muted" style="font-size:13px;">預約狀態：</label>
+        <select id="status-filter">
+          <option value="ALL">全部狀態（有效＋已取消）</option>
+          <option value="confirmed">有效預約 (confirmed)</option>
+          <option value="cancelled">已取消 (cancelled)</option>
+        </select>
+        <label for="eq-filter" class="muted" style="font-size:13px;">單件設備：</label>
+        <select id="eq-filter">
+          <option value="ALL">全部預建設備</option>
+          <option value="EQ-101">EQ-101 高解析度光學顯微鏡</option>
+          <option value="EQ-102">EQ-102 四通道數位示波器</option>
+          <option value="EQ-103">EQ-103 高精度工業熱像儀</option>
+          <option value="EQ-104">EQ-104 微量分光光度計</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="view-empty" class="card empty-state" hidden>
+      <h2>目前沒有符合篩選條件的成員預約紀錄</h2>
+      <p class="muted">請調整上方狀態或設備篩選條件，重新檢視全體成員預約紀錄。</p>
+      <button id="reset-filter-btn" class="btn btn-primary" type="button">重設篩選條件</button>
+    </div>
+
+    <div id="table-wrapper" class="card table-card">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>預約編號</th>
+            <th>預約成員</th>
+            <th>單件設備</th>
+            <th>預約日期</th>
+            <th>固定時段</th>
+            <th>預約狀態</th>
+            <th>建立時間</th>
+            <th>取消時間</th>
+          </tr>
+        </thead>
+        <tbody id="admin-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 index.html、booking.html、my-reservations.html 共用同一批預建設備與全體成員預約紀錄
+  const MOCK = {
+    equipments: [
+      { id: 'EQ-101', name: '高解析度光學顯微鏡 Olympus BX53', category: '光學檢測', status: '可供借用' },
+      { id: 'EQ-102', name: '四通道數位示波器 Keysight DSOX3024T', category: '電子量測', status: '可供借用' },
+      { id: 'EQ-103', name: '高精度工業熱像儀 FLIR E86', category: '熱流分析', status: '可供借用' },
+      { id: 'EQ-104', name: '微量分光光度計 Thermo NanoDrop One', category: '生醫分析', status: '可供借用' }
+    ],
+    allReservations: [
+      {
+        id: 'RV-20261108-05',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-104',
+        equipmentName: '微量分光光度計 Thermo NanoDrop One',
+        reservationDate: '2026-11-10',
+        slotLabel: '上午 09:00–12:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 09:40',
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-04',
+        memberName: '陳冠廷',
+        memberUsername: 'chen.guanting',
+        equipmentId: 'EQ-101',
+        equipmentName: '高解析度光學顯微鏡 Olympus BX53',
+        reservationDate: '2026-11-09',
+        slotLabel: '下午 13:00–17:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 09:25',
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-03',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-101',
+        equipmentName: '高解析度光學顯微鏡 Olympus BX53',
+        reservationDate: '2026-11-09',
+        slotLabel: '上午 09:00–12:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 09:12',
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-02',
+        memberName: '陳冠廷',
+        memberUsername: 'chen.guanting',
+        equipmentId: 'EQ-103',
+        equipmentName: '高精度工業熱像儀 FLIR E86',
+        reservationDate: '2026-11-09',
+        slotLabel: '上午 09:00–12:00',
+        status: 'cancelled',
+        createdAt: '2026-11-07 16:20',
+        cancelledAt: '2026-11-08 08:50'
+      },
+      {
+        id: 'RV-20261108-01',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-102',
+        equipmentName: '四通道數位示波器 Keysight DSOX3024T',
+        reservationDate: '2026-11-08',
+        slotLabel: '上午 09:00–12:00',
+        status: 'confirmed',
+        createdAt: '2026-11-07 15:10',
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261107-06',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-103',
+        equipmentName: '高精度工業熱像儀 FLIR E86',
+        reservationDate: '2026-11-08',
+        slotLabel: '晚間 18:00–21:00',
+        status: 'cancelled',
+        createdAt: '2026-11-07 11:05',
+        cancelledAt: '2026-11-07 19:30'
+      }
+    ]
+  };
+
+  const $ = sel => document.querySelector(sel);
+  let timers = [];
+  let statusFilter = 'ALL';
+  let eqFilter = 'ALL';
+
+  function initTheme() {
+    const saved = localStorage.getItem('el-theme') || 'light';
+    applyTheme(saved);
+    $('#theme-toggle').addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      $('#theme-toggle').textContent = '淺色模式';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      $('#theme-toggle').textContent = '深色模式';
+    }
+    localStorage.setItem('el-theme', theme);
+  }
+
+  function renderEquipmentGrid() {
+    $('#admin-eq-grid').innerHTML = MOCK.equipments.map(eq => `
+      <div class="card eq-mini-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span class="code">${eq.id}</span>
+          <span class="badge badge-available">${eq.status}</span>
+        </div>
+        <div class="name">${eq.name}</div>
+        <div class="cat">分類：${eq.category}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderTable(forceEmpty) {
+    if (forceEmpty) {
+      $('#record-count').textContent = '共 0 筆紀錄';
+      $('#view-empty').hidden = false;
+      $('#table-wrapper').hidden = true;
+      return;
+    }
+
+    const filtered = MOCK.allReservations.filter(r => {
+      if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+      if (eqFilter !== 'ALL' && r.equipmentId !== eqFilter) return false;
+      return true;
+    });
+
+    $('#record-count').textContent = `共 ${filtered.length} 筆紀錄`;
+    if (filtered.length === 0) {
+      $('#view-empty').hidden = false;
+      $('#table-wrapper').hidden = true;
+      return;
+    }
+    $('#view-empty').hidden = true;
+    $('#table-wrapper').hidden = false;
+
+    $('#admin-table-body').innerHTML = filtered.map(r => {
+      const isConfirmed = r.status === 'confirmed';
+      const badgeClass = isConfirmed ? 'badge-mine' : 'badge-cancelled';
+      const badgeText = isConfirmed ? '有效預約' : '已取消';
+      return `
+        <tr>
+          <td class="mono">${r.id}</td>
+          <td><strong>${r.memberName}</strong> <span class="muted mono" style="font-size:12px;">(${r.memberUsername})</span></td>
+          <td><span class="mono" style="color:var(--primary);font-weight:600;">${r.equipmentId}</span> ${r.equipmentName}</td>
+          <td class="mono">${r.reservationDate}</td>
+          <td class="mono">${r.slotLabel}</td>
+          <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+          <td class="mono">${r.createdAt}</td>
+          <td class="mono">${r.cancelledAt || '—'}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  $('#status-filter').addEventListener('change', e => {
+    statusFilter = e.target.value;
+    renderTable(false);
+    if (statusFilter === 'cancelled' && eqFilter === 'ALL') {
+      markState('cancelled-only');
+    }
+  });
+
+  $('#eq-filter').addEventListener('change', e => {
+    eqFilter = e.target.value;
+    renderTable(false);
+  });
+
+  $('#reset-filter-btn').addEventListener('click', () => {
+    applyState('overview');
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    {
+      key: 'loading',
+      label: '載入中',
+      apply: () => {
+        $('#view-loading').hidden = false;
+        $('#view-main').hidden = true;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+      }
+    },
+    {
+      key: 'overview',
+      label: '全體設備與預約總覽',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        statusFilter = 'ALL';
+        eqFilter = 'ALL';
+        $('#status-filter').value = 'ALL';
+        $('#eq-filter').value = 'ALL';
+        renderEquipmentGrid();
+        renderTable(false);
+      }
+    },
+    {
+      key: 'cancelled-only',
+      label: '篩選已取消預約紀錄',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        statusFilter = 'cancelled';
+        eqFilter = 'ALL';
+        $('#status-filter').value = 'cancelled';
+        $('#eq-filter').value = 'ALL';
+        renderEquipmentGrid();
+        renderTable(false);
+      }
+    },
+    {
+      key: 'empty',
+      label: '尚無預約紀錄',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        renderEquipmentGrid();
+        renderTable(true);
+      }
+    },
+    {
+      key: 'forbidden-member',
+      label: '一般成員越權存取遭拒',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = true;
+        $('#view-forbidden').hidden = false;
+        $('#header-user').textContent = '林雅婷（一般成員）';
+      }
+    }
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  initTheme();
+  applyState('overview');
+</script>
+</body>
+</html>
