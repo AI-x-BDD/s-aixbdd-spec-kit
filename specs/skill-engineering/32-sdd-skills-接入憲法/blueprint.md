@@ -319,3 +319,15 @@ Phase 2 標題改為 `## Phase 2 -- 確認視覺風格與憲法衝突`。
 - 觀察：`tasks` 的待確認 1、2 來自 002 是 001 的增量功能，`system-analysis` 的 plan.md 只列新增與修改的檔案，沒有列出要修改的 001 既有檔案。
 - 結論：使用者判定 `s-specify`、`tasks` 通過，移除兩者 `description` 開頭的「（未驗證）」，其餘文字不變；以 `./scripts/sync-skills.sh --from agents` 同步，`--check` 結果為「兩邊一致」。兩個測試 pane 與暫存專案已移除。
 - `implement`：第 1 輪不通過後經紀錄 37–40 優化，第 5 輪使用者判定通過（2026-11-08），驗證經過記在 `specs/skill-engineering/40-implement-完成報告未執行report/blueprint.md` 的「使用者實際驗證（2026-11-08）」；`description` 已移除「（未驗證）」。
+
+### 使用者實際驗證（2026-11-08，`clarify-over-specs`）
+
+- 方式：沒有用 `user-verify-skill` 在暫存專案重跑。主 session（Opus 5.5）以 `git worktree add --detach` 在 scratchpad 建立 `979c7f6` 的暫時 worktree，對其中 `specs/002-room-game-chat/spec.md` 副本執行 `clarify-over-specs`，指定路徑、不指定題數；主專案的 spec 沒有修改。
+- 權限處理：bypass permissions 模式，沒有出現權限確認。
+- 結果：
+  - 第一輪 3 題：傳送失敗的判定時間（邊界情境與錯誤處理）、重送成功訊息的排序位置（邊界情境與錯誤處理）、聊天區預設展開或收合（互動與 UX 流程），使用者都選推薦選項。
+  - 第二輪 2 題：洗頻限制是否計入失敗與重送（邊界情境與錯誤處理，由第一輪答案引出）、emoji 的字數計算（邊界情境與錯誤處理），使用者都選推薦選項。
+  - 寫回：改寫 FR-004、FR-005、FR-014、FR-015、故事 1 敘述、驗收情境 9 與 16，新增驗收情境 19–25，更新 Edge Cases 與 Key Entities；Clarifications 新增 `Session 2026-11-08`，保留 2026-11-03 的 Session 原文。
+  - 回報：邊界情境與錯誤處理為 Resolved；互動與 UX 流程、領域與資料模型、非功能品質屬性、完成訊號為 Outstanding（皆為低影響）；其他 5 類為 Clear；沒有 Deferred、未通過項與未驗證原因。
+  - 憲法：讀取 `shared.md`，`skills/s-specify/spec.md` 不存在而略過；必須／不得規則全部通過，沒有憲法偏離與未套用規則。
+- 結論：使用者判定通過，移除 `description` 開頭的「（未驗證）」，其餘文字不變；以 `./scripts/sync-skills.sh --from claude` 同步。暫時 worktree 已移除。
