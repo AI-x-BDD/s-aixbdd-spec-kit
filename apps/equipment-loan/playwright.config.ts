@@ -18,13 +18,13 @@ export default defineConfig({
   webServer: [
     {
       command: "npm --prefix backend run dev",
-      url: "http://localhost:3000/api/auth/me",
+      port: 3000,
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
     },
     {
       command: "npm --prefix frontend run dev",
-      url: "http://localhost:5173",
+      port: 5173,
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
     },

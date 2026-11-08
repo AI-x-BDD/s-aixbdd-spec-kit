@@ -269,19 +269,19 @@ description: "Task list for 設備借用與預約系統 implementation"
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T032 [P] 在 `apps/equipment-loan/backend/tests/unit/` 與 `apps/equipment-loan/backend/tests/integration/` 撰寫並執行 Vitest + Supertest 自動化驗證測試，連接真實 PostgreSQL 18 資料庫量測並確認：（1）100% 登入請求強制驗證 7 位數驗證碼且嚴格區分大小寫（如 `a123456` 與 `A123456` 不同）、超過 5 分鐘或重送舊驗證碼 100% 攔截（SC-001）；（2）以 `Promise.all` 發送 10 個並發請求同時預約同一台設備、同一日期與同一固定時段，最終成功建立的有效預約恰好為 1 筆、其餘 9 筆皆回 `409 RESERVATION_CONFLICT`，重複占用率 0%（SC-002）；（3）取消未開始預約後 `< 1 秒` 內該時段恢復 `available` 且保留原 `cancelled` 紀錄（SC-003）；（4）登入、查詢、預約与取消 API 回應時間均 `< 2 秒`（NFR-002、SC-004）；（5）一般成員嘗試取消他人預約或呼叫 `GET /api/admin/reservations` 時 100% 回 `403 FORBIDDEN`（SC-005）
+- [X] T032 [P] 在 `apps/equipment-loan/backend/tests/unit/` 與 `apps/equipment-loan/backend/tests/integration/` 撰寫並執行 Vitest + Supertest 自動化驗證測試，連接真實 PostgreSQL 18 資料庫量測並確認：（1）100% 登入請求強制驗證 7 位數驗證碼且嚴格區分大小寫（如 `a123456` 與 `A123456` 不同）、超過 5 分鐘或重送舊驗證碼 100% 攔截（SC-001）；（2）以 `Promise.all` 發送 10 個並發請求同時預約同一台設備、同一日期與同一固定時段，最終成功建立的有效預約恰好為 1 筆、其餘 9 筆皆回 `409 RESERVATION_CONFLICT`，重複占用率 0%（SC-002）；（3）取消未開始預約後 `< 1 秒` 內該時段恢復 `available` 且保留原 `cancelled` 紀錄（SC-003）；（4）登入、查詢、預約与取消 API 回應時間均 `< 2 秒`（NFR-002、SC-004）；（5）一般成員嘗試取消他人預約或呼叫 `GET /api/admin/reservations` 時 100% 回 `403 FORBIDDEN`（SC-005）
   - **Must Read**
     - `spec.md` → SC-001、SC-002、SC-003、SC-004、SC-005、NFR-002 — Why：五項可量測成功標準與回應時間門檻
     - `research.md` → §5、§6 — Why：以 Supertest 對真實 PostgreSQL 測試 10 並發搶約與單次驗證碼消耗
-- [ ] T033 [P] 在 `apps/equipment-loan/frontend/tests/unit/` 與 `apps/equipment-loan/e2e/` 撰寫並執行前端單元測試與 Playwright 端對端測試：驗證 US1（驗證碼大小寫不符攔截、重整驗證碼、成員登入、預約固定時段與重新載入頁面維持「本人已預約」）、US2（查看個人預約、取消預約並釋出時段供重新預約）、US3（管理員登入檢視所有設備與全體成員預約、一般成員越權攔截），以及 Light Mode／Dark Mode 主題切換、臺灣繁體中文介面文字（NFR-001）與 360px／1120px 寬度操作正常
+- [X] T033 [P] 在 `apps/equipment-loan/frontend/tests/unit/` 與 `apps/equipment-loan/e2e/` 撰寫並執行前端單元測試與 Playwright 端對端測試：驗證 US1（驗證碼大小寫不符攔截、重整驗證碼、成員登入、預約固定時段與重新載入頁面維持「本人已預約」）、US2（查看個人預約、取消預約並釋出時段供重新預約）、US3（管理員登入檢視所有設備與全體成員預約、一般成員越權攔截），以及 Light Mode／Dark Mode 主題切換、臺灣繁體中文介面文字（NFR-001）與 360px／1120px 寬度操作正常
   - **Must Read**
     - `spec.md` → US1、US2、US3、NFR-001 — Why：三個 User Story 的獨立測試與驗收情境及繁體中文介面要求
     - `ui/plan.md` → §2、§4、§5 — Why：Light／Dark Mode 視覺風格、RWD 寬度與各畫面狀態／錯誤文字核對
-- [ ] T034 [P] 在 `apps/equipment-loan/README.md` 撰寫完整本機啟動、環境變數設定、Docker Compose PostgreSQL 18 啟動、Prisma migration、demo seed 重設指令（`npm run db:seed`）與單元／整合／Playwright E2E 測試執行說明（FR-011、research §6）
+- [X] T034 [P] 在 `apps/equipment-loan/README.md` 撰寫完整本機啟動、環境變數設定、Docker Compose PostgreSQL 18 啟動、Prisma migration、demo seed 重設指令（`npm run db:seed`）與單元／整合／Playwright E2E 測試執行說明（FR-011、research §6）
   - **Must Read**
     - `plan.md` → `Source Code (repository root)` — Why：`apps/equipment-loan/README.md` 的用途與專案結構對照
     - `research.md` → §5、§6 — Why：Docker Compose、Prisma migration、demo seed 與測試執行方式
-- [ ] T035 在 `apps/equipment-loan/backend/`、`apps/equipment-loan/frontend/` 與 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、Prettier）、demo seed 重設與全套單元、整合及 Playwright E2E 測試，確認全部零錯誤通過（research §2、§6）
+- [X] T035 在 `apps/equipment-loan/backend/`、`apps/equipment-loan/frontend/` 與 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、Prettier）、demo seed 重設與全套單元、整合及 Playwright E2E 測試，確認全部零錯誤通過（research §2、§6）
   - **Must Read**
     - `research.md` → §2、§6 — Why：靜態檢查、型別檢查與全套自動化測試通過標準
 
