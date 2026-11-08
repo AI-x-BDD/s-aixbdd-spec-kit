@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { apiRequest, clearStoredToken, getStoredToken } from "./api/client";
 import { ERROR_MESSAGES, UI_TEXT } from "./text/zh-TW";
+import { AdminOverviewView } from "./views/AdminOverviewView";
 import { EquipmentBookingView } from "./views/EquipmentBookingView";
 import { LoginView } from "./views/LoginView";
 import { MyReservationsView } from "./views/MyReservationsView";
@@ -55,7 +56,7 @@ export function App(): React.ReactElement {
     apiRequest<AuthenticatedUser>("/auth/me")
       .then((user) => {
         setCurrentUser(user);
-        setActiveView("booking");
+        setActiveView(user.role === "admin" ? "admin" : "booking");
       })
       .catch(() => {
         clearStoredToken();
@@ -90,7 +91,7 @@ export function App(): React.ReactElement {
   const handleLoginSuccess = (user: AuthenticatedUser): void => {
     setCurrentUser(user);
     setLoginBanner(null);
-    setActiveView("booking");
+    setActiveView(user.role === "admin" ? "admin" : "booking");
   };
 
   const handleLogout = async (): Promise<void> => {
@@ -200,6 +201,12 @@ export function App(): React.ReactElement {
           <LoginView bannerMessage={loginBanner} onLoginSuccess={handleLoginSuccess} />
         ) : activeView === "my-reservations" ? (
           <MyReservationsView onGoToBooking={() => setActiveView("booking")} />
+        ) : activeView === "admin" ? (
+          <AdminOverviewView
+            currentUser={currentUser}
+            onGoToBooking={() => setActiveView("booking")}
+            onSwitchAccount={() => void handleLogout()}
+          />
         ) : (
           <EquipmentBookingView
             currentUser={currentUser}

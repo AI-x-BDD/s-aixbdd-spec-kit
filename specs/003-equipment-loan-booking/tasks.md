@@ -240,24 +240,24 @@ description: "Task list for 設備借用與預約系統 implementation"
 
 > D1 的 `users` 與 D2 的 `equipments`、`time_slots`、`reservations` 已在 Phase 2 與 US1 建立並寫入預建資料，本故事沒有資料庫任務。
 
-- [ ] T028 [US3] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 實作 `listAllReservations({ status, equipmentId, page, pageSize })`：驗證分頁參數（不合法回 `400 PAGINATION_INVALID`），查詢全體成員未軟刪除的預約紀錄並 join `users`、`equipments`、`time_slots`，依 `reservation_date` DESC、`time_slots.sort_order` ASC、`created_at` DESC、`id` ASC 排序，回傳包含 `username` 與 `userDisplayName` 的 `AdminReservationPage`（`page > totalPages` 時回傳空 `items`；`reservation_no` 映射見 Notes 待確認 2）（FR-009、FR-010、NFR-002）
+- [X] T028 [US3] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 實作 `listAllReservations({ status, equipmentId, page, pageSize })`：驗證分頁參數（不合法回 `400 PAGINATION_INVALID`），查詢全體成員未軟刪除的預約紀錄並 join `users`、`equipments`、`time_slots`，依 `reservation_date` DESC、`time_slots.sort_order` ASC、`created_at` DESC、`id` ASC 排序，回傳包含 `username` 與 `userDisplayName` 的 `AdminReservationPage`（`page > totalPages` 時回傳空 `items`；`reservation_no` 映射見 Notes 待確認 2）（FR-009、FR-010、NFR-002）
   - **Must Read**
     - `contracts/openapi.yaml` → `listAllReservations`、`AdminReservationPage`、`AdminReservationItem` — Why：管理員全體預約查詢的分頁參數、篩選參數、排序依據與回應欄位
     - `data/data-model.dbml` → `Table reservations`、`Table users`、`Table equipments`、`Table time_slots` — Why：關聯查詢欄位與索引 `idx_reservations_date_slot_created`
     - `spec.md` → US3 情境 1、FR-009 — Why：管理員檢視全體成員預約紀錄的欄位與排序要求
-- [ ] T029 [US3] 在 `apps/equipment-loan/backend/src/routes/adminRouter.ts` 實作 `GET /api/admin/reservations`（`listAllReservations`），掛上 `requireAuth` 與 `requireAdmin` 中介層（一般成員呼叫時回傳 `403 FORBIDDEN`），以 zod 驗證 query 參數，並在 `apps/equipment-loan/backend/src/app.ts` 掛載此路由（FR-009、FR-010、SC-005、Edge Cases 成員嘗試越權取消他人預約或查看管理員清單）
+- [X] T029 [US3] 在 `apps/equipment-loan/backend/src/routes/adminRouter.ts` 實作 `GET /api/admin/reservations`（`listAllReservations`），掛上 `requireAuth` 與 `requireAdmin` 中介層（一般成員呼叫時回傳 `403 FORBIDDEN`），以 zod 驗證 query 參數，並在 `apps/equipment-loan/backend/src/app.ts` 掛載此路由（FR-009、FR-010、SC-005、Edge Cases 成員嘗試越權取消他人預約或查看管理員清單）
   - **Must Read**
     - `contracts/openapi.yaml` → `listAllReservations`、`Forbidden` — Why：端點路徑、query 參數與非管理員呼叫時的 `403 FORBIDDEN` 回應
     - `spec.md` → US3 情境 2、FR-010、SC-005 — Why：限制僅管理員可存取全體預約清單
 
 ### 前端（F4）
 
-- [ ] T030 [P] [US3] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 實作 F4 管理員設備與全體成員預約檢視畫面：當目前登入者為 `admin` 時，同時載入預建單件設備總覽（`GET /api/equipments`）與全體成員預約紀錄（`GET /api/admin/reservations`），支援依預約狀態（全部／有效預約／已取消）與設備篩選；當一般成員（`member`）嘗試切換至此視圖或收到 `403 FORBIDDEN` 時，隱藏管理表格並顯示紅色權限攔截卡片與「返回設備預約」「切換管理員帳號登入」按鈕（FR-009、FR-010、NFR-001、SC-005、US3 情境 1–2）
+- [X] T030 [P] [US3] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 實作 F4 管理員設備與全體成員預約檢視畫面：當目前登入者為 `admin` 時，同時載入預建單件設備總覽（`GET /api/equipments`）與全體成員預約紀錄（`GET /api/admin/reservations`），支援依預約狀態（全部／有效預約／已取消）與設備篩選；當一般成員（`member`）嘗試切換至此視圖或收到 `403 FORBIDDEN` 時，隱藏管理表格並顯示紅色權限攔截卡片與「返回設備預約」「切換管理員帳號登入」按鈕（FR-009、FR-010、NFR-001、SC-005、US3 情境 1–2）
   - **Must Read**
     - `ui/plan.md` → §3.3 `A11`、`A12`、`A13`、§4 `admin.html`、§5 `admin.html` — Why：管理員總覽頁的操作、篩選狀態與一般成員越權存取攔截回饋
     - `ui/admin.html` → 雛形狀態「全體設備與預約總覽」「篩選已取消預約紀錄」「一般成員越權存取遭拒」 — Why：設備總覽卡、全體成員預約表格與權限攔截卡片的實際呈現
     - `contracts/openapi.yaml` → `listAllReservations`、`listEquipments` — Why：管理員畫面呼叫的 API 與欄位
-- [ ] T031 [US3] 在 `apps/equipment-loan/frontend/src/App.tsx` 串接 US3 管理員登入導向與頁首導覽：管理員（`admin`）登入成功後預設支援前往「全體預約管理」（`AdminOverviewView`），並保留頁首頁籤切換與角色權限顯示（FR-009、FR-010、US3 情境 1–2）
+- [X] T031 [US3] 在 `apps/equipment-loan/frontend/src/App.tsx` 串接 US3 管理員登入導向與頁首導覽：管理員（`admin`）登入成功後預設支援前往「全體預約管理」（`AdminOverviewView`），並保留頁首頁籤切換與角色權限顯示（FR-009、FR-010、US3 情境 1–2）
   - **Must Read**
     - `ui/plan.md` → §3.1、§3.2、§4 `index.html` 的「管理員登入成功」 — Why：管理員登入後的導向與頁首導覽結構
 

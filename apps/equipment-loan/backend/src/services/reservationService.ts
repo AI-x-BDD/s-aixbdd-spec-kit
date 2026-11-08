@@ -290,3 +290,76 @@ export async function cancelReservation(params: {
     return toReservationDto(updated);
   });
 }
+
+export interface AdminReservationItemDto extends ReservationDto {
+  username: string;
+  userDisplayName: string;
+}
+
+export interface AdminReservationPageDto {
+  items: AdminReservationItemDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export async function listAllReservations(params: {
+  status?: "confirmed" | "cancelled";
+  equipmentId?: string;
+  page: number;
+  pageSize: number;
+}): Promise<AdminReservationPageDto> {
+  const whereClause = {
+    deleted_at: null as Date | null,
+    ...(params.status ? { status: params.status } : {}),
+    ...(params.equipmentId ? { equipment_id: params.equipmentId } : {}),
+  };
+
+  const totalItems = await prisma.reservations.count({
+    where: whereClause,
+  });
+
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+
+  if (totalPages === 0 || params.page > totalPages) {
+    return {
+      items: [],
+      page: params.page,
+      pageSize: params.pageSize,
+      totalItems,
+      totalPages,
+    };
+  }
+
+  const skip = (params.page - 1) * params.pageSize;
+
+  const rows = await prisma.reservations.findMany({
+    where: whereClause,
+    include: {
+      user: true,
+      equipment: true,
+      slot: true,
+    },
+    orderBy: [
+      { reservation_date: "desc" },
+      { slot: { sort_order: "asc" } },
+      { created_at: "desc" },
+      { id: "asc" },
+    ],
+    skip,
+    take: params.pageSize,
+  });
+
+  return {
+    items: rows.map((row) => ({
+      ...toReservationDto(row),
+      username: row.user.username,
+      userDisplayName: row.user.display_name,
+    })),
+    page: params.page,
+    pageSize: params.pageSize,
+    totalItems,
+    totalPages,
+  };
+}
