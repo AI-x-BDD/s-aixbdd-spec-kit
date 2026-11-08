@@ -85,51 +85,51 @@ description: "Task list for 設備借用與預約系統 implementation"
 
 ### 資料庫（D1–D2 共用）
 
-- [ ] T007 在 `apps/equipment-loan/backend/prisma.config.ts` 與 `apps/equipment-loan/backend/prisma/schema.prisma` 設定 Prisma 7.10（開啟 `previewFeatures = ["partialIndexes"]`），定義 `user_role`（`member`、`admin`）、`equipment_status`（`available`、`unavailable`）、`reservation_status`（`confirmed`、`cancelled`）三個 Enum，以及 `users`、`captcha_challenges`、`sessions`、`equipments`、`time_slots`、`reservations` 六張資料表（每張表皆含 `created_at`、`updated_at`、`updated_by`、`deleted_at` 四個生命週期欄位、`reservations` 含 `uq_reservations_active_slot` 部分唯一索引 `WHERE status = 'confirmed' AND deleted_at IS NULL`），並產生初始 migration（FR-001、FR-002、FR-003、FR-005、FR-007、FR-011、research §5）
+- [X] T007 在 `apps/equipment-loan/backend/prisma.config.ts` 與 `apps/equipment-loan/backend/prisma/schema.prisma` 設定 Prisma 7.10（開啟 `previewFeatures = ["partialIndexes"]`），定義 `user_role`（`member`、`admin`）、`equipment_status`（`available`、`unavailable`）、`reservation_status`（`confirmed`、`cancelled`）三個 Enum，以及 `users`、`captcha_challenges`、`sessions`、`equipments`、`time_slots`、`reservations` 六張資料表（每張表皆含 `created_at`、`updated_at`、`updated_by`、`deleted_at` 四個生命週期欄位、`reservations` 含 `uq_reservations_active_slot` 部分唯一索引 `WHERE status = 'confirmed' AND deleted_at IS NULL`），並產生初始 migration（FR-001、FR-002、FR-003、FR-005、FR-007、FR-011、research §5）
   - **Must Read**
     - `data/data-model.dbml` → `Enum user_role`、`Enum equipment_status`、`Enum reservation_status` — Why：三個 Enum 的定義值
     - `data/data-model.dbml` → `Table users`、`Table captcha_challenges`、`Table sessions`、`Table equipments`、`Table time_slots`、`Table reservations` — Why：六張資料表的欄位、型別、生命週期欄位与索引（含 `uq_reservations_active_slot` 部分唯一索引）
     - `data/data-model.dbml` → `Ref: sessions.user_id > users.id`、`Ref: reservations.user_id > users.id`、`Ref: reservations.equipment_id > equipments.id`、`Ref: reservations.slot_id > time_slots.id` — Why：資料表外鍵關聯
     - `research.md` → §5 — Why：Prisma 7.10 `partialIndexes` 設定與 `@prisma/adapter-pg` 連線方式
-- [ ] T008 在 `apps/equipment-loan/backend/src/db/prisma.ts` 以 `@prisma/adapter-pg` 與 `pg` 建立並匯出 Prisma Client 單例，並啟動 PostgreSQL 18 容器執行 Prisma migration 確認資料表與部分唯一索引建立成功（research §5）
+- [X] T008 在 `apps/equipment-loan/backend/src/db/prisma.ts` 以 `@prisma/adapter-pg` 與 `pg` 建立並匯出 Prisma Client 單例，並啟動 PostgreSQL 18 容器執行 Prisma migration 確認資料表與部分唯一索引建立成功（research §5）
   - **Must Read**
     - `research.md` → §5 — Why：Prisma 7 透過 `@prisma/adapter-pg` 建立資料庫連線
 
 ### 後端（B1–B4 共用）
 
-- [ ] T009 [P] 在 `apps/equipment-loan/backend/src/utils/password.ts` 實作 `hashPassword(password)` 與 `verifyPassword(password, storedHash)`（使用 Node.js 內建 `crypto.scrypt` 與 `crypto.timingSafeEqual`）；並在 `apps/equipment-loan/backend/prisma/seed.ts` 實作可重複執行的 demo seed 腳本：建立預建一般成員帳號 `lin.yating`（林雅婷）、`chen.guanting`（陳冠廷）與管理員帳號 `wu.chenghan`（吳承翰），建立 4 台單件獨立設備 `EQ-101`～`EQ-104`，建立 3 個單日固定時段（上午 `09:00`–`12:00`、下午 `13:00`–`17:00`、晚間 `18:00`–`21:00`，代碼與狀態轉換見 Notes 待確認 1），以及建立涵蓋有效預約（`confirmed`）與已取消預約（`cancelled`）的範例預約紀錄（FR-002、FR-003、FR-011、research §4、§6）
+- [X] T009 [P] 在 `apps/equipment-loan/backend/src/utils/password.ts` 實作 `hashPassword(password)` 與 `verifyPassword(password, storedHash)`（使用 Node.js 內建 `crypto.scrypt` 與 `crypto.timingSafeEqual`）；並在 `apps/equipment-loan/backend/prisma/seed.ts` 實作可重複執行的 demo seed 腳本：建立預建一般成員帳號 `lin.yating`（林雅婷）、`chen.guanting`（陳冠廷）與管理員帳號 `wu.chenghan`（吳承翰），建立 4 台單件獨立設備 `EQ-101`～`EQ-104`，建立 3 個單日固定時段（上午 `09:00`–`12:00`、下午 `13:00`–`17:00`、晚間 `18:00`–`21:00`，代碼與狀態轉換見 Notes 待確認 1），以及建立涵蓋有效預約（`confirmed`）與已取消預約（`cancelled`）的範例預約紀錄（FR-002、FR-003、FR-011、research §4、§6）
   - **Must Read**
     - `research.md` → §4、§6 — Why：以 `crypto.scrypt` 雜湊密碼，並以 Prisma seed 建立預建帳號、設備、固定時段與範例預約
     - `data/data-model.dbml` → `Table users`、`Table equipments`、`Table time_slots`、`Table reservations` — Why：預建資料寫入的欄位與唯一編號格式
     - `ui/plan.md` → §4 `index.html`、`booking.html`、`my-reservations.html`、`admin.html` — Why：對齊預建測試帳號（`lin.yating`、`chen.guanting`、`wu.chenghan`）、4 台設備（`EQ-101`～`EQ-104`）與範例預約資料
     - `spec.md` → FR-011 — Why：初始展示資料的最低組數與持久化要求
-- [ ] T010 [P] 在 `apps/equipment-loan/backend/src/utils/taipeiTime.ts` 實作台灣業務時區（`Asia/Taipei`，UTC+8）工具函式：以 `Intl.DateTimeFormat` 取得當前台灣日期（`YYYY-MM-DD`）與時間（`HH:mm`），檢查預約日期是否在當日起算 7 天內（含當日），以及檢查指定日期與固定時段開始時間（`09:00`、`13:00`、`18:00`）是否已到達或已開始（FR-003、FR-004、FR-007、FR-008、research §3）
+- [X] T010 [P] 在 `apps/equipment-loan/backend/src/utils/taipeiTime.ts` 實作台灣業務時區（`Asia/Taipei`，UTC+8）工具函式：以 `Intl.DateTimeFormat` 取得當前台灣日期（`YYYY-MM-DD`）與時間（`HH:mm`），檢查預約日期是否在當日起算 7 天內（含當日），以及檢查指定日期與固定時段開始時間（`09:00`、`13:00`、`18:00`）是否已到達或已開始（FR-003、FR-004、FR-007、FR-008、research §3）
   - **Must Read**
     - `research.md` → §3 — Why：使用 Node.js 內建 `Intl.DateTimeFormat` 指定 `timeZone: "Asia/Taipei"` 計算日期範圍與固定時段開始時間
     - `spec.md` → FR-003、FR-004、FR-007、FR-008 — Why：當日起算 7 天內與時段開始前的業務判定規則
-- [ ] T011 [P] 在 `apps/equipment-loan/backend/src/middleware/errorHandler.ts` 實作 `AppError(code, status, message)` 與 Express 統一錯誤處理中介層：所有錯誤回應符合 `components.schemas.Error`（`{ code, message }`），分頁參數不合法回 `400 PAGINATION_INVALID`，其餘請求格式驗證失敗回 `400 VALIDATION_FAILED`，並回傳臺灣繁體中文錯誤訊息（NFR-001、research §3）
+- [X] T011 [P] 在 `apps/equipment-loan/backend/src/middleware/errorHandler.ts` 實作 `AppError(code, status, message)` 與 Express 統一錯誤處理中介層：所有錯誤回應符合 `components.schemas.Error`（`{ code, message }`），分頁參數不合法回 `400 PAGINATION_INVALID`，其餘請求格式驗證失敗回 `400 VALIDATION_FAILED`，並回傳臺灣繁體中文錯誤訊息（NFR-001、research §3）
   - **Must Read**
     - `contracts/openapi.yaml` → `Error`、`ValidationFailed`、`PaginationOrQueryInvalid` — Why：共用錯誤回應 schema、所有錯誤碼 enum 與 HTTP 狀態碼對應
     - `research.md` → §3 — Why：Express 5 與 zod 4 驗證錯誤轉換規則
     - `spec.md` → NFR-001 — Why：錯誤提示必須使用臺灣繁體中文並明確說明失敗原因
-- [ ] T012 在 `apps/equipment-loan/backend/src/middleware/authMiddleware.ts` 實作 `requireAuth` 與 `requireAdmin` 中介層：從 `Authorization: Bearer <token>` 解析工作階段權杖並查詢 `sessions`（排除 `deleted_at IS NOT NULL` 或已超過 `expires_at` 的列）與關聯的 `users`；未帶 token 或工作階段無效時回傳 `401`（錯誤碼 `UNAUTHORIZED`），非 `admin` 角色存取管理員端點時回傳 `403`（錯誤碼 `FORBIDDEN`）（FR-002、FR-010、SC-005、research §4）
+- [X] T012 在 `apps/equipment-loan/backend/src/middleware/authMiddleware.ts` 實作 `requireAuth` 與 `requireAdmin` 中介層：從 `Authorization: Bearer <token>` 解析工作階段權杖並查詢 `sessions`（排除 `deleted_at IS NOT NULL` 或已超過 `expires_at` 的列）與關聯的 `users`；未帶 token 或工作階段無效時回傳 `401`（錯誤碼 `UNAUTHORIZED`），非 `admin` 角色存取管理員端點時回傳 `403`（錯誤碼 `FORBIDDEN`）（FR-002、FR-010、SC-005、research §4）
   - **Must Read**
     - `contracts/openapi.yaml` → `Unauthorized`、`Forbidden`、`getCurrentUser`、`listAllReservations` — Why：`401 UNAUTHORIZED` 與 `403 FORBIDDEN` 的觸發條件與回應格式
     - `data/data-model.dbml` → `Table sessions`、`Table users` — Why：有效工作階段與使用者角色的查詢條件
     - `research.md` → §4 — Why：Bearer session token 的驗證機制
-- [ ] T013 在 `apps/equipment-loan/backend/src/app.ts` 與 `apps/equipment-loan/backend/src/server.ts` 建立 Express 5 應用程式骨架：設定 `express.json()`、掛載 `/api` 路由前綴與 `errorHandler`，並由 `server.ts` 監聽 `PORT`（預設 3000），匯出 `app` 供 Supertest 整合測試呼叫（research §3、§6）
+- [X] T013 在 `apps/equipment-loan/backend/src/app.ts` 與 `apps/equipment-loan/backend/src/server.ts` 建立 Express 5 應用程式骨架：設定 `express.json()`、掛載 `/api` 路由前綴與 `errorHandler`，並由 `server.ts` 監聽 `PORT`（預設 3000），匯出 `app` 供 Supertest 整合測試呼叫（research §3、§6）
   - **Must Read**
     - `research.md` → §3、§6 — Why：Express 5 `/api` 前綴與匯出 `app` 供 Supertest 測試
     - `contracts/openapi.yaml` → `servers` — Why：本機開發伺服器網址 `http://localhost:3000/api`
 
 ### 前端（F1–F4 共用）
 
-- [ ] T014 [P] 在 `apps/equipment-loan/frontend/src/text/zh-TW.ts` 建立臺灣繁體中文文案與錯誤碼對應模組（涵蓋所有錯誤碼 `VALIDATION_FAILED`、`PAGINATION_INVALID`、`CAPTCHA_MISMATCH`、`CAPTCHA_EXPIRED`、`INVALID_CREDENTIALS`、`UNAUTHORIZED`、`FORBIDDEN`、`RESOURCE_NOT_FOUND`、`DATE_OUT_OF_RANGE`、`SLOT_ALREADY_STARTED`、`EQUIPMENT_UNAVAILABLE`、`RESERVATION_CONFLICT`、`RESERVATION_ALREADY_STARTED`、`RESERVATION_ALREADY_CANCELLED` 與介面標籤），並在 `apps/equipment-loan/frontend/src/api/client.ts` 實作封裝 `sessionStorage` Bearer token 讀取、儲存、清除與統一錯誤解析的 HTTP 客戶端（FR-002、NFR-001、research §1、§4）
+- [X] T014 [P] 在 `apps/equipment-loan/frontend/src/text/zh-TW.ts` 建立臺灣繁體中文文案與錯誤碼對應模組（涵蓋所有錯誤碼 `VALIDATION_FAILED`、`PAGINATION_INVALID`、`CAPTCHA_MISMATCH`、`CAPTCHA_EXPIRED`、`INVALID_CREDENTIALS`、`UNAUTHORIZED`、`FORBIDDEN`、`RESOURCE_NOT_FOUND`、`DATE_OUT_OF_RANGE`、`SLOT_ALREADY_STARTED`、`EQUIPMENT_UNAVAILABLE`、`RESERVATION_CONFLICT`、`RESERVATION_ALREADY_STARTED`、`RESERVATION_ALREADY_CANCELLED` 與介面標籤），並在 `apps/equipment-loan/frontend/src/api/client.ts` 實作封裝 `sessionStorage` Bearer token 讀取、儲存、清除與統一錯誤解析的 HTTP 客戶端（FR-002、NFR-001、research §1、§4）
   - **Must Read**
     - `contracts/openapi.yaml` → `Error` — Why：全部 14 個錯誤碼與錯誤回應格式
     - `ui/plan.md` → §5 — Why：各錯誤情境在畫面上的繁體中文回饋文字
     - `research.md` → §1、§4 — Why：`zh-TW.ts` 集中管理繁體中文文字，以及 `sessionStorage` 保存 Bearer token 的方式
-- [ ] T015 在 `apps/equipment-loan/frontend/index.html`、`apps/equipment-loan/frontend/src/main.tsx` 與 `apps/equipment-loan/frontend/src/App.tsx` 建立前端應用程式入口、頂部導覽列（品牌標題、目前登入使用者與角色徽章、頁籤切換、Light Mode／Dark Mode 雙主題切換按鈕、登出按鈕）與 CSS 變數主題樣式（依 `ui/plan.md` §2 設定 `:root` Light Mode 預設色票與 `[data-theme="dark"]` Dark Mode 色票、無襯線正文字體與等寬驗證碼／編號字體）（FR-002、NFR-001、research §1）
+- [X] T015 在 `apps/equipment-loan/frontend/index.html`、`apps/equipment-loan/frontend/src/main.tsx` 與 `apps/equipment-loan/frontend/src/App.tsx` 建立前端應用程式入口、頂部導覽列（品牌標題、目前登入使用者與角色徽章、頁籤切換、Light Mode／Dark Mode 雙主題切換按鈕、登出按鈕）與 CSS 變數主題樣式（依 `ui/plan.md` §2 設定 `:root` Light Mode 預設色票與 `[data-theme="dark"]` Dark Mode 色票、無襯線正文字體與等寬驗證碼／編號字體）（FR-002、NFR-001、research §1）
   - **Must Read**
     - `ui/plan.md` → §2、§3.1、§3.2、§3.3 `A3` — Why：Light／Dark Mode 雙主題色票、字體、版面配置、4 個視圖切換與主題切換操作
     - `ui/index.html` → 雛形狀態「待登入」 — Why：對照頁首導覽列、主題切換按鈕與 CSS 變數結構
