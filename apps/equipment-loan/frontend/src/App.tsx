@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { UI_TEXT } from "./text/zh-TW";
+import { apiRequest, clearStoredToken, getStoredToken } from "./api/client";
+import { ERROR_MESSAGES, UI_TEXT } from "./text/zh-TW";
+import { EquipmentBookingView } from "./views/EquipmentBookingView";
+import { LoginView } from "./views/LoginView";
 
 export type ViewName = "login" | "booking" | "my-reservations" | "admin";
 
@@ -19,7 +22,14 @@ export function App(): React.ReactElement {
     }
   });
   const [activeView, setActiveView] = useState<ViewName>("login");
-  const [currentUser] = useState<AuthenticatedUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
+  const [restoringSession, setRestoringSession] = useState<boolean>(() =>
+    Boolean(getStoredToken()),
+  );
+  const [loginBanner, setLoginBanner] = useState<{
+    tone: "danger" | "info" | "success";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     if (theme === "dark") {
@@ -34,8 +44,69 @@ export function App(): React.ReactElement {
     }
   }, [theme]);
 
+  useEffect(() => {
+    const token = getStoredToken();
+    if (!token) {
+      setRestoringSession(false);
+      return;
+    }
+
+    apiRequest<AuthenticatedUser>("/auth/me")
+      .then((user) => {
+        setCurrentUser(user);
+        setActiveView("booking");
+      })
+      .catch(() => {
+        clearStoredToken();
+        setCurrentUser(null);
+        setActiveView("login");
+      })
+      .finally(() => {
+        setRestoringSession(false);
+      });
+  }, []);
+
   const toggleTheme = (): void => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const handleNavigate = (target: ViewName): void => {
+    if (target === "login") {
+      setActiveView("login");
+      return;
+    }
+    if (!currentUser) {
+      setLoginBanner({
+        tone: "danger",
+        text: ERROR_MESSAGES.UNAUTHORIZED,
+      });
+      setActiveView("login");
+      return;
+    }
+    setActiveView(target);
+  };
+
+  const handleLoginSuccess = (user: AuthenticatedUser): void => {
+    setCurrentUser(user);
+    setLoginBanner(null);
+    setActiveView("booking");
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await apiRequest<{ message: string }>("/auth/logout", {
+        method: "POST",
+      });
+    } catch {
+      // ignore logout error if token already expired
+    }
+    clearStoredToken();
+    setCurrentUser(null);
+    setLoginBanner({
+      tone: "info",
+      text: "您已安全登出工作階段，請重新輸入帳號、密碼與新的 7 位數驗證碼登入。",
+    });
+    setActiveView("login");
   };
 
   return (
@@ -45,7 +116,7 @@ export function App(): React.ReactElement {
           <button
             type="button"
             className="brand"
-            onClick={() => setActiveView(currentUser ? "booking" : "login")}
+            onClick={() => handleNavigate(currentUser ? "booking" : "login")}
           >
             <span className="brand-mark">EL</span>
             {UI_TEXT.brandTitle}
@@ -56,7 +127,8 @@ export function App(): React.ReactElement {
               type="button"
               className="nav-tab"
               aria-current={activeView === "login" ? "page" : undefined}
-              onClick={() => setActiveView("login")}
+              onClick={() => handleNavigate("login")}
+              data-testid="nav-login"
             >
               {UI_TEXT.nav.login}
             </button>
@@ -64,7 +136,8 @@ export function App(): React.ReactElement {
               type="button"
               className="nav-tab"
               aria-current={activeView === "booking" ? "page" : undefined}
-              onClick={() => setActiveView("booking")}
+              onClick={() => handleNavigate("booking")}
+              data-testid="nav-booking"
             >
               {UI_TEXT.nav.booking}
             </button>
@@ -72,7 +145,8 @@ export function App(): React.ReactElement {
               type="button"
               className="nav-tab"
               aria-current={activeView === "my-reservations" ? "page" : undefined}
-              onClick={() => setActiveView("my-reservations")}
+              onClick={() => handleNavigate("my-reservations")}
+              data-testid="nav-my-reservations"
             >
               {UI_TEXT.nav.myReservations}
             </button>
@@ -80,7 +154,8 @@ export function App(): React.ReactElement {
               type="button"
               className="nav-tab"
               aria-current={activeView === "admin" ? "page" : undefined}
-              onClick={() => setActiveView("admin")}
+              onClick={() => handleNavigate("admin")}
+              data-testid="nav-admin"
             >
               {UI_TEXT.nav.admin}
             </button>
@@ -102,7 +177,12 @@ export function App(): React.ReactElement {
               {theme === "dark" ? UI_TEXT.nav.lightMode : UI_TEXT.nav.darkMode}
             </button>
             {currentUser && (
-              <button type="button" className="btn-logout" data-testid="logout-btn">
+              <button
+                type="button"
+                className="btn-logout"
+                onClick={() => void handleLogout()}
+                data-testid="logout-btn"
+              >
                 {UI_TEXT.nav.logout}
               </button>
             )}
@@ -111,10 +191,18 @@ export function App(): React.ReactElement {
       </header>
 
       <main>
-        <div className="card" style={{ padding: "24px" }}>
-          <h1>{UI_TEXT.brandTitle}</h1>
-          <p className="page-lead">目前視圖：{activeView}</p>
-        </div>
+        {restoringSession ? (
+          <div className="card" style={{ padding: "24px", color: "var(--muted)" }}>
+            正在驗證工作階段…
+          </div>
+        ) : activeView === "login" || !currentUser ? (
+          <LoginView bannerMessage={loginBanner} onLoginSuccess={handleLoginSuccess} />
+        ) : (
+          <EquipmentBookingView
+            currentUser={currentUser}
+            onGoToMyReservations={() => setActiveView("my-reservations")}
+          />
+        )}
       </main>
     </div>
   );

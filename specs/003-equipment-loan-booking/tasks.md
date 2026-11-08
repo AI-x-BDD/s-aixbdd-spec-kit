@@ -147,47 +147,47 @@ description: "Task list for 設備借用與預約系統 implementation"
 
 ### 資料庫（D1、D2）
 
-- [ ] T016 [US1] 執行 `apps/equipment-loan/backend/prisma/seed.ts` 將 D1（`users`）與 D2（`equipments`、`time_slots`、`reservations`）預建資料寫入 PostgreSQL，並驗證預建的 2 組一般成員帳號、1 組管理員帳號、4 台單件設備與 3 個固定時段可正常查詢（FR-002、FR-003、FR-011）
+- [X] T016 [US1] 執行 `apps/equipment-loan/backend/prisma/seed.ts` 將 D1（`users`）與 D2（`equipments`、`time_slots`、`reservations`）預建資料寫入 PostgreSQL，並驗證預建的 2 組一般成員帳號、1 組管理員帳號、4 台單件設備與 3 個固定時段可正常查詢（FR-002、FR-003、FR-011）
   - **Must Read**
     - `data/data-model.dbml` → `Table users`、`Table equipments`、`Table time_slots`、`Table reservations` — Why：確認預建資料寫入後的資料表約束與欄位完整性
     - `spec.md` → FR-011 — Why：確認預建初始資料符合展示與驗證要求
 
 ### 後端（B1、B2）
 
-- [ ] T017 [US1] 在 `apps/equipment-loan/backend/src/utils/captcha.ts` 與 `apps/equipment-loan/backend/src/services/authService.ts` 實作 B1 驗證碼挑戰與登入工作階段服務：`createCaptchaChallenge(previousChallengeId?)` 以 `A–Z`、`a–z`、`0–9` 隨機產生同時含英文與數字的 7 位數驗證碼並寫入 `captcha_challenges`（5 分鐘 `expires_at`），若傳入 `previousChallengeId` 則立即標記 `consumed_at` 作廢；`login({ username, password, challengeId, captchaCode })` 在交易內鎖定挑戰列，若不存在、已超過 `expires_at` 或 `consumed_at` 不為 null 則回 `400 CAPTCHA_EXPIRED`，否則立即寫入 `consumed_at` 單次消耗，再以嚴格區分大小寫（`===`）比對 `captchaCode`（不符回 `400 CAPTCHA_MISMATCH`）及驗證帳號密碼（不符回 `401 INVALID_CREDENTIALS`），通過後建立 `sessions` 並回傳 `LoginResponse`；另實作 `getCurrentUser` 與 `logout`（設定 `sessions.deleted_at`）（FR-001、FR-002、SC-001、SC-004、Edge Cases 驗證碼英文大小寫不符、過期或重複使用舊驗證碼）
+- [X] T017 [US1] 在 `apps/equipment-loan/backend/src/utils/captcha.ts` 與 `apps/equipment-loan/backend/src/services/authService.ts` 實作 B1 驗證碼挑戰與登入工作階段服務：`createCaptchaChallenge(previousChallengeId?)` 以 `A–Z`、`a–z`、`0–9` 隨機產生同時含英文與數字的 7 位數驗證碼並寫入 `captcha_challenges`（5 分鐘 `expires_at`），若傳入 `previousChallengeId` 則立即標記 `consumed_at` 作廢；`login({ username, password, challengeId, captchaCode })` 在交易內鎖定挑戰列，若不存在、已超過 `expires_at` 或 `consumed_at` 不為 null 則回 `400 CAPTCHA_EXPIRED`，否則立即寫入 `consumed_at` 單次消耗，再以嚴格區分大小寫（`===`）比對 `captchaCode`（不符回 `400 CAPTCHA_MISMATCH`）及驗證帳號密碼（不符回 `401 INVALID_CREDENTIALS`），通過後建立 `sessions` 並回傳 `LoginResponse`；另實作 `getCurrentUser` 與 `logout`（設定 `sessions.deleted_at`）（FR-001、FR-002、SC-001、SC-004、Edge Cases 驗證碼英文大小寫不符、過期或重複使用舊驗證碼）
   - **Must Read**
     - `contracts/openapi.yaml` → `createCaptchaChallenge`、`login`、`getCurrentUser`、`logout`、`CaptchaChallengeResponse`、`LoginRequest`、`LoginResponse`、`AuthenticatedUser` — Why：B1 四個 operation 的請求、回應與錯誤碼規格
     - `data/data-model.dbml` → `Table captcha_challenges`、`Table users`、`Table sessions` — Why：驗證碼挑戰單次消耗與工作階段寫入欄位
     - `research.md` → §4 — Why：7 位數區分大小寫驗證碼產生與單次消耗交易邏輯
     - `spec.md` → FR-001、FR-002、SC-001、Edge Cases「驗證碼英文大小寫不符、過期或重複使用舊驗證碼」 — Why：驗證碼大小寫敏感、5 分鐘過期與單次作廢規則
-- [ ] T018 [US1] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 實作 `listEquipments({ userId, date, category, page, pageSize })`：驗證 `page` 與 `pageSize`（不合法回 `400 PAGINATION_INVALID`）與 `date` 格式；查詢未軟刪除的 `equipments`（依 `equipment_code` ASC、`id` ASC 排序，若 `page > totalPages` 回傳空 `items`）與 3 個 `time_slots`（依 `sort_order` ASC），並比對該日 `status = 'confirmed'` 的 `reservations`，將各時段組裝為 `available`、`booked_by_me`（附 `myReservationId`）或 `booked_by_others`（不揭露其他預約成員身分），並依台灣時區計算 `isBookable`（`slotCode` 與 `isActive` 欄位轉換見 Notes 待確認 1）（FR-003、FR-004、NFR-002、SC-004）
+- [X] T018 [US1] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 實作 `listEquipments({ userId, date, category, page, pageSize })`：驗證 `page` 與 `pageSize`（不合法回 `400 PAGINATION_INVALID`）與 `date` 格式；查詢未軟刪除的 `equipments`（依 `equipment_code` ASC、`id` ASC 排序，若 `page > totalPages` 回傳空 `items`）與 3 個 `time_slots`（依 `sort_order` ASC），並比對該日 `status = 'confirmed'` 的 `reservations`，將各時段組裝為 `available`、`booked_by_me`（附 `myReservationId`）或 `booked_by_others`（不揭露其他預約成員身分），並依台灣時區計算 `isBookable`（`slotCode` 與 `isActive` 欄位轉換見 Notes 待確認 1）（FR-003、FR-004、NFR-002、SC-004）
   - **Must Read**
     - `contracts/openapi.yaml` → `listEquipments`、`EquipmentAvailabilityPage`、`EquipmentWithSlotAvailability`、`EquipmentSlotAvailability` — Why：分頁參數、排序規則、回應欄位與三種時段狀態 enum
     - `data/data-model.dbml` → `Table equipments`、`Table time_slots`、`Table reservations` — Why：設備、時段與當日有效預約的查詢欄位與索引 `idx_reservations_date_equipment_status`
     - `spec.md` → US1 情境 4、FR-003、FR-004 — Why：時段狀態區分「可預約」、「本人已預約」、「已被預約」且對一般成員隱藏他人身分
-- [ ] T019 [US1] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 實作 `createReservation({ userId, equipmentId, reservationDate, slotId })`：檢查 `reservationDate` 是否在台灣時區當日起算 7 天內（超出回 `400 DATE_OUT_OF_RANGE`），檢查設備與固定時段是否存在（不存在回 `404 RESOURCE_NOT_FOUND`、設備不可用回 `409 EQUIPMENT_UNAVAILABLE`），檢查該時段是否尚未到達開始時間（已開始或已結束回 `400 SLOT_ALREADY_STARTED`）；在交易內產生 `reservation_no` 並寫入 `status = 'confirmed'` 的 `reservations` 資料列，若觸發 `uq_reservations_active_slot` 部分唯一索引衝突（Prisma `P2002`）則轉為 `409 RESERVATION_CONFLICT`，成功時回傳 `Reservation`（`reservation_no` 映射為 `reservationNumber` 見 Notes 待確認 2）（FR-004、FR-005、SC-002、SC-004、Edge Cases 多人同時搶約同一台設備的同一日期與時段、嘗試預約已開始／已過期時段或取消已開始的預約）
+- [X] T019 [US1] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 實作 `createReservation({ userId, equipmentId, reservationDate, slotId })`：檢查 `reservationDate` 是否在台灣時區當日起算 7 天內（超出回 `400 DATE_OUT_OF_RANGE`），檢查設備與固定時段是否存在（不存在回 `404 RESOURCE_NOT_FOUND`、設備不可用回 `409 EQUIPMENT_UNAVAILABLE`），檢查該時段是否尚未到達開始時間（已開始或已結束回 `400 SLOT_ALREADY_STARTED`）；在交易內產生 `reservation_no` 並寫入 `status = 'confirmed'` 的 `reservations` 資料列，若觸發 `uq_reservations_active_slot` 部分唯一索引衝突（Prisma `P2002`）則轉為 `409 RESERVATION_CONFLICT`，成功時回傳 `Reservation`（`reservation_no` 映射為 `reservationNumber` 見 Notes 待確認 2）（FR-004、FR-005、SC-002、SC-004、Edge Cases 多人同時搶約同一台設備的同一日期與時段、嘗試預約已開始／已過期時段或取消已開始的預約）
   - **Must Read**
     - `contracts/openapi.yaml` → `createReservation`、`CreateReservationRequest`、`Reservation`、`CreateReservationBadRequest`、`CreateReservationConflict` — Why：建立預約的請求、回應與 400／404／409 各錯誤碼
     - `data/data-model.dbml` → `Table reservations` — Why：`uq_reservations_active_slot` 部分唯一索引與寫入欄位
     - `research.md` → §5 — Why：以 PostgreSQL 部分唯一索引處理並發搶約衝突（捕捉 `P2002` 轉為 `409 RESERVATION_CONFLICT`）
     - `spec.md` → US1 情境 5–7、FR-004、FR-005、SC-002 — Why：預約立即占用時段與並發搶約最多 1 筆成功
-- [ ] T020 [US1] 在 `apps/equipment-loan/backend/src/routes/authRouter.ts` 與 `apps/equipment-loan/backend/src/routes/equipmentsRouter.ts` 及 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 實作 B1 與 B2 路由：`POST /api/auth/captcha`（`createCaptchaChallenge`）、`POST /api/auth/login`（`login`）、`GET /api/auth/me`（`getCurrentUser`）、`POST /api/auth/logout`（`logout`）、`GET /api/equipments`（`listEquipments`）、`POST /api/reservations`（`createReservation`），並在 `apps/equipment-loan/backend/src/app.ts` 掛載這些路由（FR-001、FR-002、FR-003、FR-004、FR-005）
+- [X] T020 [US1] 在 `apps/equipment-loan/backend/src/routes/authRouter.ts` 與 `apps/equipment-loan/backend/src/routes/equipmentsRouter.ts` 及 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 實作 B1 與 B2 路由：`POST /api/auth/captcha`（`createCaptchaChallenge`）、`POST /api/auth/login`（`login`）、`GET /api/auth/me`（`getCurrentUser`）、`POST /api/auth/logout`（`logout`）、`GET /api/equipments`（`listEquipments`）、`POST /api/reservations`（`createReservation`），並在 `apps/equipment-loan/backend/src/app.ts` 掛載這些路由（FR-001、FR-002、FR-003、FR-004、FR-005）
   - **Must Read**
     - `contracts/openapi.yaml` → `createCaptchaChallenge`、`login`、`getCurrentUser`、`logout`、`listEquipments`、`createReservation` — Why：六個端點的 HTTP 方法、路徑、狀態碼與 zod 請求驗證規則
 
 ### 前端（F1、F2）
 
-- [ ] T021 [P] [US1] 在 `apps/equipment-loan/frontend/src/components/CaptchaBox.tsx` 與 `apps/equipment-loan/frontend/src/views/LoginView.tsx` 實作 F1 登入與驗證碼畫面：進入時呼叫 `POST /api/auth/captcha` 顯示等寬字體 7 位數區分大小寫英數驗證碼，支援點擊「重整驗證碼」更換新驗證碼，提供預建成員（林雅婷、陳冠廷）與管理員（吳承翰）快速帶入按鈕，表單驗證空白與 7 碼長度，登入失敗（`CAPTCHA_MISMATCH`、`CAPTCHA_EXPIRED`、`INVALID_CREDENTIALS`）時顯示繁體中文錯誤橫幅並自動呼叫重整換發新驗證碼、清空驗證碼輸入框（FR-001、FR-002、NFR-001、SC-001、US1 情境 1–3）
+- [X] T021 [P] [US1] 在 `apps/equipment-loan/frontend/src/components/CaptchaBox.tsx` 與 `apps/equipment-loan/frontend/src/views/LoginView.tsx` 實作 F1 登入與驗證碼畫面：進入時呼叫 `POST /api/auth/captcha` 顯示等寬字體 7 位數區分大小寫英數驗證碼，支援點擊「重整驗證碼」更換新驗證碼，提供預建成員（林雅婷、陳冠廷）與管理員（吳承翰）快速帶入按鈕，表單驗證空白與 7 碼長度，登入失敗（`CAPTCHA_MISMATCH`、`CAPTCHA_EXPIRED`、`INVALID_CREDENTIALS`）時顯示繁體中文錯誤橫幅並自動呼叫重整換發新驗證碼、清空驗證碼輸入框（FR-001、FR-002、NFR-001、SC-001、US1 情境 1–3）
   - **Must Read**
     - `ui/plan.md` → §3.3 `A1`、`A2`、§4 `index.html`、§5 `index.html` — Why：登入頁的所有操作、載入／待登入／已重整／登入成功狀態與各錯誤回饋文字
     - `ui/index.html` → 雛形狀態「待登入」「已重整驗證碼」「驗證碼大小寫不符」「驗證碼已過期或重複使用」「帳號或密碼錯誤」 — Why：驗證碼盒、快速帶入按鈕與錯誤橫幅的視覺呈現
     - `contracts/openapi.yaml` → `createCaptchaChallenge`、`login` — Why：呼叫的 API 欄位與錯誤碼
-- [ ] T022 [P] [US1] 在 `apps/equipment-loan/frontend/src/components/SlotStatusBadge.tsx` 與 `apps/equipment-loan/frontend/src/views/EquipmentBookingView.tsx` 實作 F2 設備清單與單日固定時段預約畫面：提供當日起算 7 天內的日期選擇器與設備分類篩選，呼叫 `GET /api/equipments` 顯示單件設備卡片與上午 `09:00–12:00`、下午 `13:00–17:00`、晚間 `18:00–21:00` 三個固定時段狀態（`available` 顯示翠綠「可預約」、`booked_by_me` 顯示靛藍「本人已預約」、`booked_by_others` 顯示中性灰「已被預約」且不揭露他人身分）；點選可預約且未開始時段後於確認面板點擊「確認送出預約」呼叫 `POST /api/reservations`，成功時顯示預約編號與「查看我的預約」按鈕並更新時段為「本人已預約」，遇到 `RESERVATION_CONFLICT`、`SLOT_ALREADY_STARTED`、`DATE_OUT_OF_RANGE` 時顯示繁體中文錯誤橫幅並重新載入時段狀態（FR-003、FR-004、FR-005、NFR-001、US1 情境 4–7）
+- [X] T022 [P] [US1] 在 `apps/equipment-loan/frontend/src/components/SlotStatusBadge.tsx` 與 `apps/equipment-loan/frontend/src/views/EquipmentBookingView.tsx` 實作 F2 設備清單與單日固定時段預約畫面：提供當日起算 7 天內的日期選擇器與設備分類篩選，呼叫 `GET /api/equipments` 顯示單件設備卡片與上午 `09:00–12:00`、下午 `13:00–17:00`、晚間 `18:00–21:00` 三個固定時段狀態（`available` 顯示翠綠「可預約」、`booked_by_me` 顯示靛藍「本人已預約」、`booked_by_others` 顯示中性灰「已被預約」且不揭露他人身分）；點選可預約且未開始時段後於確認面板點擊「確認送出預約」呼叫 `POST /api/reservations`，成功時顯示預約編號與「查看我的預約」按鈕並更新時段為「本人已預約」，遇到 `RESERVATION_CONFLICT`、`SLOT_ALREADY_STARTED`、`DATE_OUT_OF_RANGE` 時顯示繁體中文錯誤橫幅並重新載入時段狀態（FR-003、FR-004、FR-005、NFR-001、US1 情境 4–7）
   - **Must Read**
     - `ui/plan.md` → §3.3 `A4`、`A5`、`A6`、`A7`、§4 `booking.html`、§5 `booking.html` — Why：設備時段頁的操作、狀態呈現與衝突／過期／超範圍錯誤回饋
     - `ui/booking.html` → 雛形狀態「檢視設備與時段」「已選取可預約時段」「預約成功」「同時搶約時段衝突」「選擇已開始或已結束時段」 — Why：設備卡片、3 個固定時段按鈕與右側確認面板的版面及文字
     - `contracts/openapi.yaml` → `listEquipments`、`createReservation` — Why：查詢設備時段與建立預約的參數及回應結構
-- [ ] T023 [US1] 在 `apps/equipment-loan/frontend/src/App.tsx` 串接 US1 登入守門、重新載入維持工作階段與登出流程：啟動時若 `sessionStorage` 有 token 則呼叫 `GET /api/auth/me` 恢復登入狀態（確保重新整理頁面後仍維持登入並顯示「本人已預約」），未登入時只顯示 `LoginView` 並阻擋受保護視圖，點擊頁首「登出」時呼叫 `POST /api/auth/logout`、清除 `sessionStorage` 並返回 `LoginView`（FR-002、US1 情境 1、5、8）
+- [X] T023 [US1] 在 `apps/equipment-loan/frontend/src/App.tsx` 串接 US1 登入守門、重新載入維持工作階段與登出流程：啟動時若 `sessionStorage` 有 token 則呼叫 `GET /api/auth/me` 恢復登入狀態（確保重新整理頁面後仍維持登入並顯示「本人已預約」），未登入時只顯示 `LoginView` 並阻擋受保護視圖，點擊頁首「登出」時呼叫 `POST /api/auth/logout`、清除 `sessionStorage` 並返回 `LoginView`（FR-002、US1 情境 1、5、8）
   - **Must Read**
     - `ui/plan.md` → §3.1、§3.2、§4 `index.html` 的「已登出」、§5 `index.html` 的「未登入存取受保護頁面」 — Why：登入後導向、未登入守門與登出後的畫面狀態
     - `contracts/openapi.yaml` → `getCurrentUser`、`logout` — Why：恢復工作階段與登出的 API 呼叫
