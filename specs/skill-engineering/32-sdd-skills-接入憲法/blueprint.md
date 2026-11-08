@@ -306,3 +306,16 @@ Phase 2 標題改為 `## Phase 2 -- 確認視覺風格與憲法衝突`。
   2. 視覺風格閘門有向使用者提問，使用者看不懂兩次提問，主 session 改採推薦選項。
   3. `technical-research` 決定不分頁，`api-plan` 依憲法改成分頁，主 session 事後修改 research §3。
 - 結論：移除 `technical-research`、`system-analysis`、`api-plan`、`data-plan`、`ui-plan` 的「（未驗證）」；重跑同步，結果為「兩邊一致」。`s-specify`、`clarify-over-specs`、`tasks`、`implement` 這次沒有實際執行，保留「（未驗證）」。
+
+### 使用者實際驗證（2026-11-07）
+
+- 方式：以 `user-verify-skill` 驗證 `s-specify`、`tasks`、`implement`，紀錄目錄由使用者確認為本紀錄（三支的「（未驗證）」都是本紀錄加上）。三個暫存專案都在 scratchpad，各自 `git init`，`.claude/` 加入 `.git/info/exclude`，測試素材提交為初始 commit；以 Herdr 開三個 pane 同時啟動 `claude --model sonnet --effort medium`（Sonnet 5.5、medium，auto mode）。
+  - `s-specify`：`.claude/skills/` 只放 `s-specify`、`clarify`；素材為 repo 憲法，加上測試用 `skills/s-specify/spec.md`（Rule 1 必須：每條 FR 句尾以半形括號標出來源 User Story；Rule 2 應：Edge Cases 至少 5 項）。`s-specify` 設有 `disable-model-invocation`，需求以 `/s-specify` 開頭送出：「社區住戶登記想交換的二手書，其他住戶可以申請交換，雙方確認面交後標記完成。」屬手動觸發，未驗證自動觸發。
+  - `tasks`：`.claude/skills/` 只放 `tasks`、`clarify`；素材為 `specs/002-room-game-chat/` 複本（沒有 tasks.md）與 repo 憲法，加上測試用 `skills/tasks/tasks.md`（Rule 1 必須：每個任務描述以動詞開頭）。需求以自然語言送出：「依 specs/002-room-game-chat 這份 spec package 拆出可執行的任務清單」。
+- 權限處理：三個 session 的信任資料夾確認在轉述前已由使用者在 pane 中直接回答；之後沒有出現權限確認，執行者沒有自行放行任何項目。
+- 結果：
+  - `s-specify`：委派 `clarify` 1 輪 3 題（配對方式、多筆申請處理、面交完成確認），使用者都選推薦（1、1、1），寫入 `## Clarifications`。產出 3 個 User Story（P1–P3）、12 條 FR、1 條 NFR、7 項 Edge Cases、9 條 Assumptions（7 條推定）。對照本紀錄驗收條件：E1 符合（對話紀錄讀取 `shared.md` 與 `skills/s-specify/spec.md`）；E2 符合（12 條 FR 句尾都有 `(USn)`，全域需求 FR-012 為 `(US1, US2, US3)`）；E5 未觸發（Edge Cases 7 項，沒有偏離）；E6 符合（回報有「憲法遵循」）；E12 符合（段落結構與樣板一致、無填位符號、沒有建立 git 分支、只新增 spec.md）。
+  - `tasks`：測試 session 自行呼叫 `Skill: tasks`（自動觸發成功）。產出 33 個任務（Phase 1–5：2、1、20、3、7）、37 組 Must Read，Notes 3 項待確認（plan.md 沒列 001 既有的 Express 入口、離開房間處理與房間狀態機檔案；5 個錯誤碼在 `ui/plan.md` 沒有提示文字，暫以「傳送失敗」處理）。對照：E1 符合（讀取 `shared.md` 與 `skills/tasks/tasks.md`）；E2 符合（33 個任務描述都以動詞開頭）；E6 符合；E12 符合（執行者以 `--spec-dir` 重跑 `check_tasks.py`，`issues`、`warnings` 皆空；只新增 tasks.md）；E4 未觸發（沒有憲法衝突，沒有委派 `clarify`）。
+- 觀察：`tasks` 的待確認 1、2 來自 002 是 001 的增量功能，`system-analysis` 的 plan.md 只列新增與修改的檔案，沒有列出要修改的 001 既有檔案。
+- 結論：使用者判定 `s-specify`、`tasks` 通過，移除兩者 `description` 開頭的「（未驗證）」，其餘文字不變；以 `./scripts/sync-skills.sh --from agents` 同步，`--check` 結果為「兩邊一致」。兩個測試 pane 與暫存專案已移除。
+- `implement`：第 1 輪不通過後經紀錄 37–40 優化，第 5 輪使用者判定通過（2026-11-08），驗證經過記在 `specs/skill-engineering/40-implement-完成報告未執行report/blueprint.md` 的「使用者實際驗證（2026-11-08）」；`description` 已移除「（未驗證）」。

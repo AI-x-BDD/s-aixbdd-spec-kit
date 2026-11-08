@@ -1,7 +1,7 @@
 ---
 name: s-specify
 disable-model-invocation: true
-description: （未驗證）使用者要求把功能描述寫成 SDD 規格文件 spec.md 時使用：切分可獨立測試的使用者故事，把 FR／NFR 列管在所屬故事底下，跨故事的才放全域需求，並保留關鍵實體、可量測成果與假設；需求有高影響缺口時會先委派 clarify 訪談使用者。使用者提到 specify、寫規格、spec.md、需求規格、user story、FR／NFR 時使用。只需訪談釐清需求、不產出 spec.md 時改用 clarify；只做技術規劃（技術堆疊、架構、部署方式）時不使用此 Skill。
+description: 使用者要求把功能描述寫成 SDD 規格文件 spec.md 時使用：切分可獨立測試的使用者故事，把 FR／NFR 列管在所屬故事底下，跨故事的才放全域需求，並保留關鍵實體、可量測成果與假設；需求有高影響缺口時會先委派 clarify 訪談使用者。使用者提到 specify、寫規格、spec.md、需求規格、user story、FR／NFR 時使用。只需訪談釐清需求、不產出 spec.md 時改用 clarify；只做技術規劃（技術堆疊、架構、部署方式）時不使用此 Skill。
 ---
 
 # SOP
