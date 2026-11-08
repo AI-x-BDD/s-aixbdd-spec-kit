@@ -154,3 +154,125 @@ description: 依 FR-002 查詢本房聊天歷史，依 created_at 由舊到新�
 ```yaml
 description: 查詢本房聊天歷史，依時間排序。
 ```
+
+# Rule 6 - 需要驗證身分或權限的 operation 必須分別定義 401 與 403 錯誤回應
+
+- 需要登入才能呼叫的 operation，必須列出 `401` 回應，代表未登入或工作階段無效。
+- `401` 回應必須使用本合約共用的 `Error` schema，錯誤碼必須包含 `UNAUTHORIZED`。
+- 有限定角色或限定操作本人資源的 operation，必須列出 `403` 回應，代表已登入但角色不符或無權操作該資源。
+- `403` 回應必須使用本合約共用的 `Error` schema，錯誤碼必須包含 `FORBIDDEN`。
+- 不得將未登入與權限不足合併為同一個 HTTP 狀態碼或同一個錯誤碼。
+
+## Good Example
+
+- 取消預約的 operation 需要登入且限定預約本人操作，分別列出 `401`（`UNAUTHORIZED`）與 `403`（`FORBIDDEN`），並共用 `Error` schema。
+
+```yaml
+paths:
+  /reservations/{reservationId}/cancel:
+    post:
+      operationId: cancelReservation
+      responses:
+        '200':
+          description: 取消預約成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [UNAUTHORIZED, FORBIDDEN]
+        message:
+          type: string
+  responses:
+    Unauthorized:
+      description: 未登入或工作階段無效（UNAUTHORIZED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 已登入但角色不符或非本人預約（FORBIDDEN）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+```
+
+## Bad Example
+
+- 同一個取消預約的 operation 把未登入與非本人操作都塞進 `403`，呼叫端無法區分應該導向登入頁還是顯示權限不足。
+
+```yaml
+paths:
+  /reservations/{reservationId}/cancel:
+    post:
+      operationId: cancelReservation
+      responses:
+        '200':
+          description: 取消預約成功
+        '403':
+          description: 未登入或無權取消此預約（ACCESS_DENIED）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+```
+
+# Rule 7 - 時間點與純日期欄位必須使用 ISO 8601 格式並以 Asia/Taipei 為業務時區
+
+- 時間點（timestamp）欄位的 schema 必須是 `type: string`、`format: date-time`，表示為 ISO 8601 UTC 字串（例如 `2026-11-08T06:00:00Z`）。
+- 純日期（date）欄位的 schema 必須是 `type: string`、`format: date`，表示為 `YYYY-MM-DD`，並以 `Asia/Taipei`（UTC+8）作為業務時區解讀。
+- 時間點與純日期欄位不得使用整數 timestamp 或未標明 `format` 的自由字串。
+
+## Good Example
+
+- 預約資料的預約日期使用 `format: date` 並註明 `Asia/Taipei` 業務時區，建立時間使用 `format: date-time`（ISO 8601 UTC）。
+
+```yaml
+components:
+  schemas:
+    Reservation:
+      type: object
+      required: [id, reservationDate, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reservationDate:
+          type: string
+          format: date
+          description: 預約借用日期（YYYY-MM-DD，依 Asia/Taipei 時區解讀）
+        createdAt:
+          type: string
+          format: date-time
+          description: 預約建立時間（ISO 8601 UTC）
+```
+
+## Bad Example
+
+- 預約日期未標明 `format: date`，建立時間改用整數毫秒 timestamp。
+
+```yaml
+components:
+  schemas:
+    Reservation:
+      type: object
+      required: [id, reservationDate, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reservationDate:
+          type: string
+          description: 預約日期字串
+        createdAt:
+          type: integer
+          description: 建立時間的毫秒數
+```

@@ -109,3 +109,78 @@ Table guesses {
 
 Ref: guesses.room_id > rooms.id [delete: cascade]
 ```
+
+# Rule 3 - 時間點與純日期欄位必須分別使用 timestamptz 與 date 型別
+
+- 記錄時間點（timestamp）的欄位必須使用 `timestamptz` 型別。
+- 記錄純日曆日期（date）的欄位必須使用 `date` 型別，並以 `Asia/Taipei`（UTC+8）作為業務時區解讀。
+- 時間點欄位不得使用不含時區的 `timestamp`、整數或字串型別；純日期欄位不得使用字串型別。
+
+## Good Example
+
+- 預約資料表的預約日期使用 `date` 型別並註明 `Asia/Taipei` 業務時區，取消時間點使用 `timestamptz` 型別。
+
+```dbml
+Table reservations {
+  id uuid [pk]
+  reservation_date date [not null, note: '預約借用日期（依 Asia/Taipei 時區解讀）']
+  cancelled_at timestamptz [note: '取消時間點（UTC）']
+}
+```
+
+## Bad Example
+
+- 預約日期改用 `varchar(10)` 字串，取消時間點改用不含時區的 `timestamp`。
+
+```dbml
+Table reservations {
+  id uuid [pk]
+  reservation_date varchar(10) [not null]
+  cancelled_at timestamp
+}
+```
+
+# Rule 4 - 唯一性約束與業務歷程保留必須明確定義
+
+- 單一欄位要求唯一時，該欄位必須標記 `unique`；多欄位組合要求唯一時，必須在資料表的 `indexes` 區塊宣告 `(欄位1, 欄位2, ...) [unique, name: '...']`。
+- 僅對特定有效狀態生效的部分唯一約束（partial unique index），必須在該索引或欄位的 `note` 寫明過濾條件。
+- 預約取消、駁回、歸還等業務終態必須以狀態欄位與對應時間欄位保留原資料列，不得物理刪除資料列，也不得直接覆寫既有歷史紀錄。
+
+## Good Example
+
+- 設備預約表以複合唯一索引並在 `note` 寫明僅對有效預約狀態生效，取消預約時保留原資料列並記錄 `status` 與 `cancelled_at`。
+
+```dbml
+Enum reservation_status {
+  confirmed
+  cancelled
+}
+
+Table reservations {
+  id uuid [pk]
+  equipment_id uuid [not null]
+  reservation_date date [not null]
+  slot_id uuid [not null]
+  status reservation_status [not null, default: 'confirmed']
+  cancelled_at timestamptz [note: '取消時填入時間並將 status 改為 cancelled，保留原資料列']
+
+  indexes {
+    (equipment_id, reservation_date, slot_id) [unique, name: 'uq_reservations_active_slot', note: '僅在 status = confirmed 且 deleted_at IS NULL 時生效']
+  }
+}
+```
+
+## Bad Example
+
+- 設備、日期與時段沒有宣告唯一索引，且在 `Note` 將取消預約寫成直接刪除預約資料列。
+
+```dbml
+Table reservations {
+  id uuid [pk]
+  equipment_id uuid [not null]
+  reservation_date date [not null]
+  slot_id uuid [not null]
+
+  Note: '取消預約時直接刪除此列，釋出時段。'
+}
+```
