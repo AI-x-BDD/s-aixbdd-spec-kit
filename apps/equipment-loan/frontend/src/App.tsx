@@ -3,6 +3,7 @@ import { apiRequest, clearStoredToken, getStoredToken } from "./api/client";
 import { ERROR_MESSAGES, UI_TEXT } from "./text/zh-TW";
 import { EquipmentBookingView } from "./views/EquipmentBookingView";
 import { LoginView } from "./views/LoginView";
+import { MyReservationsView } from "./views/MyReservationsView";
 
 export type ViewName = "login" | "booking" | "my-reservations" | "admin";
 
@@ -197,6 +198,8 @@ export function App(): React.ReactElement {
           </div>
         ) : activeView === "login" || !currentUser ? (
           <LoginView bannerMessage={loginBanner} onLoginSuccess={handleLoginSuccess} />
+        ) : activeView === "my-reservations" ? (
+          <MyReservationsView onGoToBooking={() => setActiveView("booking")} />
         ) : (
           <EquipmentBookingView
             currentUser={currentUser}

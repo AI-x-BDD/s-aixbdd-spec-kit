@@ -29,6 +29,14 @@ export interface ReservationDto {
   cancelledAt: string | null;
 }
 
+export interface ReservationPageDto {
+  items: ReservationDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 export function generateReservationNo(): string {
   const { dateStr } = getTaipeiNow();
   const compactDate = dateStr.replace(/-/g, "");
@@ -162,4 +170,123 @@ export async function createReservation(params: {
     }
     throw err;
   }
+}
+
+export async function listMyReservations(params: {
+  userId: string;
+  status?: "confirmed" | "cancelled";
+  page: number;
+  pageSize: number;
+}): Promise<ReservationPageDto> {
+  const whereClause = {
+    user_id: params.userId,
+    deleted_at: null as Date | null,
+    ...(params.status ? { status: params.status } : {}),
+  };
+
+  const totalItems = await prisma.reservations.count({
+    where: whereClause,
+  });
+
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+
+  if (totalPages === 0 || params.page > totalPages) {
+    return {
+      items: [],
+      page: params.page,
+      pageSize: params.pageSize,
+      totalItems,
+      totalPages,
+    };
+  }
+
+  const skip = (params.page - 1) * params.pageSize;
+
+  const rows = await prisma.reservations.findMany({
+    where: whereClause,
+    include: {
+      equipment: true,
+      slot: true,
+    },
+    orderBy: [
+      { reservation_date: "desc" },
+      { slot: { sort_order: "asc" } },
+      { created_at: "desc" },
+      { id: "asc" },
+    ],
+    skip,
+    take: params.pageSize,
+  });
+
+  return {
+    items: rows.map(toReservationDto),
+    page: params.page,
+    pageSize: params.pageSize,
+    totalItems,
+    totalPages,
+  };
+}
+
+export async function cancelReservation(params: {
+  userId: string;
+  reservationId: string;
+}): Promise<ReservationDto> {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.reservations.findFirst({
+      where: {
+        id: params.reservationId,
+        deleted_at: null,
+      },
+      include: {
+        equipment: true,
+        slot: true,
+      },
+    });
+
+    if (!existing) {
+      throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的預約紀錄不存在。");
+    }
+
+    if (existing.user_id !== params.userId) {
+      throw new AppError(
+        "FORBIDDEN",
+        403,
+        `權限不足：預約編號 ${existing.reservation_no} 不屬於您本人名下，系統拒絕取消他人預約。`,
+      );
+    }
+
+    if (existing.status === "cancelled") {
+      throw new AppError(
+        "RESERVATION_ALREADY_CANCELLED",
+        409,
+        `無法取消預約：預約編號 ${existing.reservation_no} 已經處於「已取消」狀態，無須重複取消。`,
+      );
+    }
+
+    const reservationDateStr = formatUtcDateToDateStr(existing.reservation_date);
+    if (hasSlotStarted(reservationDateStr, existing.slot.start_time)) {
+      throw new AppError(
+        "RESERVATION_ALREADY_STARTED",
+        409,
+        `無法取消預約：預約編號 ${existing.reservation_no}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已到達或超過時段開始時間，僅能在時段開始前取消。`,
+      );
+    }
+
+    const now = new Date();
+    const updated = await tx.reservations.update({
+      where: { id: existing.id },
+      data: {
+        status: "cancelled",
+        cancelled_at: now,
+        updated_at: now,
+        updated_by: params.userId,
+      },
+      include: {
+        equipment: true,
+        slot: true,
+      },
+    });
+
+    return toReservationDto(updated);
+  });
 }

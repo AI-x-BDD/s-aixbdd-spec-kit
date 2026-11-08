@@ -206,23 +206,23 @@ description: "Task list for 設備借用與預約系統 implementation"
 
 > D2 的 `reservations` 資料表、狀態 Enum 與索引已在 Phase 2 與 US1 建立，本故事沒有資料庫任務。
 
-- [ ] T024 [US2] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 實作 `listMyReservations({ userId, status, page, pageSize })` 與 `cancelReservation({ userId, reservationId })`：`listMyReservations` 驗證分頁參數（不合法回 `400 PAGINATION_INVALID`），查詢該成員未軟刪除的預約紀錄並依 `reservation_date` DESC、`time_slots.sort_order` ASC、`created_at` DESC、`id` ASC 排序（`page > totalPages` 時回傳空 `items`）；`cancelReservation` 在交易內鎖定預約列，不存在回 `404 RESOURCE_NOT_FOUND`，非本人預約回 `403 FORBIDDEN`，狀態已為 `cancelled` 回 `409 RESERVATION_ALREADY_CANCELLED`，依台灣時區已到達或超過時段開始時間回 `409 RESERVATION_ALREADY_STARTED`，通過時將 `status` 更新為 `cancelled`、填入 `cancelled_at` 與 `updated_by`（保留原資料列不物理刪除），使該時段立即脫離 `uq_reservations_active_slot` 部分唯一索引而釋出（`reservation_no` 映射見 Notes 待確認 2）（FR-006、FR-007、FR-008、SC-003、SC-004、SC-005、Edge Cases 時段取消後再次預約、嘗試預約已開始／已過期時段或取消已開始的預約、成員嘗試越權取消他人預約或查看管理員清單）
+- [X] T024 [US2] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 實作 `listMyReservations({ userId, status, page, pageSize })` 與 `cancelReservation({ userId, reservationId })`：`listMyReservations` 驗證分頁參數（不合法回 `400 PAGINATION_INVALID`），查詢該成員未軟刪除的預約紀錄並依 `reservation_date` DESC、`time_slots.sort_order` ASC、`created_at` DESC、`id` ASC 排序（`page > totalPages` 時回傳空 `items`）；`cancelReservation` 在交易內鎖定預約列，不存在回 `404 RESOURCE_NOT_FOUND`，非本人預約回 `403 FORBIDDEN`，狀態已為 `cancelled` 回 `409 RESERVATION_ALREADY_CANCELLED`，依台灣時區已到達或超過時段開始時間回 `409 RESERVATION_ALREADY_STARTED`，通過時將 `status` 更新為 `cancelled`、填入 `cancelled_at` 與 `updated_by`（保留原資料列不物理刪除），使該時段立即脫離 `uq_reservations_active_slot` 部分唯一索引而釋出（`reservation_no` 映射見 Notes 待確認 2）（FR-006、FR-007、FR-008、SC-003、SC-004、SC-005、Edge Cases 時段取消後再次預約、嘗試預約已開始／已過期時段或取消已開始的預約、成員嘗試越權取消他人預約或查看管理員清單）
   - **Must Read**
     - `contracts/openapi.yaml` → `listMyReservations`、`cancelReservation`、`ReservationPage`、`Reservation`、`CancelReservationConflict`、`Forbidden` — Why：個人預約分頁查詢、排序依據与取消預約的回應及 403／404／409 錯誤碼
     - `data/data-model.dbml` → `Table reservations` — Why：取消時更新 `status = 'cancelled'` 與 `cancelled_at`、保留原資料列並釋出 `uq_reservations_active_slot`
     - `spec.md` → US2 情境 1–4、FR-006、FR-007、FR-008、SC-003、SC-005 — Why：個人預約排序、時段開始前取消、保留歷史紀錄與立即釋出時段規則
-- [ ] T025 [US2] 在 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 掛載 `GET /api/reservations`（`listMyReservations`）與 `POST /api/reservations/:reservationId/cancel`（`cancelReservation`），以 zod 驗證 query 與路徑參數 `reservationId`（UUID）（FR-006、FR-007、FR-008）
+- [X] T025 [US2] 在 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 掛載 `GET /api/reservations`（`listMyReservations`）與 `POST /api/reservations/:reservationId/cancel`（`cancelReservation`），以 zod 驗證 query 與路徑參數 `reservationId`（UUID）（FR-006、FR-007、FR-008）
   - **Must Read**
     - `contracts/openapi.yaml` → `listMyReservations`、`cancelReservation` — Why：路由路徑、query／path 參數與狀態碼
 
 ### 前端（F3）
 
-- [ ] T026 [P] [US2] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 實作 F3 個人預約查詢與取消畫面：呼叫 `GET /api/reservations` 列出本人預約紀錄（顯示預約編號、設備編號與名稱、預約日期、固定時段、狀態徽章、建立時間與取消時間），支援全部／有效預約／已取消狀態篩選；對尚未開始的 `confirmed` 預約提供「取消預約」按鈕與確認取消對話框，點擊「確認取消並釋出時段」呼叫 `POST /api/reservations/:reservationId/cancel`，成功後顯示綠色成功橫幅與「前往設備預約重新預約」按鈕並更新該筆狀態為「已取消」，失敗時顯示對應繁體中文錯誤橫幅（FR-006、FR-007、FR-008、NFR-001、US2 情境 1–4）
+- [X] T026 [P] [US2] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 實作 F3 個人預約查詢與取消畫面：呼叫 `GET /api/reservations` 列出本人預約紀錄（顯示預約編號、設備編號與名稱、預約日期、固定時段、狀態徽章、建立時間與取消時間），支援全部／有效預約／已取消狀態篩選；對尚未開始的 `confirmed` 預約提供「取消預約」按鈕與確認取消對話框，點擊「確認取消並釋出時段」呼叫 `POST /api/reservations/:reservationId/cancel`，成功後顯示綠色成功橫幅與「前往設備預約重新預約」按鈕並更新該筆狀態為「已取消」，失敗時顯示對應繁體中文錯誤橫幅（FR-006、FR-007、FR-008、NFR-001、US2 情境 1–4）
   - **Must Read**
     - `ui/plan.md` → §3.3 `A8`、`A9`、`A10`、§4 `my-reservations.html`、§5 `my-reservations.html` — Why：我的預約頁的操作、確認取消對話框、取消成功回饋與三種取消失敗錯誤訊息
     - `ui/my-reservations.html` → 雛形狀態「個人預約清單」「確認取消預約」「取消成功並釋出時段」「取消已開始或已過期預約」「重複取消已取消預約」 — Why：預約列表、取消確認對話框與狀態徽章的實際呈現
     - `contracts/openapi.yaml` → `listMyReservations`、`cancelReservation` — Why：呼叫的 API 與回應欄位
-- [ ] T027 [US2] 在 `apps/equipment-loan/frontend/src/App.tsx` 串接 US2 導覽流程：將頁首「我的預約」頁籤、`EquipmentBookingView` 預約成功橫幅的「查看我的預約」與 `MyReservationsView` 取消成功橫幅的「前往設備預約重新預約」雙向串接，並在切換回 `EquipmentBookingView` 時重新取得最新設備時段狀態（FR-006、FR-007、US2 情境 2、3）
+- [X] T027 [US2] 在 `apps/equipment-loan/frontend/src/App.tsx` 串接 US2 導覽流程：將頁首「我的預約」頁籤、`EquipmentBookingView` 預約成功橫幅的「查看我的預約」與 `MyReservationsView` 取消成功橫幅的「前往設備預約重新預約」雙向串接，並在切換回 `EquipmentBookingView` 時重新取得最新設備時段狀態（FR-006、FR-007、US2 情境 2、3）
   - **Must Read**
     - `ui/plan.md` → §3.1、§3.2 — Why：`booking.html` 與 `my-reservations.html` 之間的頁面切換流程
 
