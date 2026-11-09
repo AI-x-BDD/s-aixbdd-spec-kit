@@ -1,0 +1,1515 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>管理員審核設定、待審清單與現場領取歸還登記｜精密實驗設備借用中心</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-muted: #F1F5F9;
+    --ink: #0F172A;
+    --muted: #475569;
+    --line: #E2E8F0;
+    --primary: #2563EB;
+    --primary-soft: #DBEAFE;
+    --loan: #0284C7;
+    --loan-soft: #E0F2FE;
+    --returned: #0D9488;
+    --returned-soft: #CCFBF1;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+    --pending: #D97706;
+    --pending-soft: #FEF3C7;
+    --success: #16A34A;
+    --success-soft: #DCFCE7;
+    --occupied: #64748B;
+    --occupied-soft: #F1F5F9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+    --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-muted: #162032;
+    --ink: #F8FAFC;
+    --muted: #94A3B8;
+    --line: #334155;
+    --primary: #3B82F6;
+    --primary-soft: #1E3A8A;
+    --loan: #38BDF8;
+    --loan-soft: #0C4A6E;
+    --returned: #2DD4BF;
+    --returned-soft: #134E4A;
+    --danger: #EF4444;
+    --danger-soft: #7F1D1D;
+    --pending: #F59E0B;
+    --pending-soft: #78350F;
+    --success: #22C55E;
+    --success-soft: #14532D;
+    --occupied: #94A3B8;
+    --occupied-soft: #334155;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .35), 0 6px 20px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); transition: background-color .15s, color .15s; }
+  a { color: inherit; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .04em; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .brand-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #FFFFFF; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .site-nav a { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .user-pill { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .btn-theme, .btn-logout { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-theme:hover, .btn-logout:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 720px) { .user-pill { display: none; } .site-header .inner { padding: 8px 12px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  .page-lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .btn-loan { background: var(--loan); border-color: var(--loan); color: #FFFFFF; }
+  .btn-returned { background: var(--returned); border-color: var(--returned); color: #FFFFFF; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFFFFF; }
+  .btn-pending { background: var(--pending); border-color: var(--pending); color: #FFFFFF; }
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .banner-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .banner-pending { background: var(--pending-soft); color: var(--pending); border-color: var(--pending); }
+  .banner-info { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .badge-available { background: var(--success-soft); color: var(--success); }
+  .badge-mine { background: var(--primary-soft); color: var(--primary); }
+  .badge-loan { background: var(--loan-soft); color: var(--loan); }
+  .badge-returned { background: var(--returned-soft); color: var(--returned); }
+  .badge-pending { background: var(--pending-soft); color: var(--pending); }
+  .badge-occupied { background: var(--occupied-soft); color: var(--occupied); }
+  .badge-cancelled { background: var(--danger-soft); color: var(--danger); }
+
+  .spinner { width: 20px; height: 20px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { background: var(--surface-muted); border-radius: 8px; min-height: 20px; border: 1px dashed var(--line); }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 260px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 管理員頁專屬樣式 */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 12px; flex-wrap: wrap; }
+  .eq-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 28px; }
+  @media (max-width: 960px) { .eq-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .eq-overview-grid { grid-template-columns: 1fr; } }
+  .eq-mini-card { padding: 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+  .eq-mini-card .code { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--primary); }
+  .eq-mini-card .name { font-size: 14px; font-weight: 700; line-height: 1.4; }
+  .eq-mini-card .cat { font-size: 12px; color: var(--muted); }
+
+  .pending-section { margin-bottom: 28px; }
+  .pending-list { display: grid; gap: 12px; }
+  .pending-card { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-left: 4px solid var(--pending); }
+  .pending-main { display: grid; gap: 5px; flex: 1; min-width: 260px; }
+  .pending-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .conflict-hint { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; background: var(--pending-soft); color: var(--pending); font-size: 12px; font-weight: 600; }
+
+  .admin-filter-bar { padding: 16px 20px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .admin-filter-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .admin-filter-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .admin-filter-controls select { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
+  .tab-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tab-btn { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+  .tab-btn.active { background: var(--primary); border-color: var(--primary); color: #FFFFFF; font-weight: 600; }
+
+  .table-card { overflow-x: auto; }
+  table.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+  table.admin-table th, table.admin-table td { padding: 12px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.admin-table th { background: var(--surface-muted); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  table.admin-table tr:last-child td { border-bottom: 0; }
+  .reason-cell { max-width: 220px; font-size: 12px; color: var(--muted); }
+  .op-hint { display: inline-block; font-size: 12px; color: var(--muted); padding: 3px 8px; border-radius: 6px; background: var(--surface-muted); border: 1px solid var(--line); white-space: nowrap; }
+
+  .forbidden-card { max-width: 560px; margin: 24px auto; padding: 32px; text-align: center; border-color: var(--danger); }
+  .forbidden-icon { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center; background: var(--danger-soft); color: var(--danger); font-size: 24px; font-weight: 700; }
+  .empty-state { padding: 36px 24px; text-align: center; }
+
+  .modal-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(15, 23, 42, .55); display: grid; place-items: center; padding: 16px; }
+  .modal-card { width: 100%; max-width: 520px; padding: 24px; }
+  .modal-detail { margin: 12px 0 16px; padding: 12px 16px; border-radius: 10px; background: var(--surface-muted); border: 1px solid var(--line); font-size: 13px; display: grid; gap: 6px; }
+  .field label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-weight: 600; font-size: 13px; }
+  .field textarea { width: 100%; min-height: 92px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; resize: vertical; }
+  .field textarea:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field.has-error textarea { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .error { margin-top: 6px; color: var(--danger); font-size: 13px; font-weight: 500; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="brand-mark">EL</span>精密實驗設備借用中心</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">登入</a>
+      <a href="booking.html">設備預約</a>
+      <a href="my-reservations.html">我的預約</a>
+      <a href="admin.html" aria-current="page">審核與借用管理</a>
+    </nav>
+    <div class="header-actions">
+      <span id="header-user" class="user-pill">吳承翰（管理員）</span>
+      <button id="theme-toggle" class="btn-theme" type="button" aria-label="切換深淺色主題">深色模式</button>
+      <a id="header-logout" class="btn-logout" href="index.html?state=logged-out">登出</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>管理員設備審核設定、待審清單與現場領取歸還登記</h1>
+  <p class="page-lead">支援依全部 6 種狀態（待審核、已核准／有效、借用中、已歸還、已駁回、已取消）篩選紀錄，完整顯示領取與歸還時間及經手管理員；僅對當日且尚未超過時段結束時間的「已核准／有效」預約開放單鍵「登記領取」，僅對「借用中」紀錄（含逾時未還）開放單鍵「登記歸還」。</p>
+
+  <div id="page-banner" class="banner" role="alert" hidden>
+    <span id="page-banner-text"></span>
+  </div>
+
+  <!-- 載入中骨架 -->
+  <section id="view-loading" hidden>
+    <div class="card admin-filter-bar">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--muted);">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>正在載入設備審核設定、待審清單與全體 6 態借還管理紀錄…</span>
+      </div>
+    </div>
+    <div class="eq-overview-grid">
+      <div class="card eq-mini-card"><div class="skeleton" style="height:88px;"></div></div>
+      <div class="card eq-mini-card"><div class="skeleton" style="height:88px;"></div></div>
+      <div class="card eq-mini-card"><div class="skeleton" style="height:88px;"></div></div>
+      <div class="card eq-mini-card"><div class="skeleton" style="height:88px;"></div></div>
+    </div>
+    <div class="card" style="padding:20px;margin-bottom:20px;"><div class="skeleton" style="height:140px;"></div></div>
+    <div class="card" style="padding:20px;"><div class="skeleton" style="height:180px;"></div></div>
+  </section>
+
+  <!-- 一般成員越權攔截畫面 -->
+  <section id="view-forbidden" class="card forbidden-card" role="alert" hidden>
+    <div class="forbidden-icon" aria-hidden="true">!</div>
+    <h2>權限不足：拒絕存取管理員審核與現場借還管理</h2>
+    <p class="muted" style="margin:8px 0 22px;">權限不足：「登記領取」、「登記歸還」與「審核及借用管理」僅供管理員（admin）角色執行，您目前的身分為一般成員（林雅婷），系統已攔截拒絕操作。</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a class="btn btn-primary" href="booking.html">返回設備預約</a>
+      <a class="btn" href="index.html">切換管理員帳號登入</a>
+    </div>
+  </section>
+
+  <!-- 管理員總覽主內容 -->
+  <section id="view-main">
+    <div class="section-head">
+      <h2>1. 預建單件設備人工審核設定管理（共 4 台）</h2>
+      <span class="muted" style="font-size:13px;">切換設定立即生效且僅適用於切換後新送出的預約申請；既有「已核准／有效」、「借用中」與「待審核」紀錄維持原狀態不變</span>
+    </div>
+    <div id="admin-eq-grid" class="eq-overview-grid"></div>
+
+    <div class="pending-section">
+      <div class="section-head">
+        <h2>2. 待審核申請清單 <span id="pending-count-badge" class="badge badge-pending"></span></h2>
+        <span class="muted" style="font-size:13px;">預設依預約日期由近到遠、固定時段順序及申請建立時間由早到晚排序｜目前業務時間：<span class="mono">2026-11-09 14:30</span>（Asia/Taipei）</span>
+      </div>
+      <div id="pending-empty" class="card empty-state" hidden>
+        <p class="muted" style="margin:0;">目前沒有待處理的「待審核」申請紀錄。</p>
+      </div>
+      <div id="pending-list" class="pending-list"></div>
+    </div>
+
+    <div class="section-head">
+      <h2>3. 全體預約與借用管理清單（現場登記領取／登記歸還）</h2>
+      <span class="muted" style="font-size:13px;">領取限預約當日（<span class="mono">2026-11-09</span>）且尚未超過該時段結束時間的「已核准／有效」預約；歸還限處於「借用中」狀態的紀錄（含逾時補還）</span>
+    </div>
+    <div class="card admin-filter-bar">
+      <div class="admin-filter-top">
+        <div>
+          <strong>全體預約與借還紀錄篩選</strong>
+          <span id="record-count" class="muted" style="font-size:13px;margin-left:8px;"></span>
+        </div>
+        <div class="admin-filter-controls">
+          <label for="status-filter" class="muted" style="font-size:13px;">狀態下拉：</label>
+          <select id="status-filter">
+            <option value="ALL">全部狀態（6 種狀態）</option>
+            <option value="pending_approval">待審核 (pending_approval)</option>
+            <option value="confirmed">已核准／有效 — 待領取 (confirmed)</option>
+            <option value="checked_out">借用中 — 待歸還 (checked_out)</option>
+            <option value="returned">已歸還 (returned)</option>
+            <option value="rejected">已駁回 (rejected)</option>
+            <option value="cancelled">已取消 (cancelled)</option>
+          </select>
+          <label for="eq-filter" class="muted" style="font-size:13px;">單件設備：</label>
+          <select id="eq-filter">
+            <option value="ALL">全部預建設備</option>
+            <option value="EQ-101">EQ-101 高解析度光學顯微鏡</option>
+            <option value="EQ-102">EQ-102 四通道數位示波器</option>
+            <option value="EQ-103">EQ-103 高精度工業熱像儀</option>
+            <option value="EQ-104">EQ-104 微量分光光度計</option>
+          </select>
+        </div>
+      </div>
+      <div class="tab-group" id="admin-status-tabs" role="group" aria-label="6 態快速篩選">
+        <button type="button" class="tab-btn active" data-tab-status="ALL">全部狀態</button>
+        <button type="button" class="tab-btn" data-tab-status="confirmed">已核准／有效（待領取）</button>
+        <button type="button" class="tab-btn" data-tab-status="checked_out">借用中（待歸還）</button>
+        <button type="button" class="tab-btn" data-tab-status="returned">已歸還</button>
+        <button type="button" class="tab-btn" data-tab-status="pending_approval">待審核</button>
+        <button type="button" class="tab-btn" data-tab-status="rejected">已駁回</button>
+        <button type="button" class="tab-btn" data-tab-status="cancelled">已取消</button>
+      </div>
+    </div>
+
+    <div id="view-empty" class="card empty-state" hidden>
+      <h2>目前沒有符合篩選條件的預約與借用紀錄</h2>
+      <p class="muted">請調整上方狀態或設備篩選條件，重新檢視全體成員預約與借還稽核紀錄。</p>
+      <button id="reset-filter-btn" class="btn btn-primary" type="button">重設篩選條件</button>
+    </div>
+
+    <div id="table-wrapper" class="card table-card">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>預約編號</th>
+            <th>借用成員</th>
+            <th>單件設備</th>
+            <th>預約日期與固定時段</th>
+            <th>目前狀態</th>
+            <th>領取時間／經手管理員</th>
+            <th>歸還時間／經手管理員</th>
+            <th>審核／駁回／取消備註</th>
+            <th>現場管理操作</th>
+          </tr>
+        </thead>
+        <tbody id="admin-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<!-- 填寫駁回原因對話框 -->
+<div id="reject-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="reject-modal-title" hidden>
+  <div class="card modal-card">
+    <h2 id="reject-modal-title">駁回待審核預約申請</h2>
+    <p class="muted" style="margin:0;font-size:13px;">駁回後該筆申請狀態將更新為「已駁回」，記錄審核管理員、審核時間與選填的駁回原因，並保留於全體預約歷史紀錄中：</p>
+    <div id="reject-modal-detail" class="modal-detail"></div>
+    <div id="reject-field" class="field">
+      <label for="reject-reason-input">
+        <span>駁回原因（選填，上限 200 字）</span>
+        <span id="reject-char-count" class="mono muted">0 / 200 字</span>
+      </label>
+      <textarea id="reject-reason-input" placeholder="可選填駁回原因供申請成員查閱（最多 200 字）"></textarea>
+      <div id="reject-error" class="error" hidden></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button id="reject-cancel-btn" class="btn" type="button">取消返回</button>
+      <button id="reject-confirm-btn" class="btn btn-danger" type="button">確認駁回申請</button>
+    </div>
+  </div>
+</div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與 index.html、booking.html、my-reservations.html 共用同一批預建設備與全體成員 6 態借還紀錄
+  const MOCK = {
+    today: '2026-11-09',
+    currentHour: 14.5, // 2026-11-09 14:30 Asia/Taipei
+    baseEquipments: [
+      { id: 'EQ-101', name: '高解析度光學顯微鏡 Olympus BX53', category: '光學檢測', status: '可供借用', requiresApproval: true },
+      { id: 'EQ-102', name: '四通道數位示波器 Keysight DSOX3024T', category: '電子量測', status: '可供借用', requiresApproval: true },
+      { id: 'EQ-103', name: '高精度工業熱像儀 FLIR E86', category: '熱流分析', status: '可供借用', requiresApproval: false },
+      { id: 'EQ-104', name: '微量分光光度計 Thermo NanoDrop One', category: '生醫分析', status: '可供借用', requiresApproval: false }
+    ],
+    baseReservations: [
+      {
+        id: 'RV-20261108-06',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-103',
+        equipmentName: '高精度工業熱像儀 FLIR E86',
+        reservationDate: '2026-11-09',
+        slotId: 'SLOT-EV',
+        slotOrder: 3,
+        slotEndHour: 21,
+        slotLabel: '晚間 18:00–21:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 15:20',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-03',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-101',
+        equipmentName: '高解析度光學顯微鏡 Olympus BX53',
+        reservationDate: '2026-11-09',
+        slotId: 'SLOT-PM',
+        slotOrder: 2,
+        slotEndHour: 17,
+        slotLabel: '下午 13:00–17:00',
+        status: 'checked_out',
+        createdAt: '2026-11-08 09:20',
+        reviewedBy: '吳承翰 (wu.chenghan)',
+        reviewedAt: '2026-11-08 10:40',
+        checkedOutAt: '2026-11-09 13:05',
+        checkedOutBy: '吳承翰 (wu.chenghan)',
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261107-05',
+        memberName: '陳冠廷',
+        memberUsername: 'chen.guanting',
+        equipmentId: 'EQ-103',
+        equipmentName: '高精度工業熱像儀 FLIR E86',
+        reservationDate: '2026-11-08',
+        slotId: 'SLOT-EV',
+        slotOrder: 3,
+        slotEndHour: 21,
+        slotLabel: '晚間 18:00–21:00',
+        status: 'checked_out',
+        createdAt: '2026-11-07 10:15',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: '2026-11-08 18:02',
+        checkedOutBy: '吳承翰 (wu.chenghan)',
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-01',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-102',
+        equipmentName: '四通道數位示波器 Keysight DSOX3024T',
+        reservationDate: '2026-11-09',
+        slotId: 'SLOT-AM',
+        slotOrder: 1,
+        slotEndHour: 12,
+        slotLabel: '上午 09:00–12:00',
+        status: 'returned',
+        createdAt: '2026-11-07 15:10',
+        reviewedBy: '吳承翰 (wu.chenghan)',
+        reviewedAt: '2026-11-08 09:30',
+        checkedOutAt: '2026-11-09 09:05',
+        checkedOutBy: '吳承翰 (wu.chenghan)',
+        returnedAt: '2026-11-09 11:40',
+        returnedBy: '吳承翰 (wu.chenghan)',
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-02',
+        memberName: '陳冠廷',
+        memberUsername: 'chen.guanting',
+        equipmentId: 'EQ-104',
+        equipmentName: '微量分光光度計 Thermo NanoDrop One',
+        reservationDate: '2026-11-09',
+        slotId: 'SLOT-AM',
+        slotOrder: 1,
+        slotEndHour: 12,
+        slotLabel: '上午 09:00–12:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 08:50',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-04',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-101',
+        equipmentName: '高解析度光學顯微鏡 Olympus BX53',
+        reservationDate: '2026-11-10',
+        slotId: 'SLOT-AM',
+        slotOrder: 1,
+        slotEndHour: 12,
+        slotLabel: '上午 09:00–12:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 09:12',
+        reviewedBy: '吳承翰 (wu.chenghan)',
+        reviewedAt: '2026-11-08 11:00',
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-07',
+        memberName: '陳冠廷',
+        memberUsername: 'chen.guanting',
+        equipmentId: 'EQ-101',
+        equipmentName: '高解析度光學顯微鏡 Olympus BX53',
+        reservationDate: '2026-11-10',
+        slotId: 'SLOT-PM',
+        slotOrder: 2,
+        slotEndHour: 17,
+        slotLabel: '下午 13:00–17:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 09:25',
+        reviewedBy: '吳承翰 (wu.chenghan)',
+        reviewedAt: '2026-11-08 11:15',
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261108-05',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-104',
+        equipmentName: '微量分光光度計 Thermo NanoDrop One',
+        reservationDate: '2026-11-11',
+        slotId: 'SLOT-AM',
+        slotOrder: 1,
+        slotEndHour: 12,
+        slotLabel: '上午 09:00–12:00',
+        status: 'confirmed',
+        createdAt: '2026-11-08 09:40',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261109-08',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-101',
+        equipmentName: '高解析度光學顯微鏡 Olympus BX53',
+        reservationDate: '2026-11-09',
+        slotId: 'SLOT-EV',
+        slotOrder: 3,
+        slotEndHour: 21,
+        slotLabel: '晚間 18:00–21:00',
+        status: 'pending_approval',
+        createdAt: '2026-11-09 09:45',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261109-09',
+        memberName: '陳冠廷',
+        memberUsername: 'chen.guanting',
+        equipmentId: 'EQ-101',
+        equipmentName: '高解析度光學顯微鏡 Olympus BX53',
+        reservationDate: '2026-11-09',
+        slotId: 'SLOT-EV',
+        slotOrder: 3,
+        slotEndHour: 21,
+        slotLabel: '晚間 18:00–21:00',
+        status: 'pending_approval',
+        createdAt: '2026-11-09 09:52',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261109-10',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-102',
+        equipmentName: '四通道數位示波器 Keysight DSOX3024T',
+        reservationDate: '2026-11-11',
+        slotId: 'SLOT-PM',
+        slotOrder: 2,
+        slotEndHour: 17,
+        slotLabel: '下午 13:00–17:00',
+        status: 'pending_approval',
+        createdAt: '2026-11-09 10:05',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261109-07',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-102',
+        equipmentName: '四通道數位示波器 Keysight DSOX3024T',
+        reservationDate: '2026-11-09',
+        slotId: 'SLOT-EV',
+        slotOrder: 3,
+        slotEndHour: 21,
+        slotLabel: '晚間 18:00–21:00',
+        status: 'rejected',
+        createdAt: '2026-11-08 14:20',
+        reviewedBy: '吳承翰 (wu.chenghan)',
+        reviewedAt: '2026-11-08 16:05',
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: '該時段已有實驗室年度高頻校驗排程，請改申請其他時段或隔日借用。',
+        cancelledAt: null
+      },
+      {
+        id: 'RV-20261107-06',
+        memberName: '林雅婷',
+        memberUsername: 'lin.yating',
+        equipmentId: 'EQ-103',
+        equipmentName: '高精度工業熱像儀 FLIR E86',
+        reservationDate: '2026-11-10',
+        slotId: 'SLOT-AM',
+        slotOrder: 1,
+        slotEndHour: 12,
+        slotLabel: '上午 09:00–12:00',
+        status: 'cancelled',
+        createdAt: '2026-11-07 11:05',
+        reviewedBy: null,
+        reviewedAt: null,
+        checkedOutAt: null,
+        checkedOutBy: null,
+        returnedAt: null,
+        returnedBy: null,
+        rejectReason: null,
+        cancelledAt: '2026-11-08 19:30'
+      }
+    ]
+  };
+
+  const $ = sel => document.querySelector(sel);
+  let timers = [];
+  let equipments = [];
+  let reservations = [];
+  let statusFilter = 'ALL';
+  let eqFilter = 'ALL';
+  let togglingEqId = null;
+  let reviewingResId = null;
+  let rejectingResId = null;
+  let pickupProcessingId = null;
+  let returnProcessingId = null;
+
+  function initTheme() {
+    const saved = localStorage.getItem('el-theme') || 'light';
+    applyTheme(saved);
+    $('#theme-toggle').addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      $('#theme-toggle').textContent = '淺色模式';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      $('#theme-toggle').textContent = '深色模式';
+    }
+    localStorage.setItem('el-theme', theme);
+  }
+
+  function resetAllData() {
+    equipments = MOCK.baseEquipments.map(e => ({ ...e }));
+    reservations = MOCK.baseReservations.map(r => ({ ...r }));
+    statusFilter = 'ALL';
+    eqFilter = 'ALL';
+    togglingEqId = null;
+    reviewingResId = null;
+    rejectingResId = null;
+    pickupProcessingId = null;
+    returnProcessingId = null;
+    $('#status-filter').value = 'ALL';
+    $('#eq-filter').value = 'ALL';
+    $('#reject-modal').hidden = true;
+    $('#page-banner').hidden = true;
+    syncStatusTabs();
+  }
+
+  function syncStatusTabs() {
+    document.querySelectorAll('[data-tab-status]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tabStatus === statusFilter);
+    });
+  }
+
+  function showBanner(tone, text) {
+    const banner = $('#page-banner');
+    banner.className = `banner banner-${tone}`;
+    $('#page-banner-text').textContent = text;
+    banner.hidden = false;
+  }
+
+  // 嚴格判斷是否符合「可登記領取」條件：status === 'confirmed' 且預約日期為當日（2026-11-09）且未超過時段結束時間（FR-001, FR-002, FR-005）
+  function canPickupRecord(r) {
+    if (r.status !== 'confirmed') return false;
+    if (r.reservationDate !== MOCK.today) return false;
+    return MOCK.currentHour < r.slotEndHour;
+  }
+
+  // 嚴格判斷是否符合「可登記歸還」條件：status === 'checked_out'（不論在時段結束前或結束後逾時歸還）（FR-004, FR-005）
+  function canReturnRecord(r) {
+    return r.status === 'checked_out';
+  }
+
+  function isOverdueCheckedOut(r) {
+    if (r.status !== 'checked_out') return false;
+    if (r.reservationDate < MOCK.today) return true;
+    if (r.reservationDate === MOCK.today && MOCK.currentHour >= r.slotEndHour) return true;
+    return false;
+  }
+
+  function renderEquipmentGrid() {
+    $('#admin-eq-grid').innerHTML = equipments.map(eq => {
+      const activeCount = reservations.filter(r => r.equipmentId === eq.id && (r.status === 'confirmed' || r.status === 'checked_out')).length;
+      const pendingCount = reservations.filter(r => r.equipmentId === eq.id && r.status === 'pending_approval').length;
+      const isToggling = togglingEqId === eq.id;
+      const modeBadge = eq.requiresApproval
+        ? '<span class="badge badge-pending">需人工審核</span>'
+        : '<span class="badge badge-available">免審核</span>';
+      const btnText = isToggling
+        ? '儲存設定中…'
+        : (eq.requiresApproval ? '切換為免審核' : '切換為需人工審核');
+
+      return `
+        <div class="card eq-mini-card">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+              <span class="code">${eq.id}</span>
+              ${modeBadge}
+            </div>
+            <div class="name">${eq.name}</div>
+            <div class="cat">分類：${eq.category}｜有效／借用 ${activeCount} 筆・待審 ${pendingCount} 筆</div>
+          </div>
+          <button type="button" class="btn btn-sm" data-toggle-eq="${eq.id}" ${isToggling ? 'disabled' : ''}>${btnText}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function getSortedPendingList() {
+    return reservations
+      .filter(r => r.status === 'pending_approval')
+      .slice()
+      .sort((a, b) => {
+        if (a.reservationDate !== b.reservationDate) return a.reservationDate.localeCompare(b.reservationDate);
+        if (a.slotOrder !== b.slotOrder) return a.slotOrder - b.slotOrder;
+        return a.createdAt.localeCompare(b.createdAt);
+      });
+  }
+
+  function renderPendingQueue(forceEmpty) {
+    const pendingItems = forceEmpty ? [] : getSortedPendingList();
+    $('#pending-count-badge').textContent = `待處理 ${pendingItems.length} 筆`;
+
+    if (pendingItems.length === 0) {
+      $('#pending-empty').hidden = false;
+      $('#pending-list').hidden = true;
+      return;
+    }
+    $('#pending-empty').hidden = true;
+    $('#pending-list').hidden = false;
+
+    $('#pending-list').innerHTML = pendingItems.map(r => {
+      const sameSlotOccupied = reservations.find(
+        other => other.id !== r.id && other.equipmentId === r.equipmentId &&
+                 other.reservationDate === r.reservationDate && other.slotId === r.slotId &&
+                 (other.status === 'confirmed' || other.status === 'checked_out' || other.status === 'returned')
+      );
+      const sameSlotOtherPending = reservations.filter(
+        other => other.id !== r.id && other.equipmentId === r.equipmentId &&
+                 other.reservationDate === r.reservationDate && other.slotId === r.slotId &&
+                 other.status === 'pending_approval'
+      );
+
+      let slotNotice = '';
+      if (sameSlotOccupied) {
+        slotNotice = `<span class="badge badge-cancelled">時段已被 ${sameSlotOccupied.id}（${sameSlotOccupied.memberName}）占用</span>`;
+      } else if (sameSlotOtherPending.length > 0) {
+        slotNotice = `<span class="conflict-hint">同一時段另有 ${sameSlotOtherPending.map(o => `${o.id}（${o.memberName}）`).join('、')} 同時待審</span>`;
+      }
+
+      const isReviewing = reviewingResId === r.id;
+      return `
+        <article class="card pending-card">
+          <div class="pending-main">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span class="mono" style="font-size:13px;font-weight:700;">${r.id}</span>
+              <span class="badge badge-pending">待審核</span>
+              <strong>${r.memberName}</strong>
+              <span class="muted mono" style="font-size:12px;">(${r.memberUsername})</span>
+              ${slotNotice}
+            </div>
+            <div style="font-size:15px;font-weight:700;">
+              <span class="mono" style="color:var(--primary);">${r.equipmentId}</span> ${r.equipmentName}
+            </div>
+            <div class="muted" style="font-size:13px;display:flex;gap:16px;flex-wrap:wrap;">
+              <span>預約日期：<strong class="mono">${r.reservationDate}</strong></span>
+              <span>固定時段：<strong class="mono">${r.slotLabel}</strong></span>
+              <span>申請建立時間：<span class="mono">${r.createdAt}</span></span>
+            </div>
+          </div>
+          <div class="pending-actions">
+            <button type="button" class="btn btn-sm btn-primary" data-approve-id="${r.id}" ${isReviewing ? 'disabled' : ''}>${isReviewing ? '審核處理中…' : '核准申請'}</button>
+            <button type="button" class="btn btn-sm btn-danger" data-reject-id="${r.id}" ${isReviewing ? 'disabled' : ''}>駁回申請</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  function renderTable(forceEmpty) {
+    syncStatusTabs();
+    if (forceEmpty) {
+      $('#record-count').textContent = '共 0 筆紀錄';
+      $('#view-empty').hidden = false;
+      $('#table-wrapper').hidden = true;
+      return;
+    }
+
+    const filtered = reservations.filter(r => {
+      if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+      if (eqFilter !== 'ALL' && r.equipmentId !== eqFilter) return false;
+      return true;
+    });
+
+    $('#record-count').textContent = `共 ${filtered.length} 筆紀錄`;
+    if (filtered.length === 0) {
+      $('#view-empty').hidden = false;
+      $('#table-wrapper').hidden = true;
+      return;
+    }
+    $('#view-empty').hidden = true;
+    $('#table-wrapper').hidden = false;
+
+    $('#admin-table-body').innerHTML = filtered.map(r => {
+      let badgeClass = 'badge-occupied';
+      let badgeText = '已取消';
+      if (r.status === 'pending_approval') {
+        badgeClass = 'badge-pending';
+        badgeText = '待審核';
+      } else if (r.status === 'confirmed') {
+        badgeClass = 'badge-mine';
+        badgeText = '已核准／有效';
+      } else if (r.status === 'checked_out') {
+        badgeClass = 'badge-loan';
+        badgeText = isOverdueCheckedOut(r) ? '借用中（逾時未還）' : '借用中';
+      } else if (r.status === 'returned') {
+        badgeClass = 'badge-returned';
+        badgeText = '已歸還';
+      } else if (r.status === 'rejected') {
+        badgeClass = 'badge-cancelled';
+        badgeText = '已駁回';
+      }
+
+      const pickupAudit = r.checkedOutAt
+        ? `<div class="mono">${r.checkedOutAt}</div><div class="muted" style="font-size:11px;">經手：${r.checkedOutBy}</div>`
+        : '<span class="muted">—</span>';
+
+      const returnAudit = r.returnedAt
+        ? `<div class="mono">${r.returnedAt}</div><div class="muted" style="font-size:11px;">經手：${r.returnedBy}</div>`
+        : '<span class="muted">—</span>';
+
+      let detailInfo = r.reviewedBy ? `<div>審核：${r.reviewedBy}</div><div class="mono muted" style="font-size:11px;">${r.reviewedAt}</div>` : '<span class="muted">免審核／無備註</span>';
+      if (r.status === 'rejected') {
+        detailInfo = `<span style="color:var(--danger);">駁回原因：${r.rejectReason || '（未填寫）'}</span>`;
+      } else if (r.status === 'cancelled') {
+        detailInfo = `<span class="mono">取消於 ${r.cancelledAt}</span>`;
+      }
+
+      // 操作欄嚴格對齊可操作狀態定義（FR-005）
+      let actionHtml = '';
+      if (canPickupRecord(r)) {
+        const isPickingUp = pickupProcessingId === r.id;
+        actionHtml = `<button type="button" class="btn btn-sm btn-loan" data-pickup-id="${r.id}" ${isPickingUp ? 'disabled' : ''}>${isPickingUp ? '登記領取中…' : '登記領取'}</button>`;
+      } else if (canReturnRecord(r)) {
+        const isReturning = returnProcessingId === r.id;
+        actionHtml = `<button type="button" class="btn btn-sm btn-returned" data-return-id="${r.id}" ${isReturning ? 'disabled' : ''}>${isReturning ? '登記歸還中…' : '登記歸還'}</button>`;
+      } else if (r.status === 'confirmed' && r.reservationDate > MOCK.today) {
+        actionHtml = `<span class="op-hint">非當日預約（限當日領取）</span>`;
+      } else if (r.status === 'confirmed') {
+        actionHtml = `<span class="op-hint">時段已結束未領（逾期不可領取）</span>`;
+      } else if (r.status === 'returned') {
+        actionHtml = `<span class="op-hint">已完成歸還結案</span>`;
+      } else if (r.status === 'pending_approval') {
+        actionHtml = `<span class="op-hint">請先於上方待審清單審核</span>`;
+      } else {
+        actionHtml = `<span class="op-hint">無可用操作</span>`;
+      }
+
+      return `
+        <tr>
+          <td class="mono" style="font-weight:700;">${r.id}</td>
+          <td><strong>${r.memberName}</strong> <div class="muted mono" style="font-size:11px;">(${r.memberUsername})</div></td>
+          <td><span class="mono" style="color:var(--primary);font-weight:600;">${r.equipmentId}</span> <div>${r.equipmentName}</div></td>
+          <td class="mono"><div>${r.reservationDate}</div><div class="muted" style="font-size:12px;">${r.slotLabel}</div></td>
+          <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+          <td>${pickupAudit}</td>
+          <td>${returnAudit}</td>
+          <td class="reason-cell">${detailInfo}</td>
+          <td>${actionHtml}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function renderAll(forceEmpty) {
+    renderEquipmentGrid();
+    renderPendingQueue(forceEmpty);
+    renderTable(forceEmpty);
+  }
+
+  function openRejectModal(reservationId, prefillReason, showInvalid) {
+    const target = reservations.find(r => r.id === reservationId);
+    if (!target) return;
+    rejectingResId = reservationId;
+    $('#reject-modal-detail').innerHTML = `
+      <div><strong>預約編號：</strong><span class="mono">${target.id}</span>｜<strong>申請成員：</strong>${target.memberName} (<span class="mono">${target.memberUsername}</span>)</div>
+      <div><strong>借用設備：</strong><span class="mono">${target.equipmentId}</span> ${target.equipmentName}</div>
+      <div><strong>申請時段：</strong><span class="mono">${target.reservationDate} ${target.slotLabel}</span></div>
+    `;
+    const input = $('#reject-reason-input');
+    input.value = prefillReason || '';
+    updateRejectValidation(Boolean(showInvalid));
+    $('#reject-modal').hidden = false;
+  }
+
+  function updateRejectValidation(showErrorIfInvalid) {
+    const val = $('#reject-reason-input').value;
+    const len = val.trim().length;
+    $('#reject-char-count').textContent = `${len} / 200 字`;
+    const field = $('#reject-field');
+    const errEl = $('#reject-error');
+    if (len > 200 && showErrorIfInvalid) {
+      field.classList.add('has-error');
+      errEl.textContent = `駁回原因為選填，但長度不得超過 200 字（目前已輸入 ${len} 字）。`;
+      errEl.hidden = false;
+      return false;
+    }
+    field.classList.remove('has-error');
+    errEl.hidden = true;
+    return len <= 200;
+  }
+
+  $('#admin-eq-grid').addEventListener('click', e => {
+    const btn = e.target.closest('[data-toggle-eq]');
+    if (!btn || btn.disabled) return;
+    const eqId = btn.dataset.toggleEq;
+    togglingEqId = eqId;
+    renderEquipmentGrid();
+    timers.push(setTimeout(() => {
+      togglingEqId = null;
+      const eq = equipments.find(item => item.id === eqId);
+      if (eq) eq.requiresApproval = !eq.requiresApproval;
+      renderAll(false);
+      showBanner(
+        'success',
+        '已更新設備審核設定與核准狀態：既有已核准、借用中與待審紀錄均維持原狀態與效力不變。'
+      );
+      markState('toggled-and-approved');
+    }, 500));
+  });
+
+  $('#pending-list').addEventListener('click', e => {
+    const approveBtn = e.target.closest('[data-approve-id]');
+    if (approveBtn && !approveBtn.disabled) {
+      const id = approveBtn.dataset.approveId;
+      const target = reservations.find(r => r.id === id);
+      if (!target) return;
+
+      const conflict = reservations.find(
+        other => other.id !== target.id && other.equipmentId === target.equipmentId &&
+                 other.reservationDate === target.reservationDate && other.slotId === target.slotId &&
+                 (other.status === 'confirmed' || other.status === 'checked_out' || other.status === 'returned')
+      );
+      reviewingResId = id;
+      renderPendingQueue(false);
+
+      timers.push(setTimeout(() => {
+        reviewingResId = null;
+        if (conflict) {
+          renderAll(false);
+          showBanner(
+            'danger',
+            `無法核准申請：預約編號 ${target.id} 所申請的 ${target.equipmentId} ${target.equipmentName}（${target.reservationDate} ${target.slotLabel}）已被另一筆占用狀態紀錄（${conflict.id}）鎖定；${target.id} 仍維持「待審核」狀態，請改為執行駁回。`
+          );
+          markState('approve-conflict-error');
+          return;
+        }
+        target.status = 'confirmed';
+        target.reviewedBy = '吳承翰 (wu.chenghan)';
+        target.reviewedAt = '2026-11-09 14:31';
+        renderAll(false);
+        showBanner(
+          'success',
+          `已核准預約申請 ${target.id}（${target.memberName}，${target.equipmentId} ${target.equipmentName}，${target.reservationDate} ${target.slotLabel}），狀態已更新為「已核准／有效」並正式鎖定占用該時段。`
+        );
+        markState('toggled-and-approved');
+      }, 500));
+      return;
+    }
+
+    const rejectBtn = e.target.closest('[data-reject-id]');
+    if (rejectBtn && !rejectBtn.disabled) {
+      openRejectModal(rejectBtn.dataset.rejectId, '該時段已核准另一位成員的實驗專案申請，請改選其他可用時段。', false);
+      markState('reject-modal');
+    }
+  });
+
+  $('#admin-table-body').addEventListener('click', e => {
+    const pickupBtn = e.target.closest('[data-pickup-id]');
+    if (pickupBtn && !pickupBtn.disabled) {
+      const id = pickupBtn.dataset.pickupId;
+      const target = reservations.find(r => r.id === id);
+      if (!target) return;
+      pickupProcessingId = id;
+      renderTable(false);
+      markState('pickup-processing');
+
+      timers.push(setTimeout(() => {
+        pickupProcessingId = null;
+        target.status = 'checked_out';
+        target.checkedOutAt = '2026-11-09 14:32';
+        target.checkedOutBy = '吳承翰 (wu.chenghan)';
+        renderAll(false);
+        showBanner(
+          'success',
+          `已完成登記領取！預約編號 ${target.id}（${target.memberName}，${target.equipmentId} ${target.equipmentName}，${target.reservationDate} ${target.slotLabel}）狀態已更新為「借用中」，記錄領取時間 2026-11-09 14:32 與領取經手管理員吳承翰 (wu.chenghan)。`
+        );
+        markState('pickup-success');
+      }, 500));
+      return;
+    }
+
+    const returnBtn = e.target.closest('[data-return-id]');
+    if (returnBtn && !returnBtn.disabled) {
+      const id = returnBtn.dataset.returnId;
+      const target = reservations.find(r => r.id === id);
+      if (!target) return;
+      const wasOverdue = isOverdueCheckedOut(target);
+      returnProcessingId = id;
+      renderTable(false);
+      markState('return-processing');
+
+      timers.push(setTimeout(() => {
+        returnProcessingId = null;
+        target.status = 'returned';
+        target.returnedAt = wasOverdue ? '2026-11-09 14:36' : '2026-11-09 14:35';
+        target.returnedBy = '吳承翰 (wu.chenghan)';
+        renderAll(false);
+        if (wasOverdue) {
+          showBanner(
+            'success',
+            `已完成逾時設備登記歸還！預約編號 ${target.id}（${target.memberName}，${target.equipmentId} ${target.equipmentName}，${target.reservationDate} ${target.slotLabel}）雖已超過原時段結束時間，系統已允許結案並更新為「已歸還」，記錄實際歸還時間 2026-11-09 14:36 與歸還經手管理員吳承翰 (wu.chenghan)。`
+          );
+          markState('return-overdue-success');
+        } else {
+          showBanner(
+            'success',
+            `已完成登記歸還！預約編號 ${target.id}（${target.memberName}，${target.equipmentId} ${target.equipmentName}，${target.reservationDate} ${target.slotLabel}）狀態已更新為「已歸還」，記錄歸還時間 2026-11-09 14:35 與歸還經手管理員吳承翰 (wu.chenghan)，該時段視為已履約結案不重新開放。`
+          );
+          markState('return-success');
+        }
+      }, 500));
+    }
+  });
+
+  $('#reject-reason-input').addEventListener('input', () => {
+    updateRejectValidation(true);
+  });
+
+  $('#reject-cancel-btn').addEventListener('click', () => {
+    $('#reject-modal').hidden = true;
+    markState('overview');
+  });
+
+  $('#reject-confirm-btn').addEventListener('click', () => {
+    if (!updateRejectValidation(true)) {
+      markState('invalid');
+      return;
+    }
+    const target = reservations.find(r => r.id === rejectingResId);
+    const reasonText = $('#reject-reason-input').value.trim();
+    $('#reject-modal').hidden = true;
+    if (!target) return;
+    target.status = 'rejected';
+    target.reviewedBy = '吳承翰 (wu.chenghan)';
+    target.reviewedAt = '2026-11-09 14:36';
+    target.rejectReason = reasonText || null;
+    renderAll(false);
+    showBanner(
+      'success',
+      `已駁回預約申請 ${target.id}（${target.memberName}，${target.equipmentId} ${target.equipmentName}，${target.reservationDate} ${target.slotLabel}），已記錄審核時間與駁回原因並保留於全體預約歷史紀錄。`
+    );
+    markState('overview');
+  });
+
+  $('#status-filter').addEventListener('change', e => {
+    statusFilter = e.target.value;
+    renderTable(false);
+    if (statusFilter === 'confirmed' && eqFilter === 'ALL') {
+      markState('filter-confirmed-pickup');
+    } else if (statusFilter === 'checked_out' && eqFilter === 'ALL') {
+      markState('filter-checked-out-return');
+    }
+  });
+
+  $('#admin-status-tabs').addEventListener('click', e => {
+    const btn = e.target.closest('[data-tab-status]');
+    if (!btn) return;
+    statusFilter = btn.dataset.tabStatus;
+    $('#status-filter').value = statusFilter;
+    renderTable(false);
+    if (statusFilter === 'confirmed' && eqFilter === 'ALL') {
+      markState('filter-confirmed-pickup');
+    } else if (statusFilter === 'checked_out' && eqFilter === 'ALL') {
+      markState('filter-checked-out-return');
+    }
+  });
+
+  $('#eq-filter').addEventListener('change', e => {
+    eqFilter = e.target.value;
+    renderTable(false);
+  });
+
+  $('#reset-filter-btn').addEventListener('click', () => {
+    applyState('overview');
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    {
+      key: 'loading',
+      label: '載入中',
+      apply: () => {
+        $('#view-loading').hidden = false;
+        $('#view-main').hidden = true;
+        $('#view-forbidden').hidden = true;
+        $('#reject-modal').hidden = true;
+        $('#page-banner').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+      }
+    },
+    {
+      key: 'overview',
+      label: '審核設定、待審清單與 6 態借還管理總覽',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(false);
+      }
+    },
+    {
+      key: 'filter-confirmed-pickup',
+      label: '篩選已核准／有效（待領取）紀錄',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        statusFilter = 'confirmed';
+        $('#status-filter').value = 'confirmed';
+        renderAll(false);
+      }
+    },
+    {
+      key: 'filter-checked-out-return',
+      label: '篩選借用中（待歸還）紀錄',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        statusFilter = 'checked_out';
+        $('#status-filter').value = 'checked_out';
+        renderAll(false);
+      }
+    },
+    {
+      key: 'pickup-processing',
+      label: '登記領取處理中',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        pickupProcessingId = 'RV-20261108-06';
+        renderAll(false);
+      }
+    },
+    {
+      key: 'pickup-success',
+      label: '已完成登記領取（轉為借用中）',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        const r6 = reservations.find(r => r.id === 'RV-20261108-06');
+        r6.status = 'checked_out';
+        r6.checkedOutAt = '2026-11-09 14:32';
+        r6.checkedOutBy = '吳承翰 (wu.chenghan)';
+        renderAll(false);
+        showBanner(
+          'success',
+          '已完成登記領取！預約編號 RV-20261108-06（林雅婷，EQ-103 高精度工業熱像儀 FLIR E86，2026-11-09 晚間 18:00–21:00）狀態已更新為「借用中」，記錄領取時間 2026-11-09 14:32 與領取經手管理員吳承翰 (wu.chenghan)。'
+        );
+      }
+    },
+    {
+      key: 'return-processing',
+      label: '登記歸還處理中',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        returnProcessingId = 'RV-20261108-03';
+        renderAll(false);
+      }
+    },
+    {
+      key: 'return-success',
+      label: '已完成登記歸還（時段內歸還轉為已歸還）',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        const r3 = reservations.find(r => r.id === 'RV-20261108-03');
+        r3.status = 'returned';
+        r3.returnedAt = '2026-11-09 14:35';
+        r3.returnedBy = '吳承翰 (wu.chenghan)';
+        renderAll(false);
+        showBanner(
+          'success',
+          '已完成登記歸還！預約編號 RV-20261108-03（林雅婷，EQ-101 高解析度光學顯微鏡 Olympus BX53，2026-11-09 下午 13:00–17:00）狀態已更新為「已歸還」，記錄歸還時間 2026-11-09 14:35 與歸還經手管理員吳承翰 (wu.chenghan)，該時段視為已履約結案不重新開放。'
+        );
+      }
+    },
+    {
+      key: 'return-overdue-success',
+      label: '已完成逾時歸還登記（超過時段結束時間補還）',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        const r5 = reservations.find(r => r.id === 'RV-20261107-05');
+        r5.status = 'returned';
+        r5.returnedAt = '2026-11-09 14:36';
+        r5.returnedBy = '吳承翰 (wu.chenghan)';
+        renderAll(false);
+        showBanner(
+          'success',
+          '已完成逾時設備登記歸還！預約編號 RV-20261107-05（陳冠廷，EQ-103 高精度工業熱像儀 FLIR E86，2026-11-08 晚間 18:00–21:00）雖已超過原時段結束時間，系統已允許結案並更新為「已歸還」，記錄實際歸還時間 2026-11-09 14:36 與歸還經手管理員吳承翰 (wu.chenghan)。'
+        );
+      }
+    },
+    {
+      key: 'toggled-and-approved',
+      label: '已切換設備審核設定與核准待審申請',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        equipments.find(e => e.id === 'EQ-103').requiresApproval = true;
+        const r8 = reservations.find(r => r.id === 'RV-20261109-08');
+        r8.status = 'confirmed';
+        r8.reviewedBy = '吳承翰 (wu.chenghan)';
+        r8.reviewedAt = '2026-11-09 14:31';
+        renderAll(false);
+        showBanner(
+          'success',
+          '已更新 EQ-103 為需人工審核並核准預約申請 RV-20261109-08（林雅婷，EQ-101，2026-11-09 晚間 18:00–21:00），既有借還紀錄效力維持不變。'
+        );
+      }
+    },
+    {
+      key: 'reject-modal',
+      label: '填寫駁回原因對話框',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(false);
+        openRejectModal('RV-20261109-09', '該時段已核准另一位成員的實驗專案申請，請改選其他可用時段。', false);
+      }
+    },
+    {
+      key: 'empty',
+      label: '尚無待審或符合篩選紀錄',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(true);
+      }
+    },
+    {
+      key: 'invalid',
+      label: '欄位驗證錯誤',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(false);
+        const longReason = '因本週光學檢測實驗室正在執行年度精密光路對位、物鏡群清潔與高解析度影像感測器色差校正作業，且廠商工程師需連續占用該時段進行三階段雷射干涉測試與溫溼度穩定度紀錄，故本時段暫停對外開放一般實驗借用。請改選下週一以後的時段，或改借用其他替代量測設備，造成不便敬請見諒。此段補充說明文字已超過兩百字上限用於驗證字數限制。';
+        openRejectModal('RV-20261109-09', longReason, true);
+      }
+    },
+    {
+      key: 'pickup-invalid-status-error',
+      label: '登記領取非已核准狀態紀錄遭拒',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(false);
+        showBanner(
+          'danger',
+          '無法登記領取：預約編號 RV-20261108-03 目前狀態為「借用中」（非「已核准／有效」狀態），系統僅允許對「已核准／有效」預約執行單次登記領取，禁止對待審核、借用中、已歸還、已駁回或已取消紀錄重複領取。'
+        );
+      }
+    },
+    {
+      key: 'pickup-not-today-error',
+      label: '非當日預約提前登記領取遭拒',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        statusFilter = 'confirmed';
+        $('#status-filter').value = 'confirmed';
+        renderAll(false);
+        showBanner(
+          'danger',
+          '無法登記領取：預約編號 RV-20261108-04 的預約日期為 2026-11-10（非今日 2026-11-09），系統僅開放預約當日且尚未超過該固定時段結束時間的已核准預約辦理現場領取，拒絕未來日期提前領取。'
+        );
+      }
+    },
+    {
+      key: 'pickup-expired-window-error',
+      label: '時段已結束過期未領取補登遭拒',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        statusFilter = 'confirmed';
+        $('#status-filter').value = 'confirmed';
+        renderAll(false);
+        showBanner(
+          'danger',
+          '無法登記領取：預約編號 RV-20261108-02（2026-11-09 上午 09:00–12:00）的固定時段已經結束（目前台灣時間 14:30 已超過 12:00），已逾期未領取的預約無法補登領取。'
+        );
+      }
+    },
+    {
+      key: 'return-invalid-status-error',
+      label: '登記歸還非借用中狀態紀錄遭拒',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(false);
+        showBanner(
+          'danger',
+          '無法登記歸還：預約編號 RV-20261108-01 目前狀態為「已歸還」（或尚未領取之「已核准／有效」），系統僅允許對處於「借用中」狀態的紀錄執行登記歸還，禁止未領先還或重複歸還。'
+        );
+      }
+    },
+    {
+      key: 'approve-conflict-error',
+      label: '多筆待審申請核准時段衝突',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        const r8 = reservations.find(r => r.id === 'RV-20261109-08');
+        r8.status = 'confirmed';
+        r8.reviewedBy = '吳承翰 (wu.chenghan)';
+        r8.reviewedAt = '2026-11-09 14:31';
+        renderAll(false);
+        showBanner(
+          'danger',
+          '無法核准申請：預約編號 RV-20261109-09 所申請的 EQ-101 高解析度光學顯微鏡 Olympus BX53（2026-11-09 晚間 18:00–21:00）已被另一筆占用狀態紀錄（RV-20261109-08）鎖定；RV-20261109-09 仍維持「待審核」狀態，請改為執行駁回。'
+        );
+      }
+    },
+    {
+      key: 'already-cancelled-by-member',
+      label: '核准或駁回時申請人已取消或非待審狀態',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        const r10 = reservations.find(r => r.id === 'RV-20261109-10');
+        r10.status = 'cancelled';
+        r10.cancelledAt = '2026-11-09 14:29';
+        renderAll(false);
+        showBanner(
+          'danger',
+          '無法執行審核：預約編號 RV-20261109-10 剛剛已被申請人林雅婷自行取消（目前狀態為「已取消」），僅處於「待審核」狀態的申請可執行核准或駁回。'
+        );
+      }
+    },
+    {
+      key: 'review-started-slot-error',
+      label: '核准或駁回時時段已開始或已過期',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(false);
+        showBanner(
+          'danger',
+          '無法執行審核：該筆申請的預約時段（2026-11-09 下午 13:00–17:00）已到達或超過開始時間，管理員僅能審核尚未開始的待審核申請。'
+        );
+      }
+    },
+    {
+      key: 'resource-not-found-error',
+      label: '目標預約紀錄或設備不存在',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = false;
+        $('#view-forbidden').hidden = true;
+        $('#header-user').textContent = '吳承翰（管理員）';
+        resetAllData();
+        renderAll(false);
+        showBanner(
+          'danger',
+          '操作失敗：找不到指定的預約借用紀錄（RV-20261109-99）或目標設備，請重新整理清單後再試。'
+        );
+      }
+    },
+    {
+      key: 'forbidden-member',
+      label: '一般成員越權執行領取、歸還或管理操作遭拒',
+      apply: () => {
+        $('#view-loading').hidden = true;
+        $('#view-main').hidden = true;
+        $('#view-forbidden').hidden = false;
+        $('#reject-modal').hidden = true;
+        $('#page-banner').hidden = true;
+        $('#header-user').textContent = '林雅婷（一般成員）';
+      }
+    }
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  initTheme();
+  applyState('overview');
+</script>
+</body>
+</html>
