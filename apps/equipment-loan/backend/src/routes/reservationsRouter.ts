@@ -11,7 +11,7 @@ import {
 export const reservationsRouter = express.Router();
 
 const listMyReservationsQuerySchema = z.object({
-  status: z.enum(["confirmed", "cancelled"]).optional(),
+  status: z.enum(["pending_approval", "confirmed", "rejected", "cancelled"]).optional(),
 });
 
 const createReservationSchema = z.object({

@@ -24,6 +24,7 @@ export function App(): React.ReactElement {
     }
   });
   const [activeView, setActiveView] = useState<ViewName>("login");
+  const [bookingTargetDate, setBookingTargetDate] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [restoringSession, setRestoringSession] = useState<boolean>(() =>
     Boolean(getStoredToken()),
@@ -200,7 +201,14 @@ export function App(): React.ReactElement {
         ) : activeView === "login" || !currentUser ? (
           <LoginView bannerMessage={loginBanner} onLoginSuccess={handleLoginSuccess} />
         ) : activeView === "my-reservations" ? (
-          <MyReservationsView onGoToBooking={() => setActiveView("booking")} />
+          <MyReservationsView
+            onGoToBooking={(targetDate) => {
+              if (targetDate) {
+                setBookingTargetDate(targetDate);
+              }
+              setActiveView("booking");
+            }}
+          />
         ) : activeView === "admin" ? (
           <AdminOverviewView
             currentUser={currentUser}
@@ -210,6 +218,7 @@ export function App(): React.ReactElement {
         ) : (
           <EquipmentBookingView
             currentUser={currentUser}
+            initialDate={bookingTargetDate}
             onGoToMyReservations={() => setActiveView("my-reservations")}
           />
         )}

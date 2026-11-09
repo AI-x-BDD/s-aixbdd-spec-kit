@@ -1,49 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { AuthenticatedUser } from "../App";
-import { ApiError, apiRequest } from "../api/client";
-import { SlotStatusBadge, type SlotAvailabilityStatus } from "../components/SlotStatusBadge";
+import {
+  ApiError,
+  apiRequest,
+  type EquipmentAvailabilityPageDto,
+  type EquipmentWithSlotsDto,
+  type ReservationDto,
+  type SlotAvailabilityDto,
+} from "../api/client";
+import { SlotStatusBadge } from "../components/SlotStatusBadge";
 import { UI_TEXT } from "../text/zh-TW";
 
-export interface EquipmentSlotItem {
-  slotId: string;
-  slotCode: "MORNING" | "AFTERNOON" | "EVENING";
-  slotName: string;
-  startTime: string;
-  endTime: string;
-  sortOrder: number;
-  availabilityStatus: SlotAvailabilityStatus;
-  isBookable: boolean;
-  myReservationId: string | null;
-}
-
-export interface EquipmentAvailabilityItem {
-  id: string;
-  equipmentCode: string;
-  name: string;
-  category: string;
-  isActive: boolean;
-  reservationDate: string;
-  slots: EquipmentSlotItem[];
-}
-
-export interface EquipmentAvailabilityPage {
-  items: EquipmentAvailabilityItem[];
-  page: number;
-  pageSize: number;
-  totalItems: number;
-  totalPages: number;
-}
-
-interface ReservationCreatedResponse {
-  id: string;
-  reservationNumber: string;
-  equipmentCode: string;
-  equipmentName: string;
-  reservationDate: string;
-  slotName: string;
-  slotStartTime: string;
-  slotEndTime: string;
-}
+export type EquipmentSlotItem = SlotAvailabilityDto;
+export type EquipmentAvailabilityItem = EquipmentWithSlotsDto;
+export type EquipmentAvailabilityPage = EquipmentAvailabilityPageDto;
 
 function getTaipeiOpenDates(): Array<{ date: string; label: string }> {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -71,25 +41,31 @@ function getTaipeiOpenDates(): Array<{ date: string; label: string }> {
 interface EquipmentBookingViewProps {
   currentUser: AuthenticatedUser;
   onGoToMyReservations: () => void;
+  initialDate?: string | null;
 }
 
 export function EquipmentBookingView({
   currentUser,
   onGoToMyReservations,
+  initialDate,
 }: EquipmentBookingViewProps): React.ReactElement {
   const openDates = useMemo(() => getTaipeiOpenDates(), []);
   const minDate = openDates[0]?.date ?? "";
   const maxDate = openDates[openDates.length - 1]?.date ?? "";
   const defaultDate = openDates[1]?.date ?? openDates[0]?.date ?? "";
 
-  const [selectedDate, setSelectedDate] = useState<string>(defaultDate);
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate || defaultDate);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedApprovalFilter, setSelectedApprovalFilter] = useState<
+    "ALL" | "REQUIRED" | "DIRECT"
+  >("ALL");
   const [equipments, setEquipments] = useState<EquipmentAvailabilityItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedSlot, setSelectedSlot] = useState<{
     equipmentId: string;
     equipmentCode: string;
     equipmentName: string;
+    requiresApproval: boolean;
     slotId: string;
     slotName: string;
     startTime: string;
@@ -102,6 +78,12 @@ export function EquipmentBookingView({
     text: string;
     showMyReservationsBtn?: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    if (initialDate) {
+      setSelectedDate(initialDate);
+    }
+  }, [initialDate]);
 
   const isDateInRange = selectedDate >= minDate && selectedDate <= maxDate;
 
@@ -117,6 +99,11 @@ export function EquipmentBookingView({
       if (selectedCategory !== "ALL") {
         params.set("category", selectedCategory);
       }
+      if (selectedApprovalFilter === "REQUIRED") {
+        params.set("requiresApproval", "true");
+      } else if (selectedApprovalFilter === "DIRECT") {
+        params.set("requiresApproval", "false");
+      }
       const data = await apiRequest<EquipmentAvailabilityPage>(`/equipments?${params.toString()}`);
       setEquipments(data.items);
     } catch (err) {
@@ -125,7 +112,7 @@ export function EquipmentBookingView({
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, selectedCategory]);
+  }, [selectedDate, selectedCategory, selectedApprovalFilter]);
 
   useEffect(() => {
     void loadEquipments();
@@ -134,17 +121,29 @@ export function EquipmentBookingView({
   const handleSelectSlot = (eq: EquipmentAvailabilityItem, slot: EquipmentSlotItem): void => {
     setPanelError("");
     setBanner(null);
-    if (!slot.isBookable) {
+
+    if (slot.availabilityStatus === "pending_by_me" || slot.availabilityStatus === "booked_by_me") {
+      const statusLabel = slot.availabilityStatus === "pending_by_me" ? "待審核" : "已核准／有效";
       setBanner({
         tone: "danger",
-        text: `無法預約：${selectedDate} ${slot.slotName} ${slot.startTime}–${slot.endTime} 時段已開始或已結束，請選擇尚未開始的固定時段。`,
+        text: `重複申請遭拒：您已對 ${eq.equipmentCode} ${eq.name} 於 ${selectedDate} ${slot.slotName} ${slot.startTime}–${slot.endTime} 持有一筆未結束的「${statusLabel}」申請，同一成員不得對同一設備時段重複申請。`,
       });
       return;
     }
+
+    if (!slot.isBookable) {
+      setBanner({
+        tone: "danger",
+        text: `無法申請：${selectedDate} ${slot.slotName} ${slot.startTime}–${slot.endTime} 時段已開始或已結束，請選擇尚未開始的固定時段。`,
+      });
+      return;
+    }
+
     setSelectedSlot({
       equipmentId: eq.id,
       equipmentCode: eq.equipmentCode,
       equipmentName: eq.name,
+      requiresApproval: eq.requiresApproval,
       slotId: slot.slotId,
       slotName: slot.slotName,
       startTime: slot.startTime,
@@ -157,7 +156,7 @@ export function EquipmentBookingView({
     if (!isDateInRange) {
       setBanner({
         tone: "danger",
-        text: `僅開放預約當日起算 7 天內（${minDate} 至 ${maxDate}）尚未開始的固定時段，所選日期不在開放範圍內。`,
+        text: `僅開放申請當日起算 7 天內（${minDate} 至 ${maxDate}）尚未開始的固定時段，所選日期不在開放範圍內。`,
       });
       return;
     }
@@ -168,7 +167,7 @@ export function EquipmentBookingView({
 
     setSubmitting(true);
     try {
-      const created = await apiRequest<ReservationCreatedResponse>("/reservations", {
+      const created = await apiRequest<ReservationDto>("/reservations", {
         method: "POST",
         body: JSON.stringify({
           equipmentId: selectedSlot.equipmentId,
@@ -176,15 +175,23 @@ export function EquipmentBookingView({
           slotId: selectedSlot.slotId,
         }),
       });
-      setBanner({
-        tone: "success",
-        text: `預約已成立！預約編號 ${created.reservationNumber}（${created.equipmentCode} ${created.equipmentName}，${created.reservationDate} ${created.slotName} ${created.slotStartTime}–${created.slotEndTime}）已立即生效並占用時段。`,
-        showMyReservationsBtn: true,
-      });
+      if (created.status === "pending_approval") {
+        setBanner({
+          tone: "info",
+          text: `待審核申請已送出！預約編號 ${created.reservationNumber}（${created.equipmentCode} ${created.equipmentName}，${created.reservationDate} ${created.slotName} ${created.slotStartTime}–${created.slotEndTime}）目前狀態為「待審核」，核准前不占用時段，請靜候管理員審核。`,
+          showMyReservationsBtn: true,
+        });
+      } else {
+        setBanner({
+          tone: "success",
+          text: `預約已成立！預約編號 ${created.reservationNumber}（${created.equipmentCode} ${created.equipmentName}，${created.reservationDate} ${created.slotName} ${created.slotStartTime}–${created.slotEndTime}）屬於免審核設備，狀態為「已核准／有效」並已立即占用該時段。`,
+          showMyReservationsBtn: true,
+        });
+      }
       setSelectedSlot(null);
       await loadEquipments();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "預約送出失敗，請稍後再試。";
+      const msg = err instanceof ApiError ? err.message : "預約申請送出失敗，請稍後再試。";
       setBanner({ tone: "danger", text: msg });
       await loadEquipments();
     } finally {
@@ -194,10 +201,11 @@ export function EquipmentBookingView({
 
   return (
     <div>
-      <h1>預建單件設備清單與單日固定時段預約</h1>
+      <h1>預建單件設備審核標示與單日固定時段預約申請</h1>
       <p className="page-lead">
         選擇當日起算 7 天內的借用日期（台灣時間 <span className="mono">{minDate}</span> 至{" "}
-        <span className="mono">{maxDate}</span>），並點選任一單件設備尚未開始的可預約時段送出預約。
+        <span className="mono">{maxDate}</span>
+        ）；「需人工審核」設備送出後進入待審核且核准前不占用時段，「免審核」設備送出後立即成為已核准／有效並占用時段。
       </p>
 
       {banner && (
@@ -235,7 +243,7 @@ export function EquipmentBookingView({
             flexWrap: "wrap",
           }}
         >
-          <strong>選擇借用日期（7 天開放範圍）</strong>
+          <strong>選擇借用日期與審核模式篩選（7 天開放範圍）</strong>
           <div
             style={{
               display: "flex",
@@ -267,6 +275,31 @@ export function EquipmentBookingView({
                 font: "inherit",
               }}
             />
+            <label htmlFor="approval-filter-select" className="muted" style={{ fontSize: "13px" }}>
+              審核模式：
+            </label>
+            <select
+              id="approval-filter-select"
+              data-testid="approval-filter-select"
+              value={selectedApprovalFilter}
+              onChange={(e) => {
+                setSelectedApprovalFilter(e.target.value as "ALL" | "REQUIRED" | "DIRECT");
+                setSelectedSlot(null);
+              }}
+              style={{
+                height: "36px",
+                padding: "0 10px",
+                border: "1px solid var(--line)",
+                borderRadius: "8px",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                font: "inherit",
+              }}
+            >
+              <option value="ALL">全部模式</option>
+              <option value="REQUIRED">需人工審核</option>
+              <option value="DIRECT">免審核</option>
+            </select>
             <label htmlFor="category-select" className="muted" style={{ fontSize: "13px" }}>
               設備分類：
             </label>
@@ -334,7 +367,7 @@ export function EquipmentBookingView({
 
         {!isDateInRange && (
           <div style={{ color: "var(--danger)", fontSize: "13px", fontWeight: 500 }}>
-            僅開放預約當日起算 7 天內（{minDate} 至 {maxDate}
+            僅開放申請當日起算 7 天內（{minDate} 至 {maxDate}
             ）尚未開始的固定時段，所選日期不在開放範圍內。
           </div>
         )}
@@ -342,15 +375,18 @@ export function EquipmentBookingView({
 
       {loading ? (
         <div className="card" style={{ padding: "24px", color: "var(--muted)" }}>
-          正在載入預建設備與單日固定時段狀態…
+          正在載入預建設備審核標示與單日固定時段狀態…
         </div>
       ) : equipments.length === 0 ? (
         <div className="card" style={{ padding: "40px 24px", textAlign: "center" }}>
-          <h2>目前分類下沒有符合條件的設備</h2>
+          <h2>目前篩選條件下沒有符合的設備</h2>
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => setSelectedCategory("ALL")}
+            onClick={() => {
+              setSelectedCategory("ALL");
+              setSelectedApprovalFilter("ALL");
+            }}
           >
             顯示全部設備
           </button>
@@ -359,7 +395,7 @@ export function EquipmentBookingView({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) 340px",
+            gridTemplateColumns: "minmax(0, 1fr) 350px",
             gap: "24px",
             alignItems: "start",
           }}
@@ -373,7 +409,14 @@ export function EquipmentBookingView({
                 data-testid={`equipment-card-${eq.equipmentCode}`}
               >
                 <div style={{ marginBottom: "14px" }}>
-                  <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
                     <span
                       className="mono"
                       style={{
@@ -386,13 +429,26 @@ export function EquipmentBookingView({
                       }}
                     >
                       {eq.equipmentCode}
-                    </span>{" "}
+                    </span>
+                    <span
+                      className={`badge ${eq.requiresApproval ? "badge-pending" : "badge-available"}`}
+                      data-testid={`approval-badge-${eq.equipmentCode}`}
+                    >
+                      {eq.requiresApproval
+                        ? UI_TEXT.approvalModes.requiresApproval
+                        : UI_TEXT.approvalModes.noApproval}
+                    </span>
                     <span className="badge badge-available">
                       {eq.isActive ? "可供借用" : "暫停借用"}
                     </span>
                   </div>
                   <h2 style={{ margin: "6px 0 2px", fontSize: "17px" }}>{eq.name}</h2>
-                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>分類：{eq.category}</div>
+                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                    分類：{eq.category} ｜ 審核規則：
+                    {eq.requiresApproval
+                      ? "送出後進入待審核，核准前不占用時段"
+                      : "送出後立即成為已核准／有效並占用時段"}
+                  </div>
                 </div>
 
                 <div
@@ -408,8 +464,10 @@ export function EquipmentBookingView({
                     const disabled =
                       submitting ||
                       !isDateInRange ||
-                      slot.availabilityStatus === "booked_by_me" ||
                       slot.availabilityStatus === "booked_by_others";
+                    const isAlreadyMine =
+                      slot.availabilityStatus === "pending_by_me" ||
+                      slot.availabilityStatus === "booked_by_me";
 
                     return (
                       <button
@@ -426,11 +484,12 @@ export function EquipmentBookingView({
                           padding: "12px 14px",
                           border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--line)"}`,
                           borderRadius: "10px",
-                          background: disabled
-                            ? "var(--surface-muted)"
-                            : isSelected
-                              ? "var(--primary-soft)"
-                              : "var(--surface)",
+                          background:
+                            disabled || isAlreadyMine
+                              ? "var(--surface-muted)"
+                              : isSelected
+                                ? "var(--primary-soft)"
+                                : "var(--surface)",
                           color: "var(--ink)",
                           font: "inherit",
                           textAlign: "left",
@@ -471,9 +530,9 @@ export function EquipmentBookingView({
             style={{ position: "sticky", top: "84px", padding: "22px" }}
             aria-label="預約確認面板"
           >
-            <h2>單日固定時段預約確認</h2>
+            <h2>單日固定時段預約申請確認</h2>
             <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
-              每次選取一台單件設備與一個固定時段，送出後立即生效並占用該時段。
+              依所選設備的審核模式，送出後將進入「待審核」（不占位）或直接成為「已核准／有效」（立即占位）。
             </p>
 
             <div
@@ -494,7 +553,7 @@ export function EquipmentBookingView({
                   borderBottom: "1px solid var(--line)",
                 }}
               >
-                <span className="muted">預約成員</span>
+                <span className="muted">申請成員</span>
                 <span style={{ fontWeight: 600 }}>
                   {currentUser.displayName} (<span className="mono">{currentUser.username}</span>)
                 </span>
@@ -532,6 +591,26 @@ export function EquipmentBookingView({
                   display: "flex",
                   justifyContent: "space-between",
                   padding: "6px 0",
+                  borderBottom: "1px solid var(--line)",
+                }}
+              >
+                <span className="muted">審核模式</span>
+                <span
+                  style={{ fontWeight: 600, textAlign: "right" }}
+                  data-testid="panel-approval-mode"
+                >
+                  {selectedSlot
+                    ? selectedSlot.requiresApproval
+                      ? "需人工審核（送出後進入待審核，核准前不鎖定時段）"
+                      : "免審核（送出後立即成為已核准／有效並占用時段）"
+                    : "請先選擇時段"}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "6px 0",
                 }}
               >
                 <span className="muted">固定時段</span>
@@ -550,7 +629,11 @@ export function EquipmentBookingView({
               onClick={() => void handleSubmitBooking()}
               data-testid="submit-booking-btn"
             >
-              {submitting ? "送出預約中…" : "確認送出預約"}
+              {submitting
+                ? "送出申請中…"
+                : selectedSlot?.requiresApproval
+                  ? "送出待審核申請"
+                  : "確認送出預約"}
             </button>
 
             {panelError && (

@@ -1,6 +1,7 @@
 import React from "react";
+import type { SlotAvailabilityStatus } from "../api/client";
 
-export type SlotAvailabilityStatus = "available" | "booked_by_me" | "booked_by_others";
+export type { SlotAvailabilityStatus };
 
 interface SlotStatusBadgeProps {
   status: SlotAvailabilityStatus;
@@ -10,6 +11,9 @@ interface SlotStatusBadgeProps {
 export function SlotStatusBadge({ status, isBookable }: SlotStatusBadgeProps): React.ReactElement {
   if (status === "booked_by_me") {
     return <span className="badge badge-mine">本人已預約</span>;
+  }
+  if (status === "pending_by_me") {
+    return <span className="badge badge-pending">本人待審核</span>;
   }
   if (status === "booked_by_others") {
     return <span className="badge badge-occupied">已被預約</span>;

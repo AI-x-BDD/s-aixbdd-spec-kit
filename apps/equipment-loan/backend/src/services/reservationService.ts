@@ -10,6 +10,8 @@ import {
   parseDateOnlyToUtc,
 } from "../utils/taipeiTime.js";
 
+export type ReservationStatus = "pending_approval" | "confirmed" | "rejected" | "cancelled";
+
 export interface ReservationDto {
   id: string;
   reservationNumber: string;
@@ -18,13 +20,18 @@ export interface ReservationDto {
   equipmentCode: string;
   equipmentName: string;
   equipmentCategory: string;
+  equipmentRequiresApproval: boolean;
   reservationDate: string;
   slotId: string;
   slotName: string;
   slotStartTime: string;
   slotEndTime: string;
   slotSortOrder: number;
-  status: "pending_approval" | "confirmed" | "rejected" | "cancelled";
+  status: ReservationStatus;
+  reviewedBy: string | null;
+  reviewedByDisplayName: string | null;
+  reviewedAt: string | null;
+  rejectReason: string | null;
   createdAt: string;
   cancelledAt: string | null;
 }
@@ -51,13 +58,17 @@ export function toReservationDto(row: {
   equipment_id: string;
   reservation_date: Date;
   slot_id: string;
-  status: "pending_approval" | "confirmed" | "rejected" | "cancelled";
+  status: ReservationStatus;
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  reject_reason: string | null;
   created_at: Date;
   cancelled_at: Date | null;
   equipment: {
     equipment_code: string;
     name: string;
     category: string;
+    requires_approval: boolean;
   };
   slot: {
     name: string;
@@ -65,6 +76,10 @@ export function toReservationDto(row: {
     end_time: string;
     sort_order: number;
   };
+  reviewer?: {
+    username: string;
+    display_name: string;
+  } | null;
 }): ReservationDto {
   return {
     id: row.id,
@@ -74,6 +89,7 @@ export function toReservationDto(row: {
     equipmentCode: row.equipment.equipment_code,
     equipmentName: row.equipment.name,
     equipmentCategory: row.equipment.category,
+    equipmentRequiresApproval: row.equipment.requires_approval,
     reservationDate: formatUtcDateToDateStr(row.reservation_date),
     slotId: row.slot_id,
     slotName: row.slot.name,
@@ -81,6 +97,10 @@ export function toReservationDto(row: {
     slotEndTime: row.slot.end_time,
     slotSortOrder: row.slot.sort_order,
     status: row.status,
+    reviewedBy: row.reviewed_by,
+    reviewedByDisplayName: row.reviewer ? row.reviewer.display_name : null,
+    reviewedAt: row.reviewed_at ? row.reviewed_at.toISOString() : null,
+    rejectReason: row.reject_reason,
     createdAt: row.created_at.toISOString(),
     cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
   };
@@ -104,7 +124,7 @@ export async function createReservation(params: {
     throw new AppError(
       "DATE_OUT_OF_RANGE",
       400,
-      "僅開放預約當日起算 7 天內尚未開始的固定時段，所選日期不在開放範圍內。",
+      "僅開放申請當日起算 7 天內尚未開始的固定時段，所選日期不在開放範圍內。",
     );
   }
 
@@ -133,9 +153,54 @@ export async function createReservation(params: {
     throw new AppError(
       "SLOT_ALREADY_STARTED",
       400,
-      `無法預約：${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 時段已開始或已結束，請選擇尚未開始的固定時段。`,
+      `無法申請：${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 時段已開始或已結束，請選擇尚未開始的固定時段。`,
     );
   }
+
+  const targetDateUtc = parseDateOnlyToUtc(params.reservationDate);
+
+  const [existingConfirmed, existingMyOpen] = await Promise.all([
+    prisma.reservations.findFirst({
+      where: {
+        equipment_id: params.equipmentId,
+        reservation_date: targetDateUtc,
+        slot_id: params.slotId,
+        status: "confirmed",
+        deleted_at: null,
+      },
+    }),
+    prisma.reservations.findFirst({
+      where: {
+        user_id: params.userId,
+        equipment_id: params.equipmentId,
+        reservation_date: targetDateUtc,
+        slot_id: params.slotId,
+        status: { in: ["pending_approval", "confirmed"] },
+        deleted_at: null,
+      },
+    }),
+  ]);
+
+  if (existingConfirmed && existingConfirmed.user_id !== params.userId) {
+    throw new AppError(
+      "RESERVATION_CONFLICT",
+      409,
+      `申請失敗：${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 已被其他「已核准／有效」預約占用，請改選其他可預約時段。`,
+    );
+  }
+
+  if (existingMyOpen) {
+    const statusLabel = existingMyOpen.status === "pending_approval" ? "待審核" : "已核准／有效";
+    throw new AppError(
+      "DUPLICATE_PENDING_OR_ACTIVE_RESERVATION",
+      409,
+      `重複申請遭拒：您已對 ${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 持有一筆未結束的「${statusLabel}」申請（${existingMyOpen.reservation_no}），同一成員不得對同一設備時段重複申請。`,
+    );
+  }
+
+  const targetStatus: ReservationStatus = equipment.requires_approval
+    ? "pending_approval"
+    : "confirmed";
 
   try {
     const created = await prisma.reservations.create({
@@ -143,14 +208,15 @@ export async function createReservation(params: {
         reservation_no: generateReservationNo(),
         user_id: params.userId,
         equipment_id: params.equipmentId,
-        reservation_date: parseDateOnlyToUtc(params.reservationDate),
+        reservation_date: targetDateUtc,
         slot_id: params.slotId,
-        status: "confirmed",
+        status: targetStatus,
         updated_by: params.userId,
       },
       include: {
         equipment: true,
         slot: true,
+        reviewer: true,
       },
     });
 
@@ -162,10 +228,17 @@ export async function createReservation(params: {
       "code" in err &&
       (err as { code?: string }).code === "P2002"
     ) {
+      if (targetStatus === "pending_approval") {
+        throw new AppError(
+          "DUPLICATE_PENDING_OR_ACTIVE_RESERVATION",
+          409,
+          `重複申請遭拒：您已對 ${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 持有一筆未結束的「待審核」或「已核准／有效」申請，同一成員不得對同一設備時段重複申請。`,
+        );
+      }
       throw new AppError(
         "RESERVATION_CONFLICT",
         409,
-        `預約失敗：${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 剛剛已被其他成員預約，請改選其他可預約時段。`,
+        `申請失敗：${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 剛剛已被其他成員預約，請改選其他可預約時段。`,
       );
     }
     throw err;
@@ -174,7 +247,7 @@ export async function createReservation(params: {
 
 export async function listMyReservations(params: {
   userId: string;
-  status?: "confirmed" | "cancelled";
+  status?: ReservationStatus;
   page: number;
   pageSize: number;
 }): Promise<ReservationPageDto> {
@@ -207,6 +280,7 @@ export async function listMyReservations(params: {
     include: {
       equipment: true,
       slot: true,
+      reviewer: true,
     },
     orderBy: [
       { reservation_date: "desc" },
@@ -240,6 +314,7 @@ export async function cancelReservation(params: {
       include: {
         equipment: true,
         slot: true,
+        reviewer: true,
       },
     });
 
@@ -251,7 +326,7 @@ export async function cancelReservation(params: {
       throw new AppError(
         "FORBIDDEN",
         403,
-        `權限不足：預約編號 ${existing.reservation_no} 不屬於您本人名下，系統拒絕取消他人預約。`,
+        `權限不足：預約編號 ${existing.reservation_no} 不屬於您本人名下，系統拒絕取消他人預約申請。`,
       );
     }
 
@@ -259,7 +334,15 @@ export async function cancelReservation(params: {
       throw new AppError(
         "RESERVATION_ALREADY_CANCELLED",
         409,
-        `無法取消預約：預約編號 ${existing.reservation_no} 已經處於「已取消」狀態，無須重複取消。`,
+        `無法取消：預約編號 ${existing.reservation_no} 已經處於「已取消」狀態，無須重複取消。`,
+      );
+    }
+
+    if (existing.status === "rejected") {
+      throw new AppError(
+        "INVALID_RESERVATION_STATUS",
+        409,
+        `無法取消：預約編號 ${existing.reservation_no} 目前狀態為「已駁回」，僅處於「待審核」或「已核准／有效」狀態的申請可執行取消。`,
       );
     }
 
@@ -268,7 +351,7 @@ export async function cancelReservation(params: {
       throw new AppError(
         "RESERVATION_ALREADY_STARTED",
         409,
-        `無法取消預約：預約編號 ${existing.reservation_no}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已到達或超過時段開始時間，僅能在時段開始前取消。`,
+        `無法取消：預約編號 ${existing.reservation_no}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已到達或超過時段開始時間，僅能在預約時段開始前取消待審核或已核准／有效申請。`,
       );
     }
 
@@ -284,6 +367,7 @@ export async function cancelReservation(params: {
       include: {
         equipment: true,
         slot: true,
+        reviewer: true,
       },
     });
 
@@ -294,6 +378,7 @@ export async function cancelReservation(params: {
 export interface AdminReservationItemDto extends ReservationDto {
   username: string;
   userDisplayName: string;
+  reviewedByUsername: string | null;
 }
 
 export interface AdminReservationPageDto {
@@ -305,7 +390,7 @@ export interface AdminReservationPageDto {
 }
 
 export async function listAllReservations(params: {
-  status?: "confirmed" | "cancelled";
+  status?: ReservationStatus;
   equipmentId?: string;
   page: number;
   pageSize: number;
@@ -340,6 +425,7 @@ export async function listAllReservations(params: {
       user: true,
       equipment: true,
       slot: true,
+      reviewer: true,
     },
     orderBy: [
       { reservation_date: "desc" },
@@ -356,6 +442,7 @@ export async function listAllReservations(params: {
       ...toReservationDto(row),
       username: row.user.username,
       userDisplayName: row.user.display_name,
+      reviewedByUsername: row.reviewer ? row.reviewer.username : null,
     })),
     page: params.page,
     pageSize: params.pageSize,

@@ -14,7 +14,7 @@ export interface EquipmentSlotAvailabilityDto {
   startTime: string;
   endTime: string;
   sortOrder: number;
-  availabilityStatus: "available" | "booked_by_me" | "booked_by_others";
+  availabilityStatus: "available" | "pending_by_me" | "booked_by_me" | "booked_by_others";
   isBookable: boolean;
   myReservationId: string | null;
 }
@@ -25,6 +25,7 @@ export interface EquipmentWithSlotAvailabilityDto {
   name: string;
   category: string;
   isActive: boolean;
+  requiresApproval: boolean;
   reservationDate: string;
   slots: EquipmentSlotAvailabilityDto[];
 }
@@ -41,6 +42,7 @@ export async function listEquipments(params: {
   userId: string;
   date: string;
   category?: string;
+  requiresApproval?: boolean;
   page: number;
   pageSize: number;
 }): Promise<EquipmentAvailabilityPageDto> {
@@ -51,6 +53,9 @@ export async function listEquipments(params: {
   const whereClause = {
     deleted_at: null as Date | null,
     ...(params.category ? { category: params.category } : {}),
+    ...(params.requiresApproval !== undefined
+      ? { requires_approval: params.requiresApproval }
+      : {}),
   };
 
   const totalItems = await prisma.equipments.count({
@@ -71,7 +76,7 @@ export async function listEquipments(params: {
 
   const skip = (params.page - 1) * params.pageSize;
 
-  const [equipments, timeSlots, activeReservations] = await Promise.all([
+  const [equipments, timeSlots, dayReservations] = await Promise.all([
     prisma.equipments.findMany({
       where: whereClause,
       orderBy: [{ equipment_code: "asc" }, { id: "asc" }],
@@ -85,18 +90,25 @@ export async function listEquipments(params: {
     prisma.reservations.findMany({
       where: {
         reservation_date: parseDateOnlyToUtc(params.date),
-        status: "confirmed",
         deleted_at: null,
+        OR: [{ status: "confirmed" }, { status: "pending_approval", user_id: params.userId }],
       },
     }),
   ]);
 
-  const reservationByEqAndSlot = new Map<string, { id: string; user_id: string }>();
-  for (const res of activeReservations) {
-    reservationByEqAndSlot.set(`${res.equipment_id}|${res.slot_id}`, {
-      id: res.id,
-      user_id: res.user_id,
-    });
+  const confirmedByEqAndSlot = new Map<string, { id: string; user_id: string }>();
+  const myPendingByEqAndSlot = new Map<string, { id: string }>();
+
+  for (const res of dayReservations) {
+    const key = `${res.equipment_id}|${res.slot_id}`;
+    if (res.status === "confirmed") {
+      confirmedByEqAndSlot.set(key, {
+        id: res.id,
+        user_id: res.user_id,
+      });
+    } else if (res.status === "pending_approval" && res.user_id === params.userId) {
+      myPendingByEqAndSlot.set(key, { id: res.id });
+    }
   }
 
   const inOpenWindow = isWithinOpenDateWindow(params.date);
@@ -104,17 +116,23 @@ export async function listEquipments(params: {
   const items: EquipmentWithSlotAvailabilityDto[] = equipments.map((eq) => {
     const isActive = eq.status === "available";
     const slots: EquipmentSlotAvailabilityDto[] = timeSlots.map((slot) => {
-      const existing = reservationByEqAndSlot.get(`${eq.id}|${slot.id}`);
-      let availabilityStatus: "available" | "booked_by_me" | "booked_by_others" = "available";
+      const key = `${eq.id}|${slot.id}`;
+      const confirmed = confirmedByEqAndSlot.get(key);
+      const myPending = myPendingByEqAndSlot.get(key);
+      let availabilityStatus: "available" | "pending_by_me" | "booked_by_me" | "booked_by_others" =
+        "available";
       let myReservationId: string | null = null;
 
-      if (existing) {
-        if (existing.user_id === params.userId) {
+      if (confirmed) {
+        if (confirmed.user_id === params.userId) {
           availabilityStatus = "booked_by_me";
-          myReservationId = existing.id;
+          myReservationId = confirmed.id;
         } else {
           availabilityStatus = "booked_by_others";
         }
+      } else if (myPending) {
+        availabilityStatus = "pending_by_me";
+        myReservationId = myPending.id;
       }
 
       const started = hasSlotStarted(params.date, slot.start_time);
@@ -139,6 +157,7 @@ export async function listEquipments(params: {
       name: eq.name,
       category: eq.category,
       isActive,
+      requiresApproval: eq.requires_approval,
       reservationDate: params.date,
       slots,
     };

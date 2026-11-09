@@ -1,32 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ApiError, apiRequest } from "../api/client";
+import {
+  ApiError,
+  apiRequest,
+  type ReservationDto,
+  type ReservationPageDto,
+  type ReservationStatus,
+} from "../api/client";
+import { UI_TEXT } from "../text/zh-TW";
 
-export interface ReservationItem {
-  id: string;
-  reservationNumber: string;
-  userId: string;
-  equipmentId: string;
-  equipmentCode: string;
-  equipmentName: string;
-  equipmentCategory: string;
-  reservationDate: string;
-  slotId: string;
-  slotName: string;
-  slotStartTime: string;
-  slotEndTime: string;
-  slotSortOrder: number;
-  status: "confirmed" | "cancelled";
-  createdAt: string;
-  cancelledAt: string | null;
-}
-
-export interface ReservationPage {
-  items: ReservationItem[];
-  page: number;
-  pageSize: number;
-  totalItems: number;
-  totalPages: number;
-}
+export type ReservationItem = ReservationDto;
+export type ReservationPage = ReservationPageDto;
 
 function formatIsoToTaipeiDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -48,11 +31,11 @@ function formatIsoToTaipeiDateTime(iso: string | null): string {
 }
 
 interface MyReservationsViewProps {
-  onGoToBooking: () => void;
+  onGoToBooking: (targetDate?: string) => void;
 }
 
 export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): React.ReactElement {
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "confirmed" | "cancelled">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | ReservationStatus>("ALL");
   const [reservations, setReservations] = useState<ReservationItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingCancel, setPendingCancel] = useState<ReservationItem | null>(null);
@@ -61,6 +44,7 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
     tone: "danger" | "success" | "info";
     text: string;
     showRebookBtn?: boolean;
+    rebookDate?: string;
   } | null>(null);
 
   const loadReservations = useCallback(async () => {
@@ -89,6 +73,7 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
 
   const handleConfirmCancel = async (): Promise<void> => {
     if (!pendingCancel) return;
+    const wasPending = pendingCancel.status === "pending_approval";
     setCancelling(true);
     try {
       const updated = await apiRequest<ReservationItem>(
@@ -98,14 +83,24 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
         },
       );
       setPendingCancel(null);
-      setBanner({
-        tone: "success",
-        text: `已取消預約 ${updated.reservationNumber}（${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}），該時段已立即恢復為可預約狀態。`,
-        showRebookBtn: true,
-      });
+      if (wasPending) {
+        setBanner({
+          tone: "success",
+          text: `已取消待審核申請 ${updated.reservationNumber}（${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}），已自管理員待審清單移除並保留歷史紀錄。`,
+          showRebookBtn: true,
+          rebookDate: updated.reservationDate,
+        });
+      } else {
+        setBanner({
+          tone: "success",
+          text: `已取消已核准／有效預約 ${updated.reservationNumber}（${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}），該時段已立即釋出恢復為可預約狀態。`,
+          showRebookBtn: true,
+          rebookDate: updated.reservationDate,
+        });
+      }
       await loadReservations();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "取消預約失敗，請稍後再試。";
+      const msg = err instanceof ApiError ? err.message : "取消預約申請失敗，請稍後再試。";
       setPendingCancel(null);
       setBanner({ tone: "danger", text: msg });
       await loadReservations();
@@ -116,9 +111,9 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
 
   return (
     <div>
-      <h1>我的設備預約紀錄與取消管理</h1>
+      <h1>我的設備預約與審核狀態紀錄</h1>
       <p className="page-lead">
-        預設依預約日期由新到舊、固定時段順序及建立時間排序；尚未到達開始時間的有效預約可於此取消並立即釋出時段。
+        預設依預約日期由新到舊、固定時段順序及建立時間排序；完整顯示「待審核」、「已核准／有效」、「已駁回」（含駁回原因）與「已取消」狀態，並可在時段開始前取消待審或已核准申請。
       </p>
 
       {banner && (
@@ -132,7 +127,7 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
             <button
               type="button"
               className="btn btn-sm"
-              onClick={onGoToBooking}
+              onClick={() => onGoToBooking(banner.rebookDate)}
               data-testid="banner-go-booking"
             >
               前往設備預約重新預約
@@ -161,8 +156,10 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
           {(
             [
               { value: "ALL", label: "全部紀錄" },
-              { value: "confirmed", label: "有效預約（本人已預約）" },
-              { value: "cancelled", label: "已取消歷史紀錄" },
+              { value: "pending_approval", label: "待審核" },
+              { value: "confirmed", label: "已核准／有效" },
+              { value: "rejected", label: "已駁回" },
+              { value: "cancelled", label: "已取消" },
             ] as const
           ).map((tab) => {
             const active = statusFilter === tab.value;
@@ -192,31 +189,38 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
         <button
           type="button"
           className="btn btn-sm btn-primary"
-          onClick={onGoToBooking}
+          onClick={() => onGoToBooking()}
           data-testid="go-to-booking-btn"
         >
-          新增設備預約
+          前往設備預約
         </button>
       </div>
 
       {loading ? (
         <div className="card" style={{ padding: "24px", color: "var(--muted)" }}>
-          正在載入您的預約紀錄…
+          正在載入您的預約與審核狀態紀錄…
         </div>
       ) : reservations.length === 0 ? (
         <div className="card" style={{ padding: "44px 24px", textAlign: "center" }}>
-          <h2>您目前還沒有任何設備預約紀錄</h2>
+          <h2>目前篩選條件下沒有符合的預約申請紀錄</h2>
           <p className="muted">
-            前往預建設備清單選擇日期與固定時段，送出後即可在此查看與管理預約。
+            前往預建設備清單選擇日期與固定時段，送出後即可在此追蹤審核狀態與管理申請。
           </p>
-          <button type="button" className="btn btn-primary" onClick={onGoToBooking}>
+          <button type="button" className="btn btn-primary" onClick={() => onGoToBooking()}>
             前往設備預約
           </button>
         </div>
       ) : (
         <div style={{ display: "grid", gap: "14px" }}>
           {reservations.map((r) => {
-            const isConfirmed = r.status === "confirmed";
+            const canCancel = r.status === "pending_approval" || r.status === "confirmed";
+            const badgeClass =
+              r.status === "confirmed"
+                ? "badge-mine"
+                : r.status === "pending_approval"
+                  ? "badge-pending"
+                  : "badge-cancelled";
+
             return (
               <article
                 key={r.id}
@@ -250,8 +254,11 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                     >
                       {r.reservationNumber}
                     </span>
-                    <span className={`badge ${isConfirmed ? "badge-mine" : "badge-cancelled"}`}>
-                      {isConfirmed ? "本人已預約（有效）" : "已取消"}
+                    <span
+                      className={`badge ${badgeClass}`}
+                      data-testid={`status-badge-${r.reservationNumber}`}
+                    >
+                      {UI_TEXT.reservationStatus[r.status]}
                     </span>
                     <span
                       className="mono"
@@ -262,6 +269,13 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                       }}
                     >
                       {r.equipmentCode}
+                    </span>
+                    <span
+                      className={`badge ${r.equipmentRequiresApproval ? "badge-pending" : "badge-available"}`}
+                    >
+                      {r.equipmentRequiresApproval
+                        ? UI_TEXT.approvalModes.requiresApproval
+                        : UI_TEXT.approvalModes.noApproval}
                     </span>
                   </div>
 
@@ -291,27 +305,61 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                       建立時間：
                       <span className="mono">{formatIsoToTaipeiDateTime(r.createdAt)}</span>
                     </span>
-                    <span>
-                      取消時間：
-                      <span className="mono">{formatIsoToTaipeiDateTime(r.cancelledAt)}</span>
-                    </span>
+                    {r.reviewedAt && (
+                      <span>
+                        審核資訊：
+                        <span className="mono">
+                          {r.reviewedByDisplayName
+                            ? `${r.reviewedByDisplayName} 於 ${formatIsoToTaipeiDateTime(r.reviewedAt)}`
+                            : formatIsoToTaipeiDateTime(r.reviewedAt)}
+                        </span>
+                      </span>
+                    )}
+                    {r.cancelledAt && (
+                      <span>
+                        取消時間：
+                        <span className="mono">{formatIsoToTaipeiDateTime(r.cancelledAt)}</span>
+                      </span>
+                    )}
                   </div>
+
+                  {r.status === "rejected" && r.rejectReason && (
+                    <div
+                      data-testid={`reject-reason-${r.reservationNumber}`}
+                      style={{
+                        marginTop: "4px",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        background: "var(--danger-soft)",
+                        color: "var(--danger)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <strong>駁回原因：</strong>
+                      {r.rejectReason}
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  {isConfirmed ? (
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  {canCancel ? (
                     <button
                       type="button"
                       className="btn btn-sm btn-danger"
                       data-testid={`cancel-btn-${r.reservationNumber}`}
                       onClick={() => setPendingCancel(r)}
                     >
-                      取消預約
+                      {r.status === "pending_approval" ? "取消待審申請" : "取消預約"}
                     </button>
                   ) : (
-                    <span className="muted" style={{ fontSize: "13px" }}>
-                      已取消紀錄
-                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      data-testid={`reapply-btn-${r.reservationNumber}`}
+                      onClick={() => onGoToBooking(r.reservationDate)}
+                    >
+                      重新申請此時段
+                    </button>
                   )}
                 </div>
               </article>
@@ -337,9 +385,15 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
           }}
         >
           <div className="card" style={{ width: "100%", maxWidth: "480px", padding: "24px" }}>
-            <h2 id="modal-title">確認取消設備預約</h2>
+            <h2 id="modal-title">
+              {pendingCancel.status === "pending_approval"
+                ? "確認取消待審核申請"
+                : "確認取消已核准／有效預約"}
+            </h2>
             <p className="muted" style={{ margin: 0, fontSize: "14px" }}>
-              取消後該筆預約狀態將更新為「已取消」並保留於歷史紀錄中，同時立即釋出該時段供重新預約：
+              {pendingCancel.status === "pending_approval"
+                ? "取消後該筆待審申請將自管理員待審清單移除，狀態更新為「已取消」並保留於歷史紀錄中："
+                : "取消後該筆預約狀態將更新為「已取消」並保留於歷史紀錄中，同時立即釋出該時段供重新預約："}
             </p>
             <div
               style={{
@@ -356,6 +410,10 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
               <div>
                 <strong>預約編號：</strong>
                 <span className="mono">{pendingCancel.reservationNumber}</span>
+              </div>
+              <div>
+                <strong>目前狀態：</strong>
+                <span>{UI_TEXT.reservationStatus[pendingCancel.status]}</span>
               </div>
               <div>
                 <strong>借用設備：</strong>
@@ -387,7 +445,11 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                 onClick={() => void handleConfirmCancel()}
                 data-testid="confirm-cancel-submit-btn"
               >
-                {cancelling ? "取消處理中…" : "確認取消並釋出時段"}
+                {cancelling
+                  ? "取消處理中…"
+                  : pendingCancel.status === "pending_approval"
+                    ? "確認取消申請"
+                    : "確認取消並釋出時段"}
               </button>
             </div>
           </div>
