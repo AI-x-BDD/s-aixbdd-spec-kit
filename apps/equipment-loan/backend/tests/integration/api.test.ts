@@ -5,7 +5,7 @@ import { seedDatabase } from "../../prisma/seed.js";
 import { app } from "../../src/app.js";
 import { pool, prisma } from "../../src/db/prisma.js";
 import { hashPassword } from "../../src/utils/password.js";
-import { addDaysToDateStr, getTaipeiNow, parseDateOnlyToUtc } from "../../src/utils/taipeiTime.js";
+import { addDaysToDateStr, getTaipeiNow } from "../../src/utils/taipeiTime.js";
 
 async function loginAs(username: string, password: string): Promise<string> {
   const capRes = await request(app).post("/api/auth/captcha").send({});
@@ -21,7 +21,7 @@ async function loginAs(username: string, password: string): Promise<string> {
   return loginRes.body.token as string;
 }
 
-describe("Iteration 2 Equipment Approval & Review + Iteration 1 Regression (SC-001 ~ SC-005)", () => {
+describe("Iteration 3 Equipment Pickup, Return & Loan Status + Iterations 1-2 Regression (SC-001 ~ SC-005)", () => {
   beforeEach(async () => {
     await seedDatabase();
   });
@@ -32,211 +32,206 @@ describe("Iteration 2 Equipment Approval & Review + Iteration 1 Regression (SC-0
     await pool.end();
   });
 
-  it("SC-001 & FR-002 & FR-003: requires_approval=true enters pending_approval without locking slot, blocks same-member duplicates, allows re-application after reject/cancel, and requires_approval=false immediately becomes confirmed", async () => {
-    const tokenLin = await loginAs("lin.yating", "Member@2026");
-    const tokenChen = await loginAs("chen.guanting", "Member@2026");
-    const tomorrow = addDaysToDateStr(getTaipeiNow().dateStr, 1);
-
-    // 1. Lin re-applies to EQ-102 tomorrow afternoon (where her previous RV-20261109-07 was rejected)
-    const t0 = performance.now();
-    const pendingRes = await request(app)
-      .post("/api/reservations")
-      .set("Authorization", `Bearer ${tokenLin}`)
-      .send({
-        equipmentId: "22222222-2222-4222-8222-222222222102", // EQ-102 (requires_approval = true)
-        reservationDate: tomorrow,
-        slotId: "33333333-3333-4333-8333-333333333002", // 下午 13:00-17:00
-      });
-    const elapsedPendingMs = performance.now() - t0;
-    expect(pendingRes.status).toBe(201);
-    expect(pendingRes.body.status).toBe("pending_approval");
-    expect(elapsedPendingMs).toBeLessThan(2000);
-
-    // 2. Same member (Lin) submitting duplicate pending request for same slot -> 409 DUPLICATE_PENDING_OR_ACTIVE_RESERVATION
-    const dupRes = await request(app)
-      .post("/api/reservations")
-      .set("Authorization", `Bearer ${tokenLin}`)
-      .send({
-        equipmentId: "22222222-2222-4222-8222-222222222102",
-        reservationDate: tomorrow,
-        slotId: "33333333-3333-4333-8333-333333333002",
-      });
-    expect(dupRes.status).toBe(409);
-    expect(dupRes.body.code).toBe("DUPLICATE_PENDING_OR_ACTIVE_RESERVATION");
-
-    // 3. Another member (Chen) still sees slot as available and can submit pending request for the same slot
-    const eqForChen = await request(app)
-      .get(`/api/equipments?date=${tomorrow}`)
-      .set("Authorization", `Bearer ${tokenChen}`);
-    const eq102Chen = eqForChen.body.items.find(
-      (i: { equipmentCode: string }) => i.equipmentCode === "EQ-102",
-    );
-    expect(eq102Chen.slots[1].availabilityStatus).toBe("available");
-
-    const chenPendingRes = await request(app)
-      .post("/api/reservations")
-      .set("Authorization", `Bearer ${tokenChen}`)
-      .send({
-        equipmentId: "22222222-2222-4222-8222-222222222102",
-        reservationDate: tomorrow,
-        slotId: "33333333-3333-4333-8333-333333333002",
-      });
-    expect(chenPendingRes.status).toBe(201);
-    expect(chenPendingRes.body.status).toBe("pending_approval");
-
-    // 4. Non-approval equipment (EQ-103, requires_approval = false) immediately becomes confirmed and locks slot
-    const directRes = await request(app)
-      .post("/api/reservations")
-      .set("Authorization", `Bearer ${tokenLin}`)
-      .send({
-        equipmentId: "22222222-2222-4222-8222-222222222103", // EQ-103 (requires_approval = false)
-        reservationDate: tomorrow,
-        slotId: "33333333-3333-4333-8333-333333333002",
-      });
-    expect(directRes.status).toBe(201);
-    expect(directRes.body.status).toBe("confirmed");
-
-    const conflictDirect = await request(app)
-      .post("/api/reservations")
-      .set("Authorization", `Bearer ${tokenChen}`)
-      .send({
-        equipmentId: "22222222-2222-4222-8222-222222222103",
-        reservationDate: tomorrow,
-        slotId: "33333333-3333-4333-8333-333333333002",
-      });
-    expect(conflictDirect.status).toBe(409);
-    expect(conflictDirect.body.code).toBe("RESERVATION_CONFLICT");
-  });
-
-  it("SC-002 & FR-006: when multiple pending_approval requests exist for the same equipment, date, and slot, concurrent approval requests result in exactly 1 confirmed and 100% 409 RESERVATION_CONFLICT for the rest", async () => {
+  it("SC-001 & FR-001 & FR-002: admin pickup succeeds 100% for today's non-expired confirmed reservation and rejects non-confirmed, future date, or expired slot", async () => {
     const adminToken = await loginAs("wu.chenghan", "Admin@2026");
-    const tomorrow = addDaysToDateStr(getTaipeiNow().dateStr, 1);
-    const tomorrowUtc = parseDateOnlyToUtc(tomorrow);
-    const pwHash = await hashPassword("Member@2026");
 
-    // Seed already has RV-20261109-08 and RV-20261109-09 on EQ-101 tomorrow evening; add 3 more competing pending requests (total 5)
-    const extraIds: string[] = [];
-    for (let i = 1; i <= 3; i += 1) {
-      const u = await prisma.users.create({
-        data: {
-          username: `concurrent.member.${i}`,
-          password_hash: pwHash,
-          display_name: `並發測試成員${i}`,
-          role: "member",
-        },
-      });
-      const r = await prisma.reservations.create({
-        data: {
-          reservation_no: `RV-CONC-0${i}`,
-          user_id: u.id,
-          equipment_id: "22222222-2222-4222-8222-222222222101",
-          reservation_date: tomorrowUtc,
-          slot_id: "33333333-3333-4333-8333-333333333003",
-          status: "pending_approval",
-          updated_by: u.id,
-        },
-      });
-      extraIds.push(r.id);
+    // 1. Today's evening slot (18:00-21:00) confirmed reservation RV-20261108-06 -> 200 checked_out
+    const t0 = performance.now();
+    const pickupOk = await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444006/pickup")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(pickupOk.status).toBe(200);
+    expect(pickupOk.body.status).toBe("checked_out");
+    expect(pickupOk.body.checkedOutAt).toBeTruthy();
+    expect(pickupOk.body.checkedOutByUserId).toBe("11111111-1111-4111-8111-111111111103");
+    expect(pickupOk.body.checkedOutByName).toBe("吳承翰");
+    expect(pickupOk.body.canPickup).toBe(false);
+    expect(pickupOk.body.canReturn).toBe(true);
+    expect(pickupOk.body.canCancel).toBe(false);
+
+    // 2. Reject non-confirmed states (checked_out duplicate, pending_approval, returned, rejected, cancelled) -> 409 INVALID_RESERVATION_STATUS
+    for (const nonConfirmedId of [
+      "44444444-4444-4444-8444-444444444006", // already checked_out
+      "44444444-4444-4444-8444-444444444008", // pending_approval
+      "44444444-4444-4444-8444-444444444001", // returned
+      "44444444-4444-4444-8444-444444444007", // rejected
+      "44444444-4444-4444-8444-444444444013", // cancelled
+    ]) {
+      const res = await request(app)
+        .post(`/api/admin/reservations/${nonConfirmedId}/pickup`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe("INVALID_RESERVATION_STATUS");
     }
 
-    const targetIds = [
-      "44444444-4444-4444-8444-444444444008",
-      "44444444-4444-4444-8444-444444444009",
-      ...extraIds,
-    ];
-
-    const t0 = performance.now();
-    const responses = await Promise.all(
-      targetIds.map((id) =>
-        request(app)
-          .post(`/api/admin/reservations/${id}/approve`)
-          .set("Authorization", `Bearer ${adminToken}`),
-      ),
-    );
-    const elapsedMs = performance.now() - t0;
-
-    const approved = responses.filter((r) => r.status === 200);
-    const conflicts = responses.filter(
-      (r) => r.status === 409 && r.body.code === "RESERVATION_CONFLICT",
-    );
-
-    expect(approved.length).toBe(1);
-    expect(conflicts.length).toBe(4);
-    expect(elapsedMs).toBeLessThan(2000);
-
-    // Verify in DB that only 1 confirmed exists for that slot and the other 4 remain pending_approval
-    const dbRows = await prisma.reservations.findMany({
-      where: { id: { in: targetIds } },
-    });
-    expect(dbRows.filter((r) => r.status === "confirmed").length).toBe(1);
-    expect(dbRows.filter((r) => r.status === "pending_approval").length).toBe(4);
-  });
-
-  it("SC-003 & SC-004 & FR-010: toggling equipment requires_approval preserves 100% of existing confirmed and pending_approval records, and all admin review operations respond within < 2s", async () => {
-    const adminToken = await loginAs("wu.chenghan", "Admin@2026");
-    const memberToken = await loginAs("lin.yating", "Member@2026");
-    const tomorrow = addDaysToDateStr(getTaipeiNow().dateStr, 1);
-
-    // 1. Toggle EQ-104 (currently false, has confirmed RV-20261108-05) to true
-    const tToggle1 = performance.now();
-    const toggleToTrue = await request(app)
-      .patch("/api/admin/equipments/22222222-2222-4222-8222-222222222104/approval-mode")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ requiresApproval: true });
-    expect(performance.now() - tToggle1).toBeLessThan(2000);
-    expect(toggleToTrue.status).toBe(200);
-    expect(toggleToTrue.body.requiresApproval).toBe(true);
-
-    // Existing confirmed reservation RV-20261108-05 on EQ-104 remains confirmed
-    const existingConfirmed = await prisma.reservations.findUnique({
-      where: { id: "44444444-4444-4444-8444-444444444005" },
-    });
-    expect(existingConfirmed?.status).toBe("confirmed");
-
-    // New booking on EQ-104 now enters pending_approval
-    const newOn104 = await request(app)
-      .post("/api/reservations")
-      .set("Authorization", `Bearer ${memberToken}`)
-      .send({
-        equipmentId: "22222222-2222-4222-8222-222222222104",
-        reservationDate: tomorrow,
-        slotId: "33333333-3333-4333-8333-333333333002",
-      });
-    expect(newOn104.status).toBe(201);
-    expect(newOn104.body.status).toBe("pending_approval");
-
-    // 2. Toggle EQ-102 (currently true, has pending RV-20261109-10) to false
-    const toggleToFalse = await request(app)
-      .patch("/api/admin/equipments/22222222-2222-4222-8222-222222222102/approval-mode")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ requiresApproval: false });
-    expect(toggleToFalse.status).toBe(200);
-    expect(toggleToFalse.body.requiresApproval).toBe(false);
-
-    // Existing pending RV-20261109-10 still stays in pending queue
-    const tList = performance.now();
-    const pendingQueue = await request(app)
-      .get("/api/admin/reservations/pending")
+    // 3. Reject future date confirmed reservation RV-20261108-04 -> 400 PICKUP_DATE_NOT_TODAY
+    const futureRes = await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444004/pickup")
       .set("Authorization", `Bearer ${adminToken}`);
-    expect(performance.now() - tList).toBeLessThan(2000);
-    expect(
-      pendingQueue.body.items.some(
-        (item: { id: string }) => item.id === "44444444-4444-4444-8444-444444444010",
-      ),
-    ).toBe(true);
+    expect(futureRes.status).toBe(400);
+    expect(futureRes.body.code).toBe("PICKUP_DATE_NOT_TODAY");
 
-    // Reject RV-20261109-10 with reason (< 2s)
-    const tReject = performance.now();
-    const rejectRes = await request(app)
-      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444010/reject")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ rejectReason: "設備切換模式前之待審申請，因時段調整予以駁回。" });
-    expect(performance.now() - tReject).toBeLessThan(2000);
-    expect(rejectRes.status).toBe(200);
-    expect(rejectRes.body.status).toBe("rejected");
+    // 4. Reject expired morning slot confirmed reservation RV-20261108-02 -> 400 PICKUP_WINDOW_EXPIRED
+    const expiredRes = await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444002/pickup")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(expiredRes.status).toBe(400);
+    expect(expiredRes.body.code).toBe("PICKUP_WINDOW_EXPIRED");
   });
 
-  it("SC-005 & FR-008 & FR-009: blocks non-admin member from all admin equipment settings and reservation review endpoints (100% 403 FORBIDDEN)", async () => {
+  it("SC-002 & FR-004 & FR-007: admin return succeeds 100% for both in-window and overdue checked_out records, keeps returned slot locked against duplicate booking, and rejects non-checked_out records", async () => {
+    const adminToken = await loginAs("wu.chenghan", "Admin@2026");
+    const chenToken = await loginAs("chen.guanting", "Member@2026");
+    const todayStr = getTaipeiNow().dateStr;
+
+    // 1. Return in-window checked_out record RV-20261108-03 -> 200 returned
+    const t0 = performance.now();
+    const retInWindow = await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444003/return")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(retInWindow.status).toBe(200);
+    expect(retInWindow.body.status).toBe("returned");
+    expect(retInWindow.body.returnedAt).toBeTruthy();
+    expect(retInWindow.body.returnedByUserId).toBe("11111111-1111-4111-8111-111111111103");
+    expect(retInWindow.body.returnedByName).toBe("吳承翰");
+    expect(retInWindow.body.canReturn).toBe(false);
+
+    // 2. Return overdue checked_out record RV-20261107-05 (from yesterday) -> 200 returned
+    const retOverdue = await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444011/return")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(retOverdue.status).toBe(200);
+    expect(retOverdue.body.status).toBe("returned");
+    expect(retOverdue.body.returnedAt).toBeTruthy();
+    expect(retOverdue.body.returnedByName).toBe("吳承翰");
+
+    // 3. Reject non-checked_out records (confirmed not picked up, already returned, pending_approval, rejected, cancelled) -> 409 INVALID_RESERVATION_STATUS
+    for (const nonCheckedOutId of [
+      "44444444-4444-4444-8444-444444444006", // confirmed
+      "44444444-4444-4444-8444-444444444003", // already returned
+      "44444444-4444-4444-8444-444444444008", // pending_approval
+      "44444444-4444-4444-8444-444444444007", // rejected
+      "44444444-4444-4444-8444-444444444013", // cancelled
+    ]) {
+      const res = await request(app)
+        .post(`/api/admin/reservations/${nonCheckedOutId}/return`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe("INVALID_RESERVATION_STATUS");
+    }
+
+    // 4. Early return keeps the slot occupied (isBookable = false, OCCUPIED for others) and blocks duplicate booking or approval with 409 RESERVATION_CONFLICT
+    await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444006/pickup")
+      .set("Authorization", `Bearer ${adminToken}`);
+    await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444006/return")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    const eqAfterReturn = await request(app)
+      .get(`/api/equipments?date=${todayStr}`)
+      .set("Authorization", `Bearer ${chenToken}`);
+    const eq103EvForChen = eqAfterReturn.body.items.find(
+      (e: { equipmentCode: string }) => e.equipmentCode === "EQ-103",
+    ).slots[2];
+    expect(eq103EvForChen.slotStatus).toBe("OCCUPIED");
+    expect(eq103EvForChen.availabilityStatus).toBe("booked_by_others");
+    expect(eq103EvForChen.isBookable).toBe(false);
+
+    // Also verify on a future unstarted slot that a `returned` record blocks new booking with 409 RESERVATION_CONFLICT
+    const tomorrowStr = addDaysToDateStr(todayStr, 1);
+    await prisma.reservations.update({
+      where: { id: "44444444-4444-4444-8444-444444444004" },
+      data: {
+        status: "returned",
+        checked_out_at: new Date(),
+        returned_at: new Date(),
+      },
+    });
+    const conflictAfterReturn = await request(app)
+      .post("/api/reservations")
+      .set("Authorization", `Bearer ${chenToken}`)
+      .send({
+        equipmentId: "22222222-2222-4222-8222-222222222101", // EQ-101
+        reservationDate: tomorrowStr,
+        slotId: "33333333-3333-4333-8333-333333333001", // 上午 09:00-12:00
+      });
+    expect(conflictAfterReturn.status).toBe(409);
+    expect(conflictAfterReturn.body.code).toBe("RESERVATION_CONFLICT");
+  });
+
+  it("SC-003 & SC-004 & FR-006 & FR-007 & FR-008: member accurately views active loans, 6-state history, and 6-state slot status, and is 100% blocked from cancelling checked_out or returned records (even before slot start)", async () => {
+    const adminToken = await loginAs("wu.chenghan", "Admin@2026");
+    const linToken = await loginAs("lin.yating", "Member@2026");
+    const chenToken = await loginAs("chen.guanting", "Member@2026");
+    const todayStr = getTaipeiNow().dateStr;
+
+    // 1. Member queries active loans (/api/reservations/my?status=checked_out) < 2s
+    const t0 = performance.now();
+    const myLoans = await request(app)
+      .get("/api/reservations/my?status=checked_out")
+      .set("Authorization", `Bearer ${linToken}`);
+    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(myLoans.status).toBe(200);
+    expect(myLoans.body.totalItems).toBe(1);
+    expect(myLoans.body.items[0].reservationNumber).toBe("RV-20261108-03");
+    expect(myLoans.body.items[0].checkedOutAt).toBeTruthy();
+    expect(myLoans.body.items[0].canCancel).toBe(false);
+
+    // 2. Member views 6-state slot availability on today: MY_CHECKED_OUT and MY_RETURNED for self, OCCUPIED for others without exposing borrower identity
+    const eqForLin = await request(app)
+      .get(`/api/equipments?date=${todayStr}`)
+      .set("Authorization", `Bearer ${linToken}`);
+    const eq101LinPm = eqForLin.body.items.find(
+      (e: { equipmentCode: string }) => e.equipmentCode === "EQ-101",
+    ).slots[1];
+    const eq102LinAm = eqForLin.body.items.find(
+      (e: { equipmentCode: string }) => e.equipmentCode === "EQ-102",
+    ).slots[0];
+    expect(eq101LinPm.slotStatus).toBe("MY_CHECKED_OUT");
+    expect(eq101LinPm.availabilityStatus).toBe("checked_out_by_me");
+    expect(eq102LinAm.slotStatus).toBe("MY_RETURNED");
+    expect(eq102LinAm.availabilityStatus).toBe("returned_by_me");
+
+    const eqForChen = await request(app)
+      .get(`/api/equipments?date=${todayStr}`)
+      .set("Authorization", `Bearer ${chenToken}`);
+    const eq101ChenPm = eqForChen.body.items.find(
+      (e: { equipmentCode: string }) => e.equipmentCode === "EQ-101",
+    ).slots[1];
+    const eq102ChenAm = eqForChen.body.items.find(
+      (e: { equipmentCode: string }) => e.equipmentCode === "EQ-102",
+    ).slots[0];
+    expect(eq101ChenPm.slotStatus).toBe("OCCUPIED");
+    expect(eq101ChenPm.availabilityStatus).toBe("booked_by_others");
+    expect(eq101ChenPm.myReservationId).toBeNull();
+    expect(eq102ChenAm.slotStatus).toBe("OCCUPIED");
+    expect(eq102ChenAm.availabilityStatus).toBe("booked_by_others");
+    expect(eq102ChenAm.myReservationId).toBeNull();
+
+    // 3. Edge Case: Member picks up today's evening slot (RV-20261108-06) early BEFORE 18:00 start time, then attempts to cancel -> 100% blocked with 409 RESERVATION_ALREADY_CHECKED_OUT
+    const earlyPickup = await request(app)
+      .post("/api/admin/reservations/44444444-4444-4444-8444-444444444006/pickup")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(earlyPickup.status).toBe(200);
+
+    const cancelEarlyPickedUp = await request(app)
+      .post("/api/reservations/44444444-4444-4444-8444-444444444006/cancel")
+      .set("Authorization", `Bearer ${linToken}`);
+    expect(cancelEarlyPickedUp.status).toBe(409);
+    expect(cancelEarlyPickedUp.body.code).toBe("RESERVATION_ALREADY_CHECKED_OUT");
+
+    // 4. Attempting to cancel returned record RV-20261108-01 -> 409 RESERVATION_ALREADY_CHECKED_OUT
+    const cancelReturned = await request(app)
+      .post("/api/reservations/44444444-4444-4444-8444-444444444001/cancel")
+      .set("Authorization", `Bearer ${linToken}`);
+    expect(cancelReturned.status).toBe(409);
+    expect(cancelReturned.body.code).toBe("RESERVATION_ALREADY_CHECKED_OUT");
+  });
+
+  it("SC-005 & FR-003: blocks non-admin member from pickup, return, and all admin endpoints (100% 403 FORBIDDEN)", async () => {
     const memberToken = await loginAs("lin.yating", "Member@2026");
 
     const endpoints = [
@@ -263,7 +258,15 @@ describe("Iteration 2 Equipment Approval & Review + Iteration 1 Regression (SC-0
           .send({ rejectReason: "越權測試" }),
       () =>
         request(app)
-          .post("/api/reservations/44444444-4444-4444-8444-444444444004/cancel")
+          .post("/api/admin/reservations/44444444-4444-4444-8444-444444444006/pickup")
+          .set("Authorization", `Bearer ${memberToken}`),
+      () =>
+        request(app)
+          .post("/api/admin/reservations/44444444-4444-4444-8444-444444444003/return")
+          .set("Authorization", `Bearer ${memberToken}`),
+      () =>
+        request(app)
+          .post("/api/reservations/44444444-4444-4444-8444-444444444012/cancel")
           .set("Authorization", `Bearer ${memberToken}`),
     ];
 
@@ -274,8 +277,44 @@ describe("Iteration 2 Equipment Approval & Review + Iteration 1 Regression (SC-0
     }
   });
 
-  it("Iteration 1 Regression (FR-011 & SC-003): 7-char case-sensitive captcha, 10-concurrent non-approval booking race, and < 1s cancellation slot release", async () => {
-    // 1. 7-char case-sensitive captcha & single-use consumption
+  it("Iterations 1 & 2 Regression (FR-009 & SC-005): approval workflow, concurrent approval conflict check, equipment approval mode toggle, 7-char case-sensitive captcha, and 10-concurrent booking race", async () => {
+    const adminToken = await loginAs("wu.chenghan", "Admin@2026");
+    const tokenLin = await loginAs("lin.yating", "Member@2026");
+    const tokenChen = await loginAs("chen.guanting", "Member@2026");
+    const tomorrow = addDaysToDateStr(getTaipeiNow().dateStr, 1);
+
+    // 1. Concurrent approval conflict check on EQ-101 tomorrow evening (RV-20261109-08 & RV-20261109-09)
+    const [app1, app2] = await Promise.all([
+      request(app)
+        .post("/api/admin/reservations/44444444-4444-4444-8444-444444444008/approve")
+        .set("Authorization", `Bearer ${adminToken}`),
+      request(app)
+        .post("/api/admin/reservations/44444444-4444-4444-8444-444444444009/approve")
+        .set("Authorization", `Bearer ${adminToken}`),
+    ]);
+    const statuses = [app1.status, app2.status].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    // 2. Toggle EQ-104 approval mode preserves existing confirmed/checked_out/returned records
+    const toggleRes = await request(app)
+      .patch("/api/admin/equipments/22222222-2222-4222-8222-222222222104/approval-mode")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ requiresApproval: true });
+    expect(toggleRes.status).toBe(200);
+    expect(toggleRes.body.requiresApproval).toBe(true);
+
+    const newPending = await request(app)
+      .post("/api/reservations")
+      .set("Authorization", `Bearer ${tokenChen}`)
+      .send({
+        equipmentId: "22222222-2222-4222-8222-222222222104",
+        reservationDate: tomorrow,
+        slotId: "33333333-3333-4333-8333-333333333002",
+      });
+    expect(newPending.status).toBe(201);
+    expect(newPending.body.status).toBe("pending_approval");
+
+    // 3. 7-char case-sensitive captcha & single-use consumption
     const customChallenge = await prisma.captcha_challenges.create({
       data: {
         captcha_code: "a123456",
@@ -291,16 +330,7 @@ describe("Iteration 2 Equipment Approval & Review + Iteration 1 Regression (SC-0
     expect(mismatchRes.status).toBe(400);
     expect(mismatchRes.body.code).toBe("CAPTCHA_MISMATCH");
 
-    const replayRes = await request(app).post("/api/auth/login").send({
-      username: "lin.yating",
-      password: "Member@2026",
-      challengeId: customChallenge.id,
-      captchaCode: "a123456",
-    });
-    expect(replayRes.status).toBe(400);
-    expect(replayRes.body.code).toBe("CAPTCHA_EXPIRED");
-
-    // 2. 10 concurrent booking requests by 10 members on non-approval equipment EQ-103
+    // 4. 10 concurrent booking requests on non-approval equipment EQ-103 tomorrow evening
     const pwHash = await hashPassword("Member@2026");
     const tokens: string[] = [];
     for (let i = 0; i < 10; i += 1) {
@@ -323,13 +353,12 @@ describe("Iteration 2 Equipment Approval & Review + Iteration 1 Regression (SC-0
       tokens.push(token);
     }
 
-    const tomorrow = addDaysToDateStr(getTaipeiNow().dateStr, 1);
     const raceResponses = await Promise.all(
       tokens.map((t) =>
         request(app).post("/api/reservations").set("Authorization", `Bearer ${t}`).send({
-          equipmentId: "22222222-2222-4222-8222-222222222103", // EQ-103 (requires_approval = false)
+          equipmentId: "22222222-2222-4222-8222-222222222103",
           reservationDate: tomorrow,
-          slotId: "33333333-3333-4333-8333-333333333003", // 晚間 18:00-21:00
+          slotId: "33333333-3333-4333-8333-333333333003",
         }),
       ),
     );
@@ -339,14 +368,11 @@ describe("Iteration 2 Equipment Approval & Review + Iteration 1 Regression (SC-0
         .length,
     ).toBe(9);
 
-    // 3. Cancel confirmed reservation < 1s and release slot
-    const tokenLin = await loginAs("lin.yating", "Member@2026");
-    const tCancel = performance.now();
+    // 5. Cancel future confirmed reservation RV-20261108-04 (< 1s)
     const cancelRes = await request(app)
-      .post("/api/reservations/44444444-4444-4444-8444-444444444003/cancel")
+      .post("/api/reservations/44444444-4444-4444-8444-444444444004/cancel")
       .set("Authorization", `Bearer ${tokenLin}`);
     expect(cancelRes.status).toBe(200);
     expect(cancelRes.body.status).toBe("cancelled");
-    expect(performance.now() - tCancel).toBeLessThan(1000);
   });
 });

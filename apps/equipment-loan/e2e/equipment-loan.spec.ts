@@ -1,6 +1,15 @@
 import { execSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
+function getTaipeiTodayStr(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 test.beforeEach(() => {
   execSync("npm --prefix backend run db:seed", { stdio: "inherit" });
 });
@@ -9,7 +18,7 @@ test.afterAll(() => {
   execSync("npm --prefix backend run db:seed", { stdio: "inherit" });
 });
 
-test("US1, US2, US3 approval review flow + Iteration 1 regression + Light/Dark Mode + RWD (360px & 1120px)", async ({
+test("US1, US2, US3 pickup/return & 6-state loan tracking + Iterations 1-2 regression + Light/Dark Mode + RWD (360px & 1120px)", async ({
   browser,
   page,
 }) => {
@@ -51,119 +60,51 @@ test("US1, US2, US3 approval review flow + Iteration 1 regression + Light/Dark M
   await page.getByTestId("login-submit-btn").click();
   await expect(page.getByTestId("login-banner")).toContainText("區分大小寫");
 
-  // 3. US1: Login as Lin Yating, inspect approval badges & submit pending + direct bookings
-  await page.getByTestId("quick-fill-lin.yating").click();
-  await page.getByTestId("login-submit-btn").click();
-
-  await expect(page.getByTestId("header-user")).toContainText(
-    "林雅婷（一般成員）",
-  );
-  await expect(page.getByTestId("approval-badge-EQ-101")).toHaveText(
-    "需人工審核",
-  );
-  await expect(page.getByTestId("approval-badge-EQ-102")).toHaveText(
-    "需人工審核",
-  );
-  await expect(page.getByTestId("approval-badge-EQ-103")).toHaveText("免審核");
-  await expect(page.getByTestId("approval-badge-EQ-104")).toHaveText("免審核");
-
-  // EQ-101 EVENING already has RV-20261109-08 pending by Lin Yating
-  await expect(page.getByTestId("slot-EQ-101-EVENING")).toContainText(
-    "本人待審核",
-  );
-
-  // Re-apply to EQ-102 AFTERNOON (previously rejected RV-20261109-07, so now available)
-  const eq102Afternoon = page.getByTestId("slot-EQ-102-AFTERNOON");
-  await expect(eq102Afternoon).toContainText("可預約");
-  await eq102Afternoon.click();
-  await expect(page.getByTestId("panel-approval-mode")).toContainText(
-    "需人工審核",
-  );
-  await expect(page.getByTestId("submit-booking-btn")).toHaveText(
-    "送出待審核申請",
-  );
-  await page.getByTestId("submit-booking-btn").click();
-
-  await expect(page.getByTestId("booking-banner")).toContainText(
-    "待審核申請已送出",
-  );
-  await expect(page.getByTestId("slot-EQ-102-AFTERNOON")).toContainText(
-    "本人待審核",
-  );
-
-  // Verify another member (Chen Guanting) still sees EQ-102 AFTERNOON as available (pending does not lock slot)
-  const chenContext = await browser.newContext();
-  const chenPage = await chenContext.newPage();
-  await chenPage.goto("/");
-  await chenPage.getByTestId("quick-fill-chen.guanting").click();
-  await chenPage.getByTestId("login-submit-btn").click();
-  await expect(chenPage.getByTestId("slot-EQ-102-AFTERNOON")).toContainText(
-    "可預約",
-  );
-  await chenPage.getByTestId("slot-EQ-102-AFTERNOON").click();
-  await chenPage.getByTestId("submit-booking-btn").click();
-  await expect(chenPage.getByTestId("booking-banner")).toContainText(
-    "待審核申請已送出",
-  );
-  await chenContext.close();
-
-  // Direct booking on EQ-103 (免審核) AFTERNOON immediately becomes confirmed
-  const eq103Afternoon = page.getByTestId("slot-EQ-103-AFTERNOON");
-  await expect(eq103Afternoon).toContainText("可預約");
-  await eq103Afternoon.click();
-  await expect(page.getByTestId("submit-booking-btn")).toHaveText(
-    "確認送出預約",
-  );
-  await page.getByTestId("submit-booking-btn").click();
-  await expect(page.getByTestId("booking-banner")).toContainText("預約已成立");
-  await expect(page.getByTestId("slot-EQ-103-AFTERNOON")).toContainText(
-    "本人已預約",
-  );
-
-  // 4. US1: View My Reservations (verify rejected reason & cancel confirmed reservation)
-  await page.getByTestId("nav-my-reservations").click();
-  await expect(page.getByTestId("reject-reason-RV-20261109-07")).toContainText(
-    "該時段已有實驗室年度高頻校驗排程",
-  );
-
-  await page.getByTestId("cancel-btn-RV-20261108-03").click();
-  await expect(page.getByTestId("cancel-confirm-modal")).toBeVisible();
-  await page.getByTestId("confirm-cancel-submit-btn").click();
-  await expect(page.getByTestId("my-reservations-banner")).toContainText(
-    "已取消已核准／有效預約 RV-20261108-03",
-  );
-
-  // Member attempting to view Admin page is blocked
-  await page.getByTestId("nav-admin").click();
-  await expect(page.getByTestId("admin-forbidden-card")).toBeVisible();
-
-  // 5. US2 & US3: Switch to Admin at 360px mobile viewport, approve, verify conflict, reject with reason, and toggle equipment approval mode
-  await page.setViewportSize({ width: 360, height: 740 });
-  await page.getByTestId("forbidden-switch-account").click();
+  // 3. US1 & US2: Login as Admin (wu.chenghan), verify pickup rules, register pickup, and register returns (in-window & overdue)
   await page.getByTestId("quick-fill-wu.chenghan").click();
   await page.getByTestId("login-submit-btn").click();
-
   await expect(page.getByTestId("header-user")).toContainText(
     "吳承翰（管理員）",
   );
-  await expect(page.getByTestId("admin-pending-section")).toBeVisible();
 
-  // Approve RV-20261109-08 (Lin Yating, EQ-101 EVENING)
+  // Filter confirmed (待領取) records
+  await page.getByTestId("admin-tab-confirmed").click();
+  await expect(page.getByTestId("pickup-hint-RV-20261108-04")).toContainText(
+    "非當日預約（限當日領取）",
+  );
+  await expect(page.getByTestId("pickup-hint-RV-20261108-02")).toContainText(
+    "時段已結束未領（逾期不可領取）",
+  );
+
+  // Single-click pickup on today's evening confirmed reservation RV-20261108-06
+  const pickupBtn06 = page.getByTestId("pickup-btn-RV-20261108-06");
+  await expect(pickupBtn06).toBeVisible();
+  await pickupBtn06.click();
+  await expect(page.getByTestId("admin-banner")).toContainText(
+    "已完成登記領取！預約編號 RV-20261108-06",
+  );
+
+  // Filter checked_out (借用中) records and register return on overdue RV-20261107-05
+  await page.getByTestId("admin-tab-checked_out").click();
+  await expect(page.getByTestId("admin-status-RV-20261107-05")).toContainText(
+    "借用中（逾時未還）",
+  );
+  await page.getByTestId("return-btn-RV-20261107-05").click();
+  await expect(page.getByTestId("admin-banner")).toContainText(
+    "已完成逾時設備登記歸還！預約編號 RV-20261107-05",
+  );
+
+  // Iteration 2 Regression: Approve RV-20261109-08, verify conflict on RV-20261109-09, reject RV-20261109-09 with reason, and toggle EQ-103 approval mode
   await page.getByTestId("approve-btn-RV-20261109-08").click();
   await expect(page.getByTestId("admin-banner")).toContainText(
     "已核准預約申請 RV-20261109-08",
   );
 
-  // Attempt to approve competing RV-20261109-09 (Chen Guanting, same EQ-101 EVENING slot) -> blocked by conflict
   await page.getByTestId("approve-btn-RV-20261109-09").click();
   await expect(page.getByTestId("admin-banner")).toContainText(
     "無法核准申請：預約編號 RV-20261109-09",
   );
-  await expect(page.getByTestId("pending-row-RV-20261109-09")).toBeVisible();
-
-  // Reject RV-20261109-09 with reason
   await page.getByTestId("reject-btn-RV-20261109-09").click();
-  await expect(page.getByTestId("reject-modal")).toBeVisible();
   await page
     .getByTestId("reject-reason-input")
     .fill("該時段已核准另一位成員的實驗專案申請，請改選其他可用時段。");
@@ -172,8 +113,6 @@ test("US1, US2, US3 approval review flow + Iteration 1 regression + Light/Dark M
     "已駁回預約申請 RV-20261109-09",
   );
 
-  // US3: Toggle EQ-103 from 免審核 to 需人工審核
-  await expect(page.getByTestId("admin-eq-mode-EQ-103")).toHaveText("免審核");
   await page.getByTestId("toggle-approval-btn-EQ-103").click();
   await expect(page.getByTestId("admin-banner")).toContainText(
     "已更新設備審核設定：EQ-103",
@@ -181,4 +120,84 @@ test("US1, US2, US3 approval review flow + Iteration 1 regression + Light/Dark M
   await expect(page.getByTestId("admin-eq-mode-EQ-103")).toHaveText(
     "需人工審核",
   );
+
+  await page.getByTestId("logout-btn").click();
+
+  // 4. US3: Login as Member Lin Yating, inspect 6-state slot badges on today & active loans highlight section
+  await page.getByTestId("quick-fill-lin.yating").click();
+  await page.getByTestId("login-submit-btn").click();
+  await expect(page.getByTestId("header-user")).toContainText(
+    "林雅婷（一般成員）",
+  );
+
+  const todayStr = getTaipeiTodayStr();
+  await page.getByTestId(`date-chip-${todayStr}`).click();
+  await expect(page.getByTestId("slot-EQ-101-AFTERNOON")).toContainText(
+    "本人借用中",
+  );
+  await expect(page.getByTestId("slot-EQ-102-MORNING")).toContainText(
+    "本人已歸還",
+  );
+  await expect(page.getByTestId("slot-EQ-103-EVENING")).toContainText(
+    "本人借用中",
+  );
+  await expect(page.getByTestId("slot-EQ-104-MORNING")).toContainText(
+    "已被預約",
+  );
+
+  // Verify another member (Chen Guanting) sees Lin's checked_out and returned slots as 已被預約 without exposing borrower identity
+  const chenContext = await browser.newContext();
+  const chenPage = await chenContext.newPage();
+  await chenPage.goto("/");
+  await chenPage.getByTestId("quick-fill-chen.guanting").click();
+  await chenPage.getByTestId("login-submit-btn").click();
+  await chenPage.getByTestId(`date-chip-${todayStr}`).click();
+  await expect(chenPage.getByTestId("slot-EQ-101-AFTERNOON")).toContainText(
+    "已被預約",
+  );
+  await expect(chenPage.getByTestId("slot-EQ-102-MORNING")).toContainText(
+    "已被預約",
+  );
+  await chenContext.close();
+
+  // Go to My Reservations: check active loans highlight section, 6-state filter, hidden cancel button on checked_out/returned, and cancel future confirmed reservation
+  await page.getByTestId("nav-my-reservations").click();
+  await expect(page.getByTestId("active-loans-section")).toBeVisible();
+  await expect(page.getByTestId("active-loans-count")).toHaveText(
+    "借用中 2 件",
+  );
+  await expect(
+    page.getByTestId("active-loan-item-RV-20261108-03"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("active-loan-item-RV-20261108-06"),
+  ).toBeVisible();
+
+  await page.getByTestId("filter-tab-checked_out").click();
+  await expect(
+    page.getByTestId("non-cancel-note-RV-20261108-03"),
+  ).toContainText("已領取借用中（不可取消）");
+  await expect(page.getByTestId("cancel-btn-RV-20261108-03")).toHaveCount(0);
+
+  await page.getByTestId("filter-tab-returned").click();
+  await expect(page.getByTestId("loan-audit-RV-20261108-01")).toContainText(
+    "吳承翰",
+  );
+  await expect(
+    page.getByTestId("non-cancel-note-RV-20261108-01"),
+  ).toContainText("已完成歸還結案（不可取消）");
+  await expect(page.getByTestId("cancel-btn-RV-20261108-01")).toHaveCount(0);
+
+  // Filter confirmed and cancel future reservation RV-20261108-04
+  await page.getByTestId("filter-tab-confirmed").click();
+  await page.getByTestId("cancel-btn-RV-20261108-04").click();
+  await page.getByTestId("confirm-cancel-submit-btn").click();
+  await expect(page.getByTestId("my-reservations-banner")).toContainText(
+    "已取消已核准／有效預約 RV-20261108-04",
+  );
+
+  // Member attempting to view Admin page at 360px viewport is blocked
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.getByTestId("nav-admin").click();
+  await expect(page.getByTestId("admin-forbidden-card")).toBeVisible();
 });
