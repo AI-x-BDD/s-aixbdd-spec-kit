@@ -2,6 +2,106 @@ import { getErrorMessage } from "../text/zh-TW";
 
 const SESSION_TOKEN_KEY = "el_session_token";
 
+export type SlotAvailabilityStatus =
+  "available" | "pending_by_me" | "booked_by_me" | "booked_by_others";
+
+export type ReservationStatus = "pending_approval" | "confirmed" | "rejected" | "cancelled";
+
+export interface SlotAvailabilityDto {
+  slotId: string;
+  slotCode: "MORNING" | "AFTERNOON" | "EVENING";
+  slotName: "上午" | "下午" | "晚間";
+  startTime: string;
+  endTime: string;
+  sortOrder: number;
+  availabilityStatus: SlotAvailabilityStatus;
+  isBookable: boolean;
+  myReservationId: string | null;
+}
+
+export interface EquipmentWithSlotsDto {
+  id: string;
+  equipmentCode: string;
+  name: string;
+  category: string;
+  isActive: boolean;
+  requiresApproval: boolean;
+  reservationDate: string;
+  slots: SlotAvailabilityDto[];
+}
+
+export interface EquipmentAvailabilityPageDto {
+  items: EquipmentWithSlotsDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface ReservationDto {
+  id: string;
+  reservationNumber: string;
+  userId: string;
+  equipmentId: string;
+  equipmentCode: string;
+  equipmentName: string;
+  equipmentCategory: string;
+  equipmentRequiresApproval: boolean;
+  reservationDate: string;
+  slotId: string;
+  slotName: string;
+  slotStartTime: string;
+  slotEndTime: string;
+  slotSortOrder: number;
+  status: ReservationStatus;
+  reviewedBy: string | null;
+  reviewedByDisplayName: string | null;
+  reviewedAt: string | null;
+  rejectReason: string | null;
+  createdAt: string;
+  cancelledAt: string | null;
+}
+
+export interface ReservationPageDto {
+  items: ReservationDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface AdminReservationItemDto extends ReservationDto {
+  username: string;
+  userDisplayName: string;
+  reviewedByUsername: string | null;
+}
+
+export interface AdminReservationPageDto {
+  items: AdminReservationItemDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface AdminEquipmentSettingDto {
+  id: string;
+  equipmentCode: string;
+  name: string;
+  category: string;
+  isActive: boolean;
+  requiresApproval: boolean;
+  updatedAt: string;
+}
+
+export interface AdminEquipmentPageDto {
+  items: AdminEquipmentSettingDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 export class ApiError extends Error {
   public readonly code: string;
   public readonly status: number;
@@ -63,4 +163,50 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   }
 
   return data as T;
+}
+
+export function fetchAdminEquipments(params?: {
+  category?: string;
+  requiresApproval?: boolean;
+}): Promise<AdminEquipmentPageDto> {
+  const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+  if (params?.category) qs.set("category", params.category);
+  if (params?.requiresApproval !== undefined) {
+    qs.set("requiresApproval", String(params.requiresApproval));
+  }
+  return apiRequest<AdminEquipmentPageDto>(`/admin/equipments?${qs.toString()}`);
+}
+
+export function updateEquipmentApprovalModeApi(
+  equipmentId: string,
+  requiresApproval: boolean,
+): Promise<AdminEquipmentSettingDto> {
+  return apiRequest<AdminEquipmentSettingDto>(`/admin/equipments/${equipmentId}/approval-mode`, {
+    method: "PATCH",
+    body: JSON.stringify({ requiresApproval }),
+  });
+}
+
+export function fetchPendingReservations(params?: {
+  equipmentId?: string;
+}): Promise<AdminReservationPageDto> {
+  const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+  if (params?.equipmentId) qs.set("equipmentId", params.equipmentId);
+  return apiRequest<AdminReservationPageDto>(`/admin/reservations/pending?${qs.toString()}`);
+}
+
+export function approveReservationApi(reservationId: string): Promise<AdminReservationItemDto> {
+  return apiRequest<AdminReservationItemDto>(`/admin/reservations/${reservationId}/approve`, {
+    method: "POST",
+  });
+}
+
+export function rejectReservationApi(
+  reservationId: string,
+  rejectReason?: string | null,
+): Promise<AdminReservationItemDto> {
+  return apiRequest<AdminReservationItemDto>(`/admin/reservations/${reservationId}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ rejectReason: rejectReason ?? null }),
+  });
 }

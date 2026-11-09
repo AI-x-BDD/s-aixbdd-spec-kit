@@ -73,15 +73,15 @@ description: "Task list for 設備人工審核設定與預約申請審核 implem
 
 ### 資料庫（D1–D2 共用）
 
-- [ ] T004 在 `apps/equipment-loan/backend/prisma/schema.prisma` 擴充 D2 資料模型（保留 `previewFeatures = ["partialIndexes"]` 與 D1 的 `users`、`captcha_challenges`、`sessions`）：將 `reservation_status` Enum 擴充為 `pending_approval`、`confirmed`、`rejected`、`cancelled`；在 `equipments` 新增 `requires_approval Boolean @default(false)` 與 `idx_equipments_approval_status (requires_approval, status)` 索引；在 `reservations` 新增 `reviewed_by`（外鍵關聯 `users.id`）、`reviewed_at`（`Timestamptz(6)`）、`reject_reason`（`VarChar(200)`），保留 `uq_reservations_active_slot` 部分唯一索引（`WHERE status = 'confirmed' AND deleted_at IS NULL`），並新增 `uq_reservations_user_active_request` 部分唯一索引（`UNIQUE (user_id, equipment_id, reservation_date, slot_id) WHERE status IN ('pending_approval', 'confirmed') AND deleted_at IS NULL`）與 `idx_reservations_status_date_slot (status, reservation_date, slot_id, created_at)` 索引（FR-001、FR-002、FR-003、FR-005、FR-006、FR-007、FR-009、FR-010、FR-011、research §1）
+- [X] T004 在 `apps/equipment-loan/backend/prisma/schema.prisma` 擴充 D2 資料模型（保留 `previewFeatures = ["partialIndexes"]` 與 D1 的 `users`、`captcha_challenges`、`sessions`）：將 `reservation_status` Enum 擴充為 `pending_approval`、`confirmed`、`rejected`、`cancelled`；在 `equipments` 新增 `requires_approval Boolean @default(false)` 與 `idx_equipments_approval_status (requires_approval, status)` 索引；在 `reservations` 新增 `reviewed_by`（外鍵關聯 `users.id`）、`reviewed_at`（`Timestamptz(6)`）、`reject_reason`（`VarChar(200)`），保留 `uq_reservations_active_slot` 部分唯一索引（`WHERE status = 'confirmed' AND deleted_at IS NULL`），並新增 `uq_reservations_user_active_request` 部分唯一索引（`UNIQUE (user_id, equipment_id, reservation_date, slot_id) WHERE status IN ('pending_approval', 'confirmed') AND deleted_at IS NULL`）與 `idx_reservations_status_date_slot (status, reservation_date, slot_id, created_at)` 索引（FR-001、FR-002、FR-003、FR-005、FR-006、FR-007、FR-009、FR-010、FR-011、research §1）
   - **Must Read**
     - `data/data-model.dbml` → `Enum reservation_status`、`Table equipments`、`Table reservations`、`Ref: reservations.reviewed_by > users.id` — Why：新增的審核狀態 Enum、設備 `requires_approval` 欄位、預約審核欄位與兩條部分唯一索引定義
     - `research.md` → §1 — Why：雙重部分唯一索引（`uq_reservations_active_slot` 與 `uq_reservations_user_active_request`）與無損遷移設計
-- [ ] T005 在 `apps/equipment-loan/backend/prisma/migrations/` 建立並執行增量無損 Prisma migration，將既有 PostgreSQL 18 資料庫升級至新結構，確認第一版既有 `confirmed` 有效預約、預建設備與帳號 100% 無損保留為 `confirmed` 有效狀態，並重新產生 Prisma Client（FR-010、FR-011、SC-003、research §1）
+- [X] T005 在 `apps/equipment-loan/backend/prisma/migrations/` 建立並執行增量無損 Prisma migration，將既有 PostgreSQL 18 資料庫升級至新結構，確認第一版既有 `confirmed` 有效預約、預建設備與帳號 100% 無損保留為 `confirmed` 有效狀態，並重新產生 Prisma Client（FR-010、FR-011、SC-003、research §1）
   - **Must Read**
     - `research.md` → §1 — Why：增量無損遷移步驟，確保既有 `confirmed` 資料列不遺失且不被降為待審
     - `spec.md` → FR-010、FR-011、SC-003 — Why：舊資料無損遷移為「已核准／有效」狀態的要求
-- [ ] T006 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充可重複執行的 demo seed 腳本：保留預建一般成員帳號 `lin.yating`（林雅婷）、`chen.guanting`（陳冠廷）、管理員帳號 `wu.chenghan`（吳承翰）與 3 個單日固定時段（上午 `09:00`–`12:00`、下午 `13:00`–`17:00`、晚間 `18:00`–`21:00`，代碼與狀態轉換見 Notes 待確認 1）；將 `EQ-101`、`EQ-102` 預設設為 `requires_approval = true`（需人工審核），`EQ-103`、`EQ-104` 設為 `requires_approval = false`（免審核）；並建立涵蓋 `pending_approval`（含林雅婷與陳冠廷同時針對 `EQ-101` 同一未開始時段提出的 2 筆待審申請，以及林雅婷對 `EQ-102` 的待審申請）、`confirmed`（含免審核成立與管理員吳承翰核准通過紀錄）、`rejected`（含管理員吳承翰審核時間與駁回原因）及 `cancelled` 四種狀態的展示資料（FR-005、FR-007、FR-011、research §5）
+- [X] T006 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充可重複執行的 demo seed 腳本：保留預建一般成員帳號 `lin.yating`（林雅婷）、`chen.guanting`（陳冠廷）、管理員帳號 `wu.chenghan`（吳承翰）與 3 個單日固定時段（上午 `09:00`–`12:00`、下午 `13:00`–`17:00`、晚間 `18:00`–`21:00`，代碼與狀態轉換見 Notes 待確認 1）；將 `EQ-101`、`EQ-102` 預設設為 `requires_approval = true`（需人工審核），`EQ-103`、`EQ-104` 設為 `requires_approval = false`（免審核）；並建立涵蓋 `pending_approval`（含林雅婷與陳冠廷同時針對 `EQ-101` 同一未開始時段提出的 2 筆待審申請，以及林雅婷對 `EQ-102` 的待審申請）、`confirmed`（含免審核成立與管理員吳承翰核准通過紀錄）、`rejected`（含管理員吳承翰審核時間與駁回原因）及 `cancelled` 四種狀態的展示資料（FR-005、FR-007、FR-011、research §5）
   - **Must Read**
     - `research.md` → §5 — Why：demo seed 預設需人工審核設備（`EQ-101`、`EQ-102`）、免審核設備（`EQ-103`、`EQ-104`）與四種狀態範例紀錄配置
     - `data/data-model.dbml` → `Table equipments`、`Table reservations` — Why：寫入 `requires_approval`、`status`、`reviewed_by`、`reviewed_at`、`reject_reason`、`cancelled_at` 欄位
@@ -90,14 +90,14 @@ description: "Task list for 設備人工審核設定與預約申請審核 implem
 
 ### 後端（B1–B5 共用）
 
-- [ ] T007 [P] 在 `apps/equipment-loan/backend/src/middleware/errorHandler.ts` 與 `apps/equipment-loan/backend/src/middleware/authMiddleware.ts` 擴充錯誤碼支援與權限檢查：確保 `AppError` 與錯誤處理中介層完整支援 `components.schemas.Error` 的全部 16 個錯誤碼（新增 `DUPLICATE_PENDING_OR_ACTIVE_RESERVATION` 與 `INVALID_RESERVATION_STATUS`），並確認 `requireAuth`（未登入回 `401 UNAUTHORIZED`）與 `requireAdmin`（一般成員呼叫管理員端點回 `403 FORBIDDEN`）符合 B1–B5 權限要求（FR-003、FR-008、FR-009、NFR-001、SC-005、research §2、§4）
+- [X] T007 [P] 在 `apps/equipment-loan/backend/src/middleware/errorHandler.ts` 與 `apps/equipment-loan/backend/src/middleware/authMiddleware.ts` 擴充錯誤碼支援與權限檢查：確保 `AppError` 與錯誤處理中介層完整支援 `components.schemas.Error` 的全部 16 個錯誤碼（新增 `DUPLICATE_PENDING_OR_ACTIVE_RESERVATION` 與 `INVALID_RESERVATION_STATUS`），並確認 `requireAuth`（未登入回 `401 UNAUTHORIZED`）與 `requireAdmin`（一般成員呼叫管理員端點回 `403 FORBIDDEN`）符合 B1–B5 權限要求（FR-003、FR-008、FR-009、NFR-001、SC-005、research §2、§4）
   - **Must Read**
     - `contracts/openapi.yaml` → `Error`、`Unauthorized`、`Forbidden`、`CreateReservationConflict`、`CancelReservationConflict`、`ReviewReservationConflict` — Why：16 個錯誤碼 enum 與 400／401／403／404／409 回應格式
     - `research.md` → §2、§4 — Why：審核狀態錯誤碼與管理員角色權限攔截規則
 
 ### 前端（F1–F4 共用）
 
-- [ ] T008 [P] 在 `apps/equipment-loan/frontend/src/text/zh-TW.ts` 與 `apps/equipment-loan/frontend/src/api/client.ts` 擴充臺灣繁體中文審核狀態文案、錯誤碼對應與 API 客戶端型別：在 `zh-TW.ts` 加入設備審核標示（「需人工審核」、「免審核」）、時段狀態（「本人待審核」）、預約審核狀態（「待審核」、「已核准／有效」、「已駁回」、「已取消」）及新增錯誤碼（`DUPLICATE_PENDING_OR_ACTIVE_RESERVATION`、`INVALID_RESERVATION_STATUS`）的繁體中文訊息；在 `client.ts` 擴充 `requiresApproval`、`availabilityStatus: 'available' | 'pending_by_me' | 'booked_by_me' | 'booked_by_others'`、`Reservation` 審核欄位（`reviewedBy`、`reviewedByDisplayName`、`reviewedAt`、`rejectReason`）與管理員審核／設備設定 API 呼叫函式（FR-001、FR-004、FR-005、FR-009、NFR-001、research §3）
+- [X] T008 [P] 在 `apps/equipment-loan/frontend/src/text/zh-TW.ts` 與 `apps/equipment-loan/frontend/src/api/client.ts` 擴充臺灣繁體中文審核狀態文案、錯誤碼對應與 API 客戶端型別：在 `zh-TW.ts` 加入設備審核標示（「需人工審核」、「免審核」）、時段狀態（「本人待審核」）、預約審核狀態（「待審核」、「已核准／有效」、「已駁回」、「已取消」）及新增錯誤碼（`DUPLICATE_PENDING_OR_ACTIVE_RESERVATION`、`INVALID_RESERVATION_STATUS`）的繁體中文訊息；在 `client.ts` 擴充 `requiresApproval`、`availabilityStatus: 'available' | 'pending_by_me' | 'booked_by_me' | 'booked_by_others'`、`Reservation` 審核欄位（`reviewedBy`、`reviewedByDisplayName`、`reviewedAt`、`rejectReason`）與管理員審核／設備設定 API 呼叫函式（FR-001、FR-004、FR-005、FR-009、NFR-001、research §3）
   - **Must Read**
     - `contracts/openapi.yaml` → `Error`、`EquipmentSlotAvailability`、`EquipmentWithSlotAvailability`、`Reservation`、`AdminReservationItem`、`AdminEquipmentSetting` — Why：前端 API 客戶端型別與 16 個錯誤碼定義
     - `ui/plan.md` → §4、§5 — Why：各審核狀態標籤與錯誤橫幅的臺灣繁體中文文案

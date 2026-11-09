@@ -86,7 +86,7 @@ export async function requireAdmin(
     throw new AppError(
       "FORBIDDEN",
       403,
-      "權限不足：「管理員全體成員預約清單」僅供管理員（admin）角色存取。",
+      "權限不足：「管理員設備審核設定與待審核申請清單」僅供管理員（admin）角色存取與操作。",
     );
   }
 

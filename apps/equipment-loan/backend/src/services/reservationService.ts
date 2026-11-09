@@ -24,7 +24,7 @@ export interface ReservationDto {
   slotStartTime: string;
   slotEndTime: string;
   slotSortOrder: number;
-  status: "confirmed" | "cancelled";
+  status: "pending_approval" | "confirmed" | "rejected" | "cancelled";
   createdAt: string;
   cancelledAt: string | null;
 }
@@ -51,7 +51,7 @@ export function toReservationDto(row: {
   equipment_id: string;
   reservation_date: Date;
   slot_id: string;
-  status: "confirmed" | "cancelled";
+  status: "pending_approval" | "confirmed" | "rejected" | "cancelled";
   created_at: Date;
   cancelled_at: Date | null;
   equipment: {

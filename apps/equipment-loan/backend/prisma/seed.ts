@@ -44,7 +44,7 @@ export async function seedDatabase(): Promise<void> {
     },
   });
 
-  await prisma.users.create({
+  const wuChenghan = await prisma.users.create({
     data: {
       id: "11111111-1111-4111-8111-111111111103",
       username: "wu.chenghan",
@@ -61,6 +61,8 @@ export async function seedDatabase(): Promise<void> {
       name: "高解析度光學顯微鏡 Olympus BX53",
       category: "光學檢測",
       status: "available",
+      requires_approval: true,
+      updated_by: wuChenghan.id,
     },
   });
 
@@ -71,6 +73,8 @@ export async function seedDatabase(): Promise<void> {
       name: "四通道數位示波器 Keysight DSOX3024T",
       category: "電子量測",
       status: "available",
+      requires_approval: true,
+      updated_by: wuChenghan.id,
     },
   });
 
@@ -81,6 +85,7 @@ export async function seedDatabase(): Promise<void> {
       name: "高精度工業熱像儀 FLIR E86",
       category: "熱流分析",
       status: "available",
+      requires_approval: false,
     },
   });
 
@@ -91,6 +96,7 @@ export async function seedDatabase(): Promise<void> {
       name: "微量分光光度計 Thermo NanoDrop One",
       category: "生醫分析",
       status: "available",
+      requires_approval: false,
     },
   });
 
@@ -166,9 +172,11 @@ export async function seedDatabase(): Promise<void> {
         reservation_date: tomorrow,
         slot_id: slotMorning.id,
         status: "confirmed",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T02:40:00Z"),
         created_at: new Date("2026-11-08T01:12:00Z"),
-        updated_at: new Date("2026-11-08T01:12:00Z"),
-        updated_by: linYating.id,
+        updated_at: new Date("2026-11-08T02:40:00Z"),
+        updated_by: wuChenghan.id,
       },
       {
         id: "44444444-4444-4444-8444-444444444004",
@@ -178,9 +186,11 @@ export async function seedDatabase(): Promise<void> {
         reservation_date: tomorrow,
         slot_id: slotAfternoon.id,
         status: "confirmed",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T02:55:00Z"),
         created_at: new Date("2026-11-08T01:25:00Z"),
-        updated_at: new Date("2026-11-08T01:25:00Z"),
-        updated_by: chenGuanting.id,
+        updated_at: new Date("2026-11-08T02:55:00Z"),
+        updated_by: wuChenghan.id,
       },
       {
         id: "44444444-4444-4444-8444-444444444005",
@@ -205,6 +215,57 @@ export async function seedDatabase(): Promise<void> {
         cancelled_at: new Date("2026-11-07T11:30:00Z"),
         created_at: new Date("2026-11-07T03:05:00Z"),
         updated_at: new Date("2026-11-07T11:30:00Z"),
+        updated_by: linYating.id,
+      },
+      {
+        id: "44444444-4444-4444-8444-444444444007",
+        reservation_no: "RV-20261109-07",
+        user_id: linYating.id,
+        equipment_id: eq102.id,
+        reservation_date: tomorrow,
+        slot_id: slotAfternoon.id,
+        status: "rejected",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T08:05:00Z"),
+        reject_reason: "該時段已有實驗室年度高頻校驗排程，請改申請其他時段或隔日借用。",
+        created_at: new Date("2026-11-08T06:15:00Z"),
+        updated_at: new Date("2026-11-08T08:05:00Z"),
+        updated_by: wuChenghan.id,
+      },
+      {
+        id: "44444444-4444-4444-8444-444444444008",
+        reservation_no: "RV-20261109-08",
+        user_id: linYating.id,
+        equipment_id: eq101.id,
+        reservation_date: tomorrow,
+        slot_id: slotEvening.id,
+        status: "pending_approval",
+        created_at: new Date("2026-11-09T01:10:00Z"),
+        updated_at: new Date("2026-11-09T01:10:00Z"),
+        updated_by: linYating.id,
+      },
+      {
+        id: "44444444-4444-4444-8444-444444444009",
+        reservation_no: "RV-20261109-09",
+        user_id: chenGuanting.id,
+        equipment_id: eq101.id,
+        reservation_date: tomorrow,
+        slot_id: slotEvening.id,
+        status: "pending_approval",
+        created_at: new Date("2026-11-09T01:25:00Z"),
+        updated_at: new Date("2026-11-09T01:25:00Z"),
+        updated_by: chenGuanting.id,
+      },
+      {
+        id: "44444444-4444-4444-8444-444444444010",
+        reservation_no: "RV-20261109-10",
+        user_id: linYating.id,
+        equipment_id: eq102.id,
+        reservation_date: dayAfterTomorrow,
+        slot_id: slotAfternoon.id,
+        status: "pending_approval",
+        created_at: new Date("2026-11-09T02:00:00Z"),
+        updated_at: new Date("2026-11-09T02:00:00Z"),
         updated_by: linYating.id,
       },
     ],
