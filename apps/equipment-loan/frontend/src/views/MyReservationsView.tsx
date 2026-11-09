@@ -808,7 +808,10 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                     >
                       改期紀錄（{r.rescheduleRequests.length} 筆）
                     </summary>
-                    <div style={{ overflowX: "auto", marginTop: "8px" }}>
+                    {/* width 0 + minWidth 100%：表格寬度不撐開卡片，手機寬度改在這裡左右捲動 */}
+                    <div
+                      style={{ overflowX: "auto", marginTop: "8px", width: 0, minWidth: "100%" }}
+                    >
                       <table
                         style={{
                           width: "100%",

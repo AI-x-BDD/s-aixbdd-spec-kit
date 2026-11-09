@@ -407,39 +407,39 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T052 [P] 新增 `apps/equipment-loan/backend/tests/unit/reschedule.test.ts`，以 Vitest 5 驗證 `taipeiTime.ts` 的時段開始時間換算與 7 天範圍判斷，以及可改期條件（狀態、原時段已開始、新時段相同、超出 7 天）的判斷結果（FR-001、research §5）
+- [X] T052 [P] 新增 `apps/equipment-loan/backend/tests/unit/reschedule.test.ts`，以 Vitest 5 驗證 `taipeiTime.ts` 的時段開始時間換算與 7 天範圍判斷，以及可改期條件（狀態、原時段已開始、新時段相同、超出 7 天）的判斷結果（FR-001、research §5）
   - **Must Read**
     - `research.md` → §5 — Why：單元測試的範圍與工具
     - `spec.md` → FR-001 — Why：可改期條件的完整清單
-- [ ] T053 [P] 新增 `apps/equipment-loan/backend/tests/integration/reschedule.test.ts`，以 Vitest 5 + Supertest 7 連接真實 PostgreSQL 18 測試資料庫量測：免審核即時改期成功與各種拒絕時原預約的日期、時段、狀態變動率為 0%（SC-001、SC-002）；以 `Promise.all` 同時送出即時改期、新預約、核准改期與核准待審預約，確認恰好 1 筆成功、時段重複占用 0%（SC-003）；以 `vi.setSystemTime` 把時間設到原時段或新時段開始，並涵蓋取消與登記領取，確認申請 100% 變成 `expired` 且核准回 `409`（SC-004）；一般成員呼叫核准、駁回改期申請 100% 回 `403`（SC-006）；同一預約並發送出兩次改期審核只成立一筆（FR-004）
+- [X] T053 [P] 新增 `apps/equipment-loan/backend/tests/integration/reschedule.test.ts`，以 Vitest 5 + Supertest 7 連接真實 PostgreSQL 18 測試資料庫量測：免審核即時改期成功與各種拒絕時原預約的日期、時段、狀態變動率為 0%（SC-001、SC-002）；以 `Promise.all` 同時送出即時改期、新預約、核准改期與核准待審預約，確認恰好 1 筆成功、時段重複占用 0%（SC-003）；以 `vi.setSystemTime` 把時間設到原時段或新時段開始，並涵蓋取消與登記領取，確認申請 100% 變成 `expired` 且核准回 `409`（SC-004）；一般成員呼叫核准、駁回改期申請 100% 回 `403`（SC-006）；同一預約並發送出兩次改期審核只成立一筆（FR-004）
   - **Must Read**
     - `research.md` → §5 — Why：整合測試的情境、並發與時間控制的方式
     - `spec.md` → SC-001、SC-002、SC-003、SC-004、SC-006 — Why：每項量測的門檻
   - **Optional**
     - `contracts/openapi.yaml` → `createRescheduleRequest`、`approveRescheduleRequest` — Why：需要確認斷言的狀態碼與錯誤碼時
-- [ ] T054 回歸驗證：在 `apps/equipment-loan/` 重跑 003～005 既有的 `backend/tests/integration/api.test.ts`、`backend/tests/unit/utils.test.ts`、`frontend/tests/unit/zh-TW.test.ts` 與 `e2e/equipment-loan.spec.ts`，與 T005 的基準比對，通過率須為 100%；失敗時修正本次改動造成的回歸，不修改既有測試的預期（FR-015、SC-006）
+- [X] T054 回歸驗證：在 `apps/equipment-loan/` 重跑 003～005 既有的 `backend/tests/integration/api.test.ts`、`backend/tests/unit/utils.test.ts`、`frontend/tests/unit/zh-TW.test.ts` 與 `e2e/equipment-loan.spec.ts`，與 T005 的基準比對，通過率須為 100%；失敗時修正本次改動造成的回歸，不修改既有測試的預期（FR-015、SC-006）
   - **Must Read**
     - `spec.md` → FR-015、SC-006 — Why：前三次迭代既有功能必須完整保留，回歸通過率 100%
     - `research.md` → §5 — Why：重跑 003～005 全套整合測試與 E2E 的決定
-- [ ] T055 [P] 在 `apps/equipment-loan/frontend/tests/unit/zh-TW.test.ts` 加入測試：改期申請 5 態、`MY_RESCHEDULE_PENDING`、4 種失效原因（文字見 Notes 待確認 2）與 5 個新錯誤碼都有臺灣繁體中文文字（NFR-001）
+- [X] T055 [P] 在 `apps/equipment-loan/frontend/tests/unit/zh-TW.test.ts` 加入測試：改期申請 5 態、`MY_RESCHEDULE_PENDING`、4 種失效原因（文字見 Notes 待確認 2）與 5 個新錯誤碼都有臺灣繁體中文文字（NFR-001）
   - **Must Read**
     - `spec.md` → NFR-001 — Why：需要繁體中文的文字範圍
     - `contracts/openapi.yaml` → `RescheduleRequestStatus`、`RescheduleExpireReason`、`Error` — Why：要涵蓋的狀態值與錯誤碼
-- [ ] T056 [P] 新增 `apps/equipment-loan/e2e/reschedule.spec.ts`，以 Playwright 1.65 的成員與管理員雙視窗流程驗證：免審核即時改期、需人工審核改期送出後「設備預約」頁面對本人顯示「本人改期審核中」、對其他成員顯示「可預約」、管理員核准與核准衝突、成員撤回（US1、US2、US3、research §5）
+- [X] T056 [P] 新增 `apps/equipment-loan/e2e/reschedule.spec.ts`，以 Playwright 1.65 的成員與管理員雙視窗流程驗證：免審核即時改期、需人工審核改期送出後「設備預約」頁面對本人顯示「本人改期審核中」、對其他成員顯示「可預約」、管理員核准與核准衝突、成員撤回（US1、US2、US3、research §5）
   - **Must Read**
     - `research.md` → §5 — Why：E2E 要涵蓋的流程
     - `spec.md` → US1、US2、US3 的 Independent Test — Why：每個故事的驗證步驟
-- [ ] T057 [P] 在 demo seed 資料下量測送出改期、撤回改期、核准與駁回改期申請，以及 `GET /api/reservations` 查詢改期紀錄的回應時間，在單機與區域網路環境下都低於 2 秒（NFR-002、SC-005）
+- [X] T057 [P] 在 demo seed 資料下量測送出改期、撤回改期、核准與駁回改期申請，以及 `GET /api/reservations` 查詢改期紀錄的回應時間，在單機與區域網路環境下都低於 2 秒（NFR-002、SC-005）
   - **Must Read**
     - `spec.md` → NFR-002、SC-005 — Why：回應時間的檢查標準與要量測的操作
-- [ ] T058 [P] 以瀏覽器開發者工具在 360px 與 1120px 寬度檢查「我的預約」、申請改期對話框（手機寬度全螢幕、格子可左右捲動）、「設備預約」與「審核與借用管理」都能完整操作，深淺色主題的「本人改期審核中」虛線框與「改期審核中」標籤清楚可辨（FR-009、FR-017、NFR-001）
+- [X] T058 [P] 以瀏覽器開發者工具在 360px 與 1120px 寬度檢查「我的預約」、申請改期對話框（手機寬度全螢幕、格子可左右捲動）、「設備預約」與「審核與借用管理」都能完整操作，深淺色主題的「本人改期審核中」虛線框與「改期審核中」標籤清楚可辨（FR-009、FR-017、NFR-001）
   - **Must Read**
     - `ui/plan.md` → §2 — Why：版面寬度、對話框與配色的檢查標準
-- [ ] T059 [P] 更新 `apps/equipment-loan/README.md`：補充本次的改期申請功能、增量資料庫遷移指令（`npm run db:migrate`）、含改期申請 5 態範例的 demo seed 重設指令（`npm run db:seed`）、測試指令與雙視窗展示步驟（FR-015、research §5）
+- [X] T059 [P] 更新 `apps/equipment-loan/README.md`：補充本次的改期申請功能、增量資料庫遷移指令（`npm run db:migrate`）、含改期申請 5 態範例的 demo seed 重設指令（`npm run db:seed`）、測試指令與雙視窗展示步驟（FR-015、research §5）
   - **Must Read**
     - `research.md` → §5 — Why：demo seed 的內容與測試指令
     - `plan.md` → Source Code (repository root) — Why：`README.md` 要說明的啟動、遷移、seed 重設與測試項目
-- [ ] T060 最後驗證：在 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、Prettier）、`npm run db:migrate`、`npm run db:seed`，再執行 `npm run test:backend`、`npm run test:frontend`、`npm run test:e2e`，全部零錯誤通過（FR-015、SC-006）
+- [X] T060 最後驗證：在 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、Prettier）、`npm run db:migrate`、`npm run db:seed`，再執行 `npm run test:backend`、`npm run test:frontend`、`npm run test:e2e`，全部零錯誤通過（FR-015、SC-006）
   - **Must Read**
     - `research.md` → §5 — Why：要執行的測試工具與範圍
     - `spec.md` → FR-015、SC-006 — Why：最後驗證的通過標準

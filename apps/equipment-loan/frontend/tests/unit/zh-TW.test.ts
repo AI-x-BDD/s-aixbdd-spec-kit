@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ERROR_MESSAGES, getErrorMessage, UI_TEXT } from "../../src/text/zh-TW";
+import {
+  ERROR_MESSAGES,
+  getErrorMessage,
+  RESCHEDULE_ERROR_MESSAGES,
+  UI_TEXT,
+} from "../../src/text/zh-TW";
 import { validateLoginForm } from "../../src/views/LoginView";
 
 describe("frontend zh-TW text and form validation unit tests", () => {
@@ -34,6 +39,52 @@ describe("frontend zh-TW text and form validation unit tests", () => {
     });
     expect(UI_TEXT.actions.pickup).toBe("登記領取");
     expect(UI_TEXT.actions.returnEquipment).toBe("登記歸還");
+  });
+
+  it("contains Traditional Chinese text for 5 reschedule statuses, MY_RESCHEDULE_PENDING, 4 expire reasons, and 5 reschedule error codes (NFR-001)", () => {
+    // 只含中文與全形標點：不得出現英文字母，避免把狀態值或錯誤碼原樣顯示給使用者
+    const isZhTw = (text: string) => /[\u4e00-\u9fff]/.test(text) && !/[A-Za-z]/.test(text);
+
+    expect(UI_TEXT.rescheduleStatus).toEqual({
+      pending_approval: "改期審核中",
+      approved: "改期成功",
+      rejected: "改期被駁回",
+      withdrawn: "改期已撤回",
+      expired: "改期已失效",
+    });
+    expect(UI_TEXT.slotStatusByCode.MY_RESCHEDULE_PENDING).toBe("本人改期審核中");
+    // 失效原因文字依 tasks.md Notes 待確認 2 的暫行做法
+    expect(UI_TEXT.rescheduleExpireReason).toEqual({
+      original_slot_started: "原時段開始",
+      new_slot_started: "新時段開始",
+      reservation_cancelled: "原預約已取消",
+      reservation_checked_out: "原預約已登記領取",
+    });
+
+    const rescheduleErrorCodes = [
+      "RESCHEDULE_NOT_ALLOWED",
+      "RESCHEDULE_TARGET_INVALID",
+      "RESCHEDULE_SLOT_CONFLICT",
+      "RESCHEDULE_ALREADY_PENDING",
+      "INVALID_RESCHEDULE_STATUS",
+    ];
+    expect(Object.keys(RESCHEDULE_ERROR_MESSAGES).sort()).toEqual([...rescheduleErrorCodes].sort());
+    for (const code of rescheduleErrorCodes) {
+      expect(isZhTw(getErrorMessage(code)), code).toBe(true);
+    }
+    expect(getErrorMessage("RESCHEDULE_NOT_ALLOWED")).toContain("原時段尚未開始");
+    expect(getErrorMessage("RESCHEDULE_SLOT_CONFLICT")).toContain("已被占用");
+    expect(getErrorMessage("RESCHEDULE_ALREADY_PENDING")).toContain("改期審核中");
+    expect(getErrorMessage("INVALID_RESCHEDULE_STATUS")).toContain("已非「改期審核中」");
+
+    for (const text of [
+      ...Object.values(UI_TEXT.rescheduleStatus),
+      UI_TEXT.slotStatusByCode.MY_RESCHEDULE_PENDING,
+      ...Object.values(UI_TEXT.rescheduleExpireReason),
+      ...Object.values(UI_TEXT.reschedule),
+    ]) {
+      expect(isZhTw(text), text).toBe(true);
+    }
   });
 
   it("validates login form fields and 7-char alphanumeric captcha", () => {

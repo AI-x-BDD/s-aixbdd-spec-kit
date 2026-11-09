@@ -95,6 +95,8 @@ test("US1, US2, US3 pickup/return & 6-state loan tracking + Iterations 1-2 regre
   );
 
   // Iteration 2 Regression: Approve RV-20261109-08, verify conflict on RV-20261109-09, reject RV-20261109-09 with reason, and toggle EQ-103 approval mode
+  // 006：待審清單預設顯示「改期申請」分頁，待審預約申請在「預約申請」分頁
+  await page.getByTestId("review-tab-reservation").click();
   await page.getByTestId("approve-btn-RV-20261109-08").click();
   await expect(page.getByTestId("admin-banner")).toContainText(
     "已核准預約申請 RV-20261109-08",
