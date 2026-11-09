@@ -122,11 +122,28 @@ export function EquipmentBookingView({
     setPanelError("");
     setBanner(null);
 
-    if (slot.availabilityStatus === "pending_by_me" || slot.availabilityStatus === "booked_by_me") {
-      const statusLabel = slot.availabilityStatus === "pending_by_me" ? "待審核" : "已核准／有效";
+    if (slot.availabilityStatus === "returned_by_me" || slot.slotStatus === "MY_RETURNED") {
       setBanner({
         tone: "danger",
-        text: `重複申請遭拒：您已對 ${eq.equipmentCode} ${eq.name} 於 ${selectedDate} ${slot.slotName} ${slot.startTime}–${slot.endTime} 持有一筆未結束的「${statusLabel}」申請，同一成員不得對同一設備時段重複申請。`,
+        text: `申請失敗：${eq.equipmentCode} ${eq.name} 於 ${selectedDate} ${slot.slotName} ${slot.startTime}–${slot.endTime} 已完成當日借用並歸還結案（或已被其他有效／借用中紀錄占用），同一固定時段不重新開放重複預約。`,
+      });
+      return;
+    }
+
+    if (
+      slot.availabilityStatus === "pending_by_me" ||
+      slot.availabilityStatus === "booked_by_me" ||
+      slot.availabilityStatus === "checked_out_by_me"
+    ) {
+      const statusLabel =
+        slot.availabilityStatus === "pending_by_me"
+          ? "待審核"
+          : slot.availabilityStatus === "checked_out_by_me"
+            ? "借用中"
+            : "已核准／有效";
+      setBanner({
+        tone: "danger",
+        text: `重複申請遭拒：您已對 ${eq.equipmentCode} ${eq.name} 於 ${selectedDate} ${slot.slotName} ${slot.startTime}–${slot.endTime} 持有一筆未結束的「${statusLabel}」紀錄，同一成員不得對同一設備時段重複申請。`,
       });
       return;
     }
@@ -371,6 +388,25 @@ export function EquipmentBookingView({
             ）尚未開始的固定時段，所選日期不在開放範圍內。
           </div>
         )}
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+            fontSize: "12px",
+            color: "var(--muted)",
+          }}
+        >
+          <span>固定時段 6 態說明：</span>
+          <span className="badge badge-available">可預約</span>
+          <span className="badge badge-pending">本人待審核</span>
+          <span className="badge badge-mine">本人已預約</span>
+          <span className="badge badge-loan">本人借用中</span>
+          <span className="badge badge-returned">本人已歸還</span>
+          <span className="badge badge-occupied">已被預約（不揭露他人身分）</span>
+        </div>
       </div>
 
       {loading ? (
@@ -467,7 +503,24 @@ export function EquipmentBookingView({
                       slot.availabilityStatus === "booked_by_others";
                     const isAlreadyMine =
                       slot.availabilityStatus === "pending_by_me" ||
-                      slot.availabilityStatus === "booked_by_me";
+                      slot.availabilityStatus === "booked_by_me" ||
+                      slot.availabilityStatus === "checked_out_by_me" ||
+                      slot.availabilityStatus === "returned_by_me";
+
+                    const subnote =
+                      slot.availabilityStatus === "checked_out_by_me"
+                        ? "已登記領取（不可取消）"
+                        : slot.availabilityStatus === "returned_by_me"
+                          ? "已歸還結案（不重開預約）"
+                          : slot.availabilityStatus === "booked_by_me"
+                            ? "已核准／有效（待領取）"
+                            : slot.availabilityStatus === "pending_by_me"
+                              ? "等待管理員核准"
+                              : slot.availabilityStatus === "booked_by_others"
+                                ? "已被占用（不揭露借用人身分）"
+                                : !slot.isBookable
+                                  ? "已逾申請截止時間"
+                                  : "";
 
                     return (
                       <button
@@ -482,14 +535,26 @@ export function EquipmentBookingView({
                           alignItems: "flex-start",
                           gap: "6px",
                           padding: "12px 14px",
-                          border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--line)"}`,
+                          border: `1.5px solid ${
+                            isSelected
+                              ? "var(--primary)"
+                              : slot.availabilityStatus === "checked_out_by_me"
+                                ? "var(--loan)"
+                                : slot.availabilityStatus === "returned_by_me"
+                                  ? "var(--returned)"
+                                  : "var(--line)"
+                          }`,
                           borderRadius: "10px",
                           background:
-                            disabled || isAlreadyMine
-                              ? "var(--surface-muted)"
-                              : isSelected
-                                ? "var(--primary-soft)"
-                                : "var(--surface)",
+                            slot.availabilityStatus === "checked_out_by_me"
+                              ? "var(--loan-soft)"
+                              : slot.availabilityStatus === "returned_by_me"
+                                ? "var(--returned-soft)"
+                                : disabled || isAlreadyMine
+                                  ? "var(--surface-muted)"
+                                  : isSelected
+                                    ? "var(--primary-soft)"
+                                    : "var(--surface)",
                           color: "var(--ink)",
                           font: "inherit",
                           textAlign: "left",
@@ -511,12 +576,16 @@ export function EquipmentBookingView({
                           </span>
                           <SlotStatusBadge
                             status={slot.availabilityStatus}
+                            slotStatus={slot.slotStatus}
                             isBookable={slot.isBookable}
                           />
                         </div>
                         <span className="mono" style={{ fontSize: "13px", color: "var(--muted)" }}>
                           {slot.startTime}–{slot.endTime}
                         </span>
+                        {subnote && (
+                          <span style={{ fontSize: "11px", color: "var(--muted)" }}>{subnote}</span>
+                        )}
                       </button>
                     );
                   })}

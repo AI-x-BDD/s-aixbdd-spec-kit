@@ -5,13 +5,16 @@ import { parsePaginationParams } from "../middleware/errorHandler.js";
 import {
   cancelReservation,
   createReservation,
+  listMyLoanReservations,
   listMyReservations,
 } from "../services/reservationService.js";
 
 export const reservationsRouter = express.Router();
 
 const listMyReservationsQuerySchema = z.object({
-  status: z.enum(["pending_approval", "confirmed", "rejected", "cancelled"]).optional(),
+  status: z
+    .enum(["pending_approval", "confirmed", "checked_out", "returned", "rejected", "cancelled"])
+    .optional(),
 });
 
 const createReservationSchema = z.object({
@@ -33,6 +36,22 @@ reservationsRouter.get("/", requireAuth, async (req, res) => {
   });
 
   const result = await listMyReservations({
+    userId: req.authUser!.id,
+    status: query.status,
+    page,
+    pageSize,
+  });
+
+  res.status(200).json(result);
+});
+
+reservationsRouter.get("/my", requireAuth, async (req, res) => {
+  const { page, pageSize } = parsePaginationParams(req.query);
+  const query = listMyReservationsQuerySchema.parse({
+    status: req.query.status,
+  });
+
+  const result = await listMyLoanReservations({
     userId: req.authUser!.id,
     status: query.status,
     page,

@@ -7,6 +7,17 @@ import {
   parseDateOnlyToUtc,
 } from "../utils/taipeiTime.js";
 
+export type SlotStatus =
+  "AVAILABLE" | "MY_PENDING" | "MY_CONFIRMED" | "MY_CHECKED_OUT" | "MY_RETURNED" | "OCCUPIED";
+
+export type SlotAvailabilityStatus =
+  | "available"
+  | "pending_by_me"
+  | "booked_by_me"
+  | "checked_out_by_me"
+  | "returned_by_me"
+  | "booked_by_others";
+
 export interface EquipmentSlotAvailabilityDto {
   slotId: string;
   slotCode: "MORNING" | "AFTERNOON" | "EVENING";
@@ -14,7 +25,8 @@ export interface EquipmentSlotAvailabilityDto {
   startTime: string;
   endTime: string;
   sortOrder: number;
-  availabilityStatus: "available" | "pending_by_me" | "booked_by_me" | "booked_by_others";
+  slotStatus: SlotStatus;
+  availabilityStatus: SlotAvailabilityStatus;
   isBookable: boolean;
   myReservationId: string | null;
 }
@@ -91,20 +103,27 @@ export async function listEquipments(params: {
       where: {
         reservation_date: parseDateOnlyToUtc(params.date),
         deleted_at: null,
-        OR: [{ status: "confirmed" }, { status: "pending_approval", user_id: params.userId }],
+        OR: [
+          { status: { in: ["confirmed", "checked_out", "returned"] } },
+          { status: "pending_approval", user_id: params.userId },
+        ],
       },
     }),
   ]);
 
-  const confirmedByEqAndSlot = new Map<string, { id: string; user_id: string }>();
+  const occupiedByEqAndSlot = new Map<
+    string,
+    { id: string; user_id: string; status: "confirmed" | "checked_out" | "returned" }
+  >();
   const myPendingByEqAndSlot = new Map<string, { id: string }>();
 
   for (const res of dayReservations) {
     const key = `${res.equipment_id}|${res.slot_id}`;
-    if (res.status === "confirmed") {
-      confirmedByEqAndSlot.set(key, {
+    if (res.status === "confirmed" || res.status === "checked_out" || res.status === "returned") {
+      occupiedByEqAndSlot.set(key, {
         id: res.id,
         user_id: res.user_id,
+        status: res.status,
       });
     } else if (res.status === "pending_approval" && res.user_id === params.userId) {
       myPendingByEqAndSlot.set(key, { id: res.id });
@@ -117,20 +136,31 @@ export async function listEquipments(params: {
     const isActive = eq.status === "available";
     const slots: EquipmentSlotAvailabilityDto[] = timeSlots.map((slot) => {
       const key = `${eq.id}|${slot.id}`;
-      const confirmed = confirmedByEqAndSlot.get(key);
+      const occupied = occupiedByEqAndSlot.get(key);
       const myPending = myPendingByEqAndSlot.get(key);
-      let availabilityStatus: "available" | "pending_by_me" | "booked_by_me" | "booked_by_others" =
-        "available";
+      let slotStatus: SlotStatus = "AVAILABLE";
+      let availabilityStatus: SlotAvailabilityStatus = "available";
       let myReservationId: string | null = null;
 
-      if (confirmed) {
-        if (confirmed.user_id === params.userId) {
-          availabilityStatus = "booked_by_me";
-          myReservationId = confirmed.id;
+      if (occupied) {
+        if (occupied.user_id === params.userId) {
+          myReservationId = occupied.id;
+          if (occupied.status === "checked_out") {
+            slotStatus = "MY_CHECKED_OUT";
+            availabilityStatus = "checked_out_by_me";
+          } else if (occupied.status === "returned") {
+            slotStatus = "MY_RETURNED";
+            availabilityStatus = "returned_by_me";
+          } else {
+            slotStatus = "MY_CONFIRMED";
+            availabilityStatus = "booked_by_me";
+          }
         } else {
+          slotStatus = "OCCUPIED";
           availabilityStatus = "booked_by_others";
         }
       } else if (myPending) {
+        slotStatus = "MY_PENDING";
         availabilityStatus = "pending_by_me";
         myReservationId = myPending.id;
       }
@@ -145,6 +175,7 @@ export async function listEquipments(params: {
         startTime: slot.start_time,
         endTime: slot.end_time,
         sortOrder: slot.sort_order,
+        slotStatus,
         availabilityStatus,
         isBookable,
         myReservationId,

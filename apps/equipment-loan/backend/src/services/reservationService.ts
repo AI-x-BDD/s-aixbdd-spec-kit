@@ -196,13 +196,13 @@ export async function createReservation(params: {
 
   const targetDateUtc = parseDateOnlyToUtc(params.reservationDate);
 
-  const [existingConfirmed, existingMyOpen] = await Promise.all([
+  const [existingOccupied, existingMyOpen] = await Promise.all([
     prisma.reservations.findFirst({
       where: {
         equipment_id: params.equipmentId,
         reservation_date: targetDateUtc,
         slot_id: params.slotId,
-        status: "confirmed",
+        status: { in: ["confirmed", "checked_out", "returned"] },
         deleted_at: null,
       },
     }),
@@ -212,26 +212,26 @@ export async function createReservation(params: {
         equipment_id: params.equipmentId,
         reservation_date: targetDateUtc,
         slot_id: params.slotId,
-        status: { in: ["pending_approval", "confirmed"] },
+        status: { in: ["pending_approval", "confirmed", "checked_out"] },
         deleted_at: null,
       },
     }),
   ]);
 
-  if (existingConfirmed && existingConfirmed.user_id !== params.userId) {
-    throw new AppError(
-      "RESERVATION_CONFLICT",
-      409,
-      `申請失敗：${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 已被其他「已核准／有效」預約占用，請改選其他可預約時段。`,
-    );
-  }
-
   if (existingMyOpen) {
-    const statusLabel = existingMyOpen.status === "pending_approval" ? "待審核" : "已核准／有效";
+    const statusLabel = getStatusZhLabel(existingMyOpen.status);
     throw new AppError(
       "DUPLICATE_PENDING_OR_ACTIVE_RESERVATION",
       409,
-      `重複申請遭拒：您已對 ${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 持有一筆未結束的「${statusLabel}」申請（${existingMyOpen.reservation_no}），同一成員不得對同一設備時段重複申請。`,
+      `重複申請遭拒：您已對 ${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 持有一筆未結束的「${statusLabel}」紀錄（${existingMyOpen.reservation_no}），同一成員不得對同一設備時段重複申請。`,
+    );
+  }
+
+  if (existingOccupied) {
+    throw new AppError(
+      "RESERVATION_CONFLICT",
+      409,
+      `申請失敗：${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 已完成當日借用並歸還結案（或已被其他有效／借用中紀錄占用），同一固定時段不重新開放重複預約。`,
     );
   }
 
@@ -254,6 +254,8 @@ export async function createReservation(params: {
         equipment: true,
         slot: true,
         reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
       },
     });
 
@@ -318,6 +320,8 @@ export async function listMyReservations(params: {
       equipment: true,
       slot: true,
       reviewer: true,
+      checkout_admin: true,
+      return_admin: true,
     },
     orderBy: [
       { reservation_date: "desc" },
@@ -337,6 +341,8 @@ export async function listMyReservations(params: {
     totalPages,
   };
 }
+
+export const listMyLoanReservations = listMyReservations;
 
 function getStatusZhLabel(status: ReservationStatus): string {
   switch (status) {
@@ -544,6 +550,8 @@ export async function cancelReservation(params: {
         equipment: true,
         slot: true,
         reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
       },
     });
 
@@ -559,6 +567,14 @@ export async function cancelReservation(params: {
       );
     }
 
+    if (existing.status === "checked_out" || existing.status === "returned") {
+      throw new AppError(
+        "RESERVATION_ALREADY_CHECKED_OUT",
+        409,
+        `無法取消預約：預約編號 ${existing.reservation_no} 已完成現場登記領取（目前狀態為「借用中」或「已歸還」），一旦領取設備後即禁止取消預約，請於使用完畢後將設備帶回現場由管理員執行「登記歸還」。`,
+      );
+    }
+
     if (existing.status === "cancelled") {
       throw new AppError(
         "RESERVATION_ALREADY_CANCELLED",
@@ -571,7 +587,7 @@ export async function cancelReservation(params: {
       throw new AppError(
         "INVALID_RESERVATION_STATUS",
         409,
-        `無法取消：預約編號 ${existing.reservation_no} 目前狀態為「已駁回」，僅處於「待審核」或「已核准／有效」狀態的申請可執行取消。`,
+        `無法取消：預約編號 ${existing.reservation_no} 目前狀態為「已駁回」，僅處於「待審核」或尚未領取之「已核准／有效」狀態的申請可執行取消。`,
       );
     }
 
@@ -580,7 +596,7 @@ export async function cancelReservation(params: {
       throw new AppError(
         "RESERVATION_ALREADY_STARTED",
         409,
-        `無法取消：預約編號 ${existing.reservation_no}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已到達或超過時段開始時間，僅能在預約時段開始前取消待審核或已核准／有效申請。`,
+        `無法取消：預約編號 ${existing.reservation_no}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已到達或超過時段開始時間，僅能在預約時段開始前取消待審核或尚未領取的已核准／有效申請。`,
       );
     }
 
@@ -597,10 +613,12 @@ export async function cancelReservation(params: {
         equipment: true,
         slot: true,
         reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
       },
     });
 
-    return toReservationDto(updated);
+    return toReservationDto(updated, now);
   });
 }
 
