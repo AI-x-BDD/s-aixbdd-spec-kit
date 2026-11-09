@@ -6,7 +6,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: "http://localhost:5183",
     trace: "on-first-retry",
   },
   projects: [
@@ -23,8 +23,8 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: "npm --prefix frontend run dev",
-      port: 5173,
+      command: "npm --prefix frontend run dev -- --port 5183 --strictPort",
+      port: 5183,
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
     },

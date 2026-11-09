@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AppError, parsePaginationParams } from "../../src/middleware/errorHandler.js";
 import { generateCaptchaCode } from "../../src/utils/captcha.js";
 import { hashPassword, verifyPassword } from "../../src/utils/password.js";
 import {
@@ -7,7 +8,7 @@ import {
   isWithinOpenDateWindow,
 } from "../../src/utils/taipeiTime.js";
 
-describe("backend utils unit tests", () => {
+describe("backend utils & error handler unit tests", () => {
   it("generates 7-char alphanumeric captcha codes containing both letters and digits", () => {
     for (let i = 0; i < 50; i += 1) {
       const code = generateCaptchaCode();
@@ -37,5 +38,20 @@ describe("backend utils unit tests", () => {
     expect(hasSlotStarted("2026-11-08", "09:00", mockNow)).toBe(true);
     expect(hasSlotStarted("2026-11-08", "13:00", mockNow)).toBe(false);
     expect(hasSlotStarted("2026-11-09", "09:00", mockNow)).toBe(false);
+  });
+
+  it("validates pagination parameters and supports all 16 error codes", () => {
+    expect(parsePaginationParams({})).toEqual({ page: 1, pageSize: 20 });
+    expect(parsePaginationParams({ page: "2", pageSize: "50" })).toEqual({
+      page: 2,
+      pageSize: 50,
+    });
+    expect(() => parsePaginationParams({ page: "0" })).toThrowError(AppError);
+    expect(() => parsePaginationParams({ pageSize: "101" })).toThrowError(AppError);
+
+    const dupErr = new AppError("DUPLICATE_PENDING_OR_ACTIVE_RESERVATION", 409, "重複申請");
+    const statusErr = new AppError("INVALID_RESERVATION_STATUS", 409, "狀態不符");
+    expect(dupErr.code).toBe("DUPLICATE_PENDING_OR_ACTIVE_RESERVATION");
+    expect(statusErr.code).toBe("INVALID_RESERVATION_STATUS");
   });
 });

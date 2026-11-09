@@ -242,19 +242,19 @@ description: "Task list for 設備人工審核設定與預約申請審核 implem
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T025 [P] 在 `apps/equipment-loan/backend/tests/unit/` 與 `apps/equipment-loan/backend/tests/integration/` 擴充並執行 Vitest + Supertest 自動化驗證測試，連接真實 PostgreSQL 18 資料庫量測並確認：（1）成員對 `requires_approval = true` 設備送出申請 100% 進入 `pending_approval` 且不鎖定時段（另一成員可對同一時段送出待審申請，同一成員重複申請回 `409 DUPLICATE_PENDING_OR_ACTIVE_RESERVATION`，駁回或取消後可重送），對 `requires_approval = false` 設備送出 100% 立即成為 `confirmed` 並鎖定時段（SC-001、FR-002、FR-003）；（2）同一設備、同一日期與同一固定時段有多筆 `pending_approval` 申請時，以 `Promise.all` 並發送出核准請求，最終成功成為 `confirmed` 的預約恰好為 1 筆、其餘核准請求 100% 回 `409 RESERVATION_CONFLICT` 且維持 `pending_approval`，重複占用率 0%（SC-002、FR-006）；（3）管理員切換設備 `requires_approval` 設定（含免審核改需審核、需審核改免審核）時，100% 既有 `confirmed` 預約與既有 `pending_approval` 申請維持原狀態與效力，且第一版既有功能（7 位數大小寫驗證碼單次消耗、10 並發免審核搶約、時段開始前取消釋出）回歸測試通過率達 100%（SC-003、FR-010、FR-011）；（4）切換設備審核設定、送出待審申請、查詢待審清單、執行核准或駁回 API 回應時間均 `< 2 秒`（NFR-002、SC-004）；（5）一般成員嘗試呼叫 `GET /api/admin/equipments`、`PATCH /api/admin/equipments/:equipmentId/approval-mode`、`GET /api/admin/reservations/pending`、`POST /api/admin/reservations/:reservationId/approve` 或 `POST /api/admin/reservations/:reservationId/reject` 時 100% 回 `403 FORBIDDEN`（SC-005、FR-008、FR-009）
+- [X] T025 [P] 在 `apps/equipment-loan/backend/tests/unit/` 與 `apps/equipment-loan/backend/tests/integration/` 擴充並執行 Vitest + Supertest 自動化驗證測試，連接真實 PostgreSQL 18 資料庫量測並確認：（1）成員對 `requires_approval = true` 設備送出申請 100% 進入 `pending_approval` 且不鎖定時段（另一成員可對同一時段送出待審申請，同一成員重複申請回 `409 DUPLICATE_PENDING_OR_ACTIVE_RESERVATION`，駁回或取消後可重送），對 `requires_approval = false` 設備送出 100% 立即成為 `confirmed` 並鎖定時段（SC-001、FR-002、FR-003）；（2）同一設備、同一日期與同一固定時段有多筆 `pending_approval` 申請時，以 `Promise.all` 並發送出核准請求，最終成功成為 `confirmed` 的預約恰好為 1 筆、其餘核准請求 100% 回 `409 RESERVATION_CONFLICT` 且維持 `pending_approval`，重複占用率 0%（SC-002、FR-006）；（3）管理員切換設備 `requires_approval` 設定（含免審核改需審核、需審核改免審核）時，100% 既有 `confirmed` 預約與既有 `pending_approval` 申請維持原狀態與效力，且第一版既有功能（7 位數大小寫驗證碼單次消耗、10 並發免審核搶約、時段開始前取消釋出）回歸測試通過率達 100%（SC-003、FR-010、FR-011）；（4）切換設備審核設定、送出待審申請、查詢待審清單、執行核准或駁回 API 回應時間均 `< 2 秒`（NFR-002、SC-004）；（5）一般成員嘗試呼叫 `GET /api/admin/equipments`、`PATCH /api/admin/equipments/:equipmentId/approval-mode`、`GET /api/admin/reservations/pending`、`POST /api/admin/reservations/:reservationId/approve` 或 `POST /api/admin/reservations/:reservationId/reject` 時 100% 回 `403 FORBIDDEN`（SC-005、FR-008、FR-009）
   - **Must Read**
     - `spec.md` → SC-001、SC-002、SC-003、SC-004、SC-005、NFR-002、FR-011 — Why：五項可量測成功標準、回應時間門檻與第一版回歸要求
     - `research.md` → §1、§2、§5 — Why：雙重部分唯一索引並發核准測試與跨迭代回歸測試設計
-- [ ] T026 [P] 在 `apps/equipment-loan/frontend/tests/unit/` 與 `apps/equipment-loan/e2e/` 擴充並執行前端單元測試與 Playwright 端對端測試：驗證 US1（成員檢視需人工審核／免審核標示、送出待審申請顯示「本人待審核」、另一成員仍เห็น「可預約」並能送出待審申請、我的預約檢視駁回原因與取消待審或已核准申請）、US2（管理員於待審清單核准第一筆申請、核准同設備同時段第二筆待審申請遭衝突攔截、填寫原因駁回申請）、US3（管理員切換設備審核設定並維持既有已核准與待審紀錄效力、一般成員越權攔截），以及第一版驗證碼登入與免審核預約回歸、Light／Dark Mode 主題切換、臺灣繁體中文介面文字（NFR-001）與 360px／1120px 寬度操作正常
+- [X] T026 [P] 在 `apps/equipment-loan/frontend/tests/unit/` 與 `apps/equipment-loan/e2e/` 擴充並執行前端單元測試與 Playwright 端對端測試：驗證 US1（成員檢視需人工審核／免審核標示、送出待審申請顯示「本人待審核」、另一成員仍เห็น「可預約」並能送出待審申請、我的預約檢視駁回原因與取消待審或已核准申請）、US2（管理員於待審清單核准第一筆申請、核准同設備同時段第二筆待審申請遭衝突攔截、填寫原因駁回申請）、US3（管理員切換設備審核設定並維持既有已核准與待審紀錄效力、一般成員越權攔截），以及第一版驗證碼登入與免審核預約回歸、Light／Dark Mode 主題切換、臺灣繁體中文介面文字（NFR-001）與 360px／1120px 寬度操作正常
   - **Must Read**
     - `spec.md` → US1、US2、US3、NFR-001、SC-001、SC-002、SC-003、SC-005 — Why：三個 User Story 的獨立測試、驗收情境與跨迭代回歸要求
     - `ui/plan.md` → §2、§4、§5 — Why：視覺風格、RWD 寬度與各審核狀態／錯誤橫幅文字核對
-- [ ] T027 [P] 更新 `apps/equipment-loan/README.md`，補充本次迭代新增的設備人工審核設定、待審申請與核准／駁回流程說明、無損資料庫遷移指令（`npm run db:migrate`）、擴充後的 demo seed 重設指令（`npm run db:seed`）與展示情境驗證步驟（FR-011、research §5）
+- [X] T027 [P] 更新 `apps/equipment-loan/README.md`，補充本次迭代新增的設備人工審核設定、待審申請與核准／駁回流程說明、無損資料庫遷移指令（`npm run db:migrate`）、擴充後的 demo seed 重設指令（`npm run db:seed`）與展示情境驗證步驟（FR-011、research §5）
   - **Must Read**
     - `plan.md` → `Source Code (repository root)` — Why：`apps/equipment-loan/README.md` 的用途說明
     - `research.md` → §1、§5 — Why：無損資料庫遷移與擴充後 demo seed 的預建資料說明
-- [ ] T028 在 `apps/equipment-loan/backend/`、`apps/equipment-loan/frontend/` 與 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、Prettier）、執行 `npm run db:seed` 確認展示資料重設成功，並執行全套單元、整合及 Playwright E2E 測試，確認全部零錯誤通過（FR-011、SC-003、research §4、§5）
+- [X] T028 在 `apps/equipment-loan/backend/`、`apps/equipment-loan/frontend/` 與 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、Prettier）、執行 `npm run db:seed` 確認展示資料重設成功，並執行全套單元、整合及 Playwright E2E 測試，確認全部零錯誤通過（FR-011、SC-003、research §4、§5）
   - **Must Read**
     - `research.md` → §4、§5 — Why：靜態檢查、型別檢查、demo seed 重設與全套自動化測試通過標準
 

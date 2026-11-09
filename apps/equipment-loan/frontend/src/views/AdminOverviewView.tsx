@@ -451,8 +451,14 @@ export function AdminOverviewView({
                       <td className="mono" style={{ padding: "12px 14px" }}>
                         {formatIsoToTaipeiDateTime(item.createdAt)}
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            gap: "8px",
+                            alignItems: "center",
+                          }}
+                        >
                           <button
                             type="button"
                             className="btn btn-sm btn-primary"
