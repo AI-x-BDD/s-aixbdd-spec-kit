@@ -124,3 +124,44 @@ paths:
                   errorMsg:
                     type: string
 ```
+
+# Rule 3 - 合約不得改寫上游決策，上游問題必須記為上游衝突
+
+- 合約中的規則（`info.description`、operation 的 `description`、request 與 response 欄位、錯誤碼與狀態碼）必須與 `research.md` 各主題的 `Decision` 及 spec 的需求一致，不得寫出相反的規則或另一種做法。
+- 判定 `research.md` 的 `Decision` 有缺陷、`research.md` 與 spec 無法同時滿足，或前面 Wave 的產出與 `research.md`／spec 不一致時，合約必須保留上游的寫法（`research.md` 與 spec 不一致時依 spec），並把這件事記為一項上游衝突。
+- 每項上游衝突必須寫出四件事：衝突內容、上游位置（`research.md` 的 § 編號、spec 的需求編號或前面 Wave 產出的檔案與位置）、合約中受影響的 `operationId`，以及建議的處理 Skill（`research.md` 為 `technical-research`，spec 為 `clarify-over-specs`，前面 Wave 的產出為產出它的 Planner）。
+- 補上上游沒有規定的細節（例如新增欄位或錯誤碼），且沒有與上游相反時，不算上游衝突。
+
+## Good Example
+
+- 圖書館借閱的 `research.md` §2 決定「借閱上限在應用層先查詢已借數量再寫入」。設計時發現兩個請求同時送出會都通過查詢；合約仍照 §2 描述，並記一項上游衝突。
+
+```yaml
+paths:
+  /loans:
+    post:
+      operationId: createLoan
+      description: 依 FR-005 每張借書證最多同時借 5 本；依 research §2，後端先查詢已借數量，達上限時回 409 LOAN_LIMIT。
+```
+
+```markdown
+上游衝突：
+1. 內容：research §2 先查詢再寫入，兩個請求同時送出時可能都通過，超過 FR-005 的 5 本上限。
+   上游位置：research.md §2；受影響 operation：createLoan；建議處理 Skill：technical-research。
+```
+
+## Bad Example
+
+- 同一情境，合約自行寫出與 research §2 相反的做法，只在回報結尾提醒，沒有指出上游位置與處理 Skill；之後依 research 實作的程式與合約不符。
+
+```yaml
+paths:
+  /loans:
+    post:
+      operationId: createLoan
+      description: 依 FR-005 每張借書證最多同時借 5 本；借閱上限由資料庫鎖保證，同時送出時一律只成功一筆。
+```
+
+```markdown
+提醒：research §2 的做法有並發問題，實作時請改用資料庫鎖。
+```
