@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { prisma, pool } from "../src/db/prisma.js";
 import { hashPassword } from "../src/utils/password.js";
 
@@ -13,7 +14,22 @@ function getTaipeiDateOffset(daysOffset: number): Date {
   return new Date(Date.UTC(y, m - 1, d + daysOffset));
 }
 
+// 改期申請編號：RR- 加申請當下的 Asia/Taipei 日期 yyyyMMdd 加隨機碼（tasks.md Notes 待確認 1）
+function generateRescheduleRequestNo(appliedAt: Date): string {
+  const compactDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(appliedAt)
+    .replace(/-/g, "");
+  const suffix = randomBytes(3).toString("hex").toUpperCase();
+  return `RR-${compactDate}-${suffix}`;
+}
+
 export async function seedDatabase(): Promise<void> {
+  await prisma.reschedule_requests.deleteMany();
   await prisma.reservations.deleteMany();
   await prisma.sessions.deleteMany();
   await prisma.captcha_challenges.deleteMany();
@@ -137,6 +153,7 @@ export async function seedDatabase(): Promise<void> {
   const today = getTaipeiDateOffset(0);
   const tomorrow = getTaipeiDateOffset(1);
   const dayAfterTomorrow = getTaipeiDateOffset(2);
+  const threeDaysLater = getTaipeiDateOffset(3);
 
   await prisma.reservations.createMany({
     data: [
@@ -316,7 +333,54 @@ export async function seedDatabase(): Promise<void> {
         updated_at: new Date("2026-11-09T02:05:00Z"),
         updated_by: linYating.id,
       },
+      // 006 US1：陳冠廷占用 EQ-104 後天晚間，展示林雅婷 RV-20261108-05（EQ-104 後天上午，可即時改期到後天下午）改到晚間時被拒絕
+      {
+        id: "44444444-4444-4444-8444-444444444014",
+        reservation_no: "RV-20261109-13",
+        user_id: chenGuanting.id,
+        equipment_id: eq104.id,
+        reservation_date: dayAfterTomorrow,
+        slot_id: slotEvening.id,
+        status: "confirmed",
+        created_at: new Date("2026-11-09T03:30:00Z"),
+        updated_at: new Date("2026-11-09T03:30:00Z"),
+        updated_by: chenGuanting.id,
+      },
+      // 006 US1：林雅婷在 EQ-103 的預約，已由三天後上午即時改期到三天後下午
+      {
+        id: "44444444-4444-4444-8444-444444444015",
+        reservation_no: "RV-20261108-08",
+        user_id: linYating.id,
+        equipment_id: eq103.id,
+        reservation_date: threeDaysLater,
+        slot_id: slotAfternoon.id,
+        status: "confirmed",
+        created_at: new Date("2026-11-08T02:20:00Z"),
+        updated_at: new Date("2026-11-08T08:20:00Z"),
+        updated_by: linYating.id,
+      },
     ],
+  });
+
+  // 006 US1：免審核設備即時改期的「改期成功」紀錄（不經管理員審核，reviewed_by、reviewed_at 為 null）
+  const instantRescheduledAt = new Date("2026-11-08T08:20:00Z");
+  await prisma.reschedule_requests.create({
+    data: {
+      id: "55555555-5555-4555-8555-555555555001",
+      request_no: generateRescheduleRequestNo(instantRescheduledAt),
+      reservation_id: "44444444-4444-4444-8444-444444444015",
+      user_id: linYating.id,
+      from_reservation_date: threeDaysLater,
+      from_slot_id: slotMorning.id,
+      to_reservation_date: threeDaysLater,
+      to_slot_id: slotAfternoon.id,
+      status: "approved",
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: instantRescheduledAt,
+      updated_at: instantRescheduledAt,
+      updated_by: linYating.id,
+    },
   });
 }
 

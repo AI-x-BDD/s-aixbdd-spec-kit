@@ -3,10 +3,12 @@ import {
   ApiError,
   apiRequest,
   listMyLoanReservations,
+  type CreateRescheduleRequestResponse,
   type ReservationDto,
   type ReservationPageDto,
   type ReservationStatus,
 } from "../api/client";
+import { RescheduleDialog } from "../components/RescheduleDialog";
 import { UI_TEXT } from "../text/zh-TW";
 
 export type ReservationItem = ReservationDto;
@@ -47,7 +49,9 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
     text: string;
     showRebookBtn?: boolean;
     rebookDate?: string;
+    rebookText?: string;
   } | null>(null);
+  const [rescheduling, setRescheduling] = useState<ReservationItem | null>(null);
 
   const loadReservations = useCallback(async () => {
     setLoading(true);
@@ -115,6 +119,29 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
     }
   };
 
+  const handleRescheduleSuccess = (result: CreateRescheduleRequestResponse): void => {
+    setRescheduling(null);
+    const { rescheduleRequest: rr, reservation: updated } = result;
+    if (rr.status === "approved") {
+      setBanner({
+        tone: "success",
+        text: `改期成功：預約 ${updated.reservationNumber}（${updated.equipmentCode} ${updated.equipmentName}）已改到 ${rr.toReservationDate} ${rr.toSlot.slotName} ${rr.toSlot.startTime}–${rr.toSlot.endTime}，預約編號與「已核准／有效」狀態不變；原時段 ${rr.fromReservationDate} ${rr.fromSlot.slotName} ${rr.fromSlot.startTime}–${rr.fromSlot.endTime} 已釋出。`,
+        showRebookBtn: true,
+        rebookDate: rr.toReservationDate,
+        rebookText: "到設備預約查看時段",
+      });
+    }
+    void loadReservations();
+  };
+
+  const handleRescheduleError = (err: ApiError): boolean => {
+    if (err.code !== "RESCHEDULE_NOT_ALLOWED") return false;
+    setRescheduling(null);
+    setBanner({ tone: "danger", text: err.message });
+    void loadReservations();
+    return true;
+  };
+
   return (
     <div>
       <h1>我的借用中設備與 6 態預約狀態查詢</h1>
@@ -137,7 +164,7 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
               onClick={() => onGoToBooking(banner.rebookDate)}
               data-testid="banner-go-booking"
             >
-              前往設備預約重新預約
+              {banner.rebookText ?? "前往設備預約重新預約"}
             </button>
           )}
         </div>
@@ -508,6 +535,22 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                     </div>
                   )}
 
+                  {r.status === "confirmed" && !r.canCancel && (
+                    <div
+                      data-testid={`reschedule-note-${r.reservationNumber}`}
+                      style={{
+                        marginTop: "4px",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        background: "var(--surface-muted)",
+                        border: "1px solid var(--line)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      原時段已開始，不能申請改期或取消；請在時段結束前到現場由管理員登記領取。
+                    </div>
+                  )}
+
                   {r.status === "rejected" && r.rejectReason && (
                     <div
                       data-testid={`reject-reason-${r.reservationNumber}`}
@@ -527,6 +570,16 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                 </div>
 
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  {r.canReschedule && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      data-testid={`reschedule-btn-${r.reservationNumber}`}
+                      onClick={() => setRescheduling(r)}
+                    >
+                      申請改期
+                    </button>
+                  )}
                   {canCancel ? (
                     <button
                       type="button"
@@ -592,6 +645,16 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
             );
           })}
         </div>
+      )}
+
+      {rescheduling && (
+        <RescheduleDialog
+          reservation={rescheduling}
+          myReservations={reservations}
+          onClose={() => setRescheduling(null)}
+          onSuccess={handleRescheduleSuccess}
+          onSubmitError={handleRescheduleError}
+        />
       )}
 
       {pendingCancel && (

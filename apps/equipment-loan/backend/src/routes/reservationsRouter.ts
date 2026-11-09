@@ -8,6 +8,7 @@ import {
   listMyLoanReservations,
   listMyReservations,
 } from "../services/reservationService.js";
+import { createRescheduleRequest } from "../services/rescheduleService.js";
 
 export const reservationsRouter = express.Router();
 
@@ -27,6 +28,13 @@ const createReservationSchema = z.object({
 
 const cancelParamsSchema = z.object({
   reservationId: z.string().uuid("預約紀錄 ID 格式不合法"),
+});
+
+const createRescheduleRequestSchema = z.object({
+  toReservationDate: z
+    .string({ error: "請提供新預約日期 toReservationDate（YYYY-MM-DD）。" })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "新預約日期必須為有效的 YYYY-MM-DD 格式。"),
+  toSlotId: z.string({ error: "請提供新固定時段 ID toSlotId。" }).uuid("新固定時段 ID 格式不合法"),
 });
 
 reservationsRouter.get("/", requireAuth, async (req, res) => {
@@ -79,4 +87,16 @@ reservationsRouter.post("/:reservationId/cancel", requireAuth, async (req, res) 
     reservationId,
   });
   res.status(200).json(cancelled);
+});
+
+reservationsRouter.post("/:reservationId/reschedule-requests", requireAuth, async (req, res) => {
+  const { reservationId } = cancelParamsSchema.parse(req.params);
+  const body = createRescheduleRequestSchema.parse(req.body);
+  const created = await createRescheduleRequest({
+    userId: req.authUser!.id,
+    reservationId,
+    toReservationDate: body.toReservationDate,
+    toSlotId: body.toSlotId,
+  });
+  res.status(201).json(created);
 });

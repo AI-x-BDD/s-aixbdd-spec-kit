@@ -26,21 +26,38 @@ enum reservation_status {
   cancelled
 }
 
+enum reschedule_request_status {
+  pending_approval
+  approved
+  rejected
+  withdrawn
+  expired
+}
+
+enum reschedule_expire_reason {
+  original_slot_started
+  new_slot_started
+  reservation_cancelled
+  reservation_checked_out
+}
+
 model users {
-  id                       String         @id @default(uuid()) @db.Uuid
-  username                 String         @unique @db.VarChar(64)
-  password_hash            String         @db.VarChar(255)
-  display_name             String         @db.VarChar(100)
-  role                     user_role      @default(member)
-  created_at               DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at               DateTime       @default(now()) @db.Timestamptz(6)
-  updated_by               String?        @db.Uuid
-  deleted_at               DateTime?      @db.Timestamptz(6)
+  id                       String                @id @default(uuid()) @db.Uuid
+  username                 String                @unique @db.VarChar(64)
+  password_hash            String                @db.VarChar(255)
+  display_name             String                @db.VarChar(100)
+  role                     user_role             @default(member)
+  created_at               DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime              @default(now()) @db.Timestamptz(6)
+  updated_by               String?               @db.Uuid
+  deleted_at               DateTime?             @db.Timestamptz(6)
   sessions                 sessions[]
-  reservations             reservations[] @relation("ReservationApplicant")
-  reviewed_reservations    reservations[] @relation("ReservationReviewer")
-  checked_out_reservations reservations[] @relation("ReservationCheckoutAdmin")
-  returned_reservations    reservations[] @relation("ReservationReturnAdmin")
+  reservations             reservations[]        @relation("ReservationApplicant")
+  reviewed_reservations    reservations[]        @relation("ReservationReviewer")
+  checked_out_reservations reservations[]        @relation("ReservationCheckoutAdmin")
+  returned_reservations    reservations[]        @relation("ReservationReturnAdmin")
+  reschedule_requests      reschedule_requests[] @relation("RescheduleApplicant")
+  reviewed_reschedules     reschedule_requests[] @relation("RescheduleReviewer")
 
   @@index([role, deleted_at], map: "idx_users_role_active")
 }
@@ -91,45 +108,48 @@ model equipments {
 }
 
 model time_slots {
-  id           String         @id @default(uuid()) @db.Uuid
-  slot_code    String         @unique @db.VarChar(32)
-  name         String         @db.VarChar(32)
-  start_time   String         @db.VarChar(5)
-  end_time     String         @db.VarChar(5)
-  sort_order   Int            @unique
-  created_at   DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
-  updated_by   String?        @db.Uuid
-  deleted_at   DateTime?      @db.Timestamptz(6)
-  reservations reservations[]
+  id               String                @id @default(uuid()) @db.Uuid
+  slot_code        String                @unique @db.VarChar(32)
+  name             String                @db.VarChar(32)
+  start_time       String                @db.VarChar(5)
+  end_time         String                @db.VarChar(5)
+  sort_order       Int                   @unique
+  created_at       DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime              @default(now()) @db.Timestamptz(6)
+  updated_by       String?               @db.Uuid
+  deleted_at       DateTime?             @db.Timestamptz(6)
+  reservations     reservations[]
+  reschedules_from reschedule_requests[] @relation("RescheduleFromSlot")
+  reschedules_to   reschedule_requests[] @relation("RescheduleToSlot")
 }
 
 model reservations {
-  id               String             @id @default(uuid()) @db.Uuid
-  reservation_no   String             @unique @db.VarChar(32)
-  user_id          String             @db.Uuid
-  equipment_id     String             @db.Uuid
-  reservation_date DateTime           @db.Date
-  slot_id          String             @db.Uuid
-  status           reservation_status @default(confirmed)
-  reviewed_by      String?            @db.Uuid
-  reviewed_at      DateTime?          @db.Timestamptz(6)
-  reject_reason    String?            @db.VarChar(200)
-  checked_out_by   String?            @db.Uuid
-  checked_out_at   DateTime?          @db.Timestamptz(6)
-  returned_by      String?            @db.Uuid
-  returned_at      DateTime?          @db.Timestamptz(6)
-  cancelled_at     DateTime?          @db.Timestamptz(6)
-  created_at       DateTime           @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
-  updated_by       String?            @db.Uuid
-  deleted_at       DateTime?          @db.Timestamptz(6)
-  user             users              @relation("ReservationApplicant", fields: [user_id], references: [id])
-  reviewer         users?             @relation("ReservationReviewer", fields: [reviewed_by], references: [id])
-  checkout_admin   users?             @relation("ReservationCheckoutAdmin", fields: [checked_out_by], references: [id])
-  return_admin     users?             @relation("ReservationReturnAdmin", fields: [returned_by], references: [id])
-  equipment        equipments         @relation(fields: [equipment_id], references: [id])
-  slot             time_slots         @relation(fields: [slot_id], references: [id])
+  id                  String                @id @default(uuid()) @db.Uuid
+  reservation_no      String                @unique @db.VarChar(32)
+  user_id             String                @db.Uuid
+  equipment_id        String                @db.Uuid
+  reservation_date    DateTime              @db.Date
+  slot_id             String                @db.Uuid
+  status              reservation_status    @default(confirmed)
+  reviewed_by         String?               @db.Uuid
+  reviewed_at         DateTime?             @db.Timestamptz(6)
+  reject_reason       String?               @db.VarChar(200)
+  checked_out_by      String?               @db.Uuid
+  checked_out_at      DateTime?             @db.Timestamptz(6)
+  returned_by         String?               @db.Uuid
+  returned_at         DateTime?             @db.Timestamptz(6)
+  cancelled_at        DateTime?             @db.Timestamptz(6)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_by          String?               @db.Uuid
+  deleted_at          DateTime?             @db.Timestamptz(6)
+  user                users                 @relation("ReservationApplicant", fields: [user_id], references: [id])
+  reviewer            users?                @relation("ReservationReviewer", fields: [reviewed_by], references: [id])
+  checkout_admin      users?                @relation("ReservationCheckoutAdmin", fields: [checked_out_by], references: [id])
+  return_admin        users?                @relation("ReservationReturnAdmin", fields: [returned_by], references: [id])
+  equipment           equipments            @relation(fields: [equipment_id], references: [id])
+  slot                time_slots            @relation(fields: [slot_id], references: [id])
+  reschedule_requests reschedule_requests[]
 
   @@unique([equipment_id, reservation_date, slot_id], map: "uq_reservations_active_slot", where: raw("status IN ('confirmed', 'checked_out', 'returned') AND deleted_at IS NULL"))
   @@unique([user_id, equipment_id, reservation_date, slot_id], map: "uq_reservations_user_active_request", where: raw("status IN ('pending_approval', 'confirmed', 'checked_out') AND deleted_at IS NULL"))
@@ -137,4 +157,35 @@ model reservations {
   @@index([user_id, status, reservation_date, created_at], map: "idx_reservations_user_date_created")
   @@index([reservation_date, slot_id, created_at], map: "idx_reservations_date_slot_created")
   @@index([reservation_date, equipment_id, status], map: "idx_reservations_date_equipment_status")
+}
+
+model reschedule_requests {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  request_no            String                    @unique @db.VarChar(32)
+  reservation_id        String                    @db.Uuid
+  user_id               String                    @db.Uuid
+  from_reservation_date DateTime                  @db.Date
+  from_slot_id          String                    @db.Uuid
+  to_reservation_date   DateTime                  @db.Date
+  to_slot_id            String                    @db.Uuid
+  status                reschedule_request_status @default(pending_approval)
+  reviewed_by           String?                   @db.Uuid
+  reviewed_at           DateTime?                 @db.Timestamptz(6)
+  reject_reason         String?                   @db.VarChar(200)
+  withdrawn_at          DateTime?                 @db.Timestamptz(6)
+  expired_at            DateTime?                 @db.Timestamptz(6)
+  expire_reason         reschedule_expire_reason?
+  created_at            DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_by            String?                   @db.Uuid
+  deleted_at            DateTime?                 @db.Timestamptz(6)
+  reservation           reservations              @relation(fields: [reservation_id], references: [id])
+  user                  users                     @relation("RescheduleApplicant", fields: [user_id], references: [id])
+  reviewer              users?                    @relation("RescheduleReviewer", fields: [reviewed_by], references: [id])
+  from_slot             time_slots                @relation("RescheduleFromSlot", fields: [from_slot_id], references: [id])
+  to_slot               time_slots                @relation("RescheduleToSlot", fields: [to_slot_id], references: [id])
+
+  @@unique([reservation_id], map: "uq_reschedule_requests_pending_per_reservation", where: raw("status = 'pending_approval' AND deleted_at IS NULL"))
+  @@index([status, to_reservation_date, to_slot_id, created_at], map: "idx_reschedule_requests_status_to_slot")
+  @@index([reservation_id, created_at], map: "idx_reschedule_requests_reservation_created")
 }

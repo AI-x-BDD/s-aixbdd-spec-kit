@@ -8,6 +8,7 @@ export const equipmentsRouter = express.Router();
 
 const listEquipmentsQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "查詢日期 date 必須為有效的 YYYY-MM-DD 格式。"),
+  equipmentId: z.string().uuid("查詢參數 equipmentId 必須為有效的設備 ID（uuid）。").optional(),
   category: z.string().min(1).max(50).optional(),
   requiresApproval: z
     .enum(["true", "false"])
@@ -31,6 +32,7 @@ equipmentsRouter.get("/", requireAuth, async (req, res) => {
 
   const query = listEquipmentsQuerySchema.parse({
     date: req.query.date,
+    equipmentId: req.query.equipmentId,
     category: req.query.category,
     requiresApproval: req.query.requiresApproval,
   });
@@ -38,6 +40,7 @@ equipmentsRouter.get("/", requireAuth, async (req, res) => {
   const result = await listEquipments({
     userId: req.authUser!.id,
     date: query.date,
+    equipmentId: query.equipmentId,
     category: query.category,
     requiresApproval: query.requiresApproval,
     page,

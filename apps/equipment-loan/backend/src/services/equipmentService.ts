@@ -53,6 +53,7 @@ export interface EquipmentAvailabilityPageDto {
 export async function listEquipments(params: {
   userId: string;
   date: string;
+  equipmentId?: string;
   category?: string;
   requiresApproval?: boolean;
   page: number;
@@ -64,6 +65,7 @@ export async function listEquipments(params: {
 
   const whereClause = {
     deleted_at: null as Date | null,
+    ...(params.equipmentId ? { id: params.equipmentId } : {}),
     ...(params.category ? { category: params.category } : {}),
     ...(params.requiresApproval !== undefined
       ? { requires_approval: params.requiresApproval }

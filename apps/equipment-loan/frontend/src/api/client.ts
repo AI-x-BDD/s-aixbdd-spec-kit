@@ -302,6 +302,43 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   return data as T;
 }
 
+export function listEquipments(params: {
+  date: string;
+  equipmentId?: string;
+  category?: string;
+  requiresApproval?: boolean;
+  page?: number;
+  pageSize?: number;
+}): Promise<EquipmentAvailabilityPageDto> {
+  const qs = new URLSearchParams({
+    date: params.date,
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 50),
+  });
+  if (params.equipmentId) qs.set("equipmentId", params.equipmentId);
+  if (params.category) qs.set("category", params.category);
+  if (params.requiresApproval !== undefined) {
+    qs.set("requiresApproval", String(params.requiresApproval));
+  }
+  return apiRequest<EquipmentAvailabilityPageDto>(`/equipments?${qs.toString()}`);
+}
+
+export function createRescheduleRequest(
+  reservationId: string,
+  body: { toReservationDate: string; toSlotId: string },
+): Promise<CreateRescheduleRequestResponse> {
+  return apiRequest<CreateRescheduleRequestResponse>(
+    `/reservations/${reservationId}/reschedule-requests`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        toReservationDate: body.toReservationDate,
+        toSlotId: body.toSlotId,
+      }),
+    },
+  );
+}
+
 export function listMyLoanReservations(params?: {
   status?: ReservationStatus;
   page?: number;

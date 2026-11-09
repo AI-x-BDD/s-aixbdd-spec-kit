@@ -4,6 +4,14 @@ import { ApiError, apiRequest, setStoredToken } from "../api/client";
 import { CaptchaBox, type CaptchaChallenge } from "../components/CaptchaBox";
 import { UI_TEXT } from "../text/zh-TW";
 
+/** 登入頁提醒用：當日起算 7 天的開放日期範圍（依 Asia/Taipei）。 */
+function getTaipeiOpenRange(): { from: string; to: string } {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
+  const last = new Date(`${today}T00:00:00Z`);
+  last.setUTCDate(last.getUTCDate() + 6);
+  return { from: today, to: last.toISOString().slice(0, 10) };
+}
+
 interface LoginResponse {
   token: string;
   expiresAt: string;
@@ -71,6 +79,7 @@ interface LoginViewProps {
 }
 
 export function LoginView({ bannerMessage, onLoginSuccess }: LoginViewProps): React.ReactElement {
+  const [openRange] = useState(getTaipeiOpenRange);
   const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [loadingCaptcha, setLoadingCaptcha] = useState<boolean>(true);
   const [captchaNote, setCaptchaNote] = useState<string>("有效期限 5 分鐘");
@@ -405,13 +414,16 @@ export function LoginView({ bannerMessage, onLoginSuccess }: LoginViewProps): Re
               fontSize: "13px",
             }}
           >
-            <strong>驗證碼、現場領取歸還與借用規範提醒</strong>
+            <strong>預約與改期提醒</strong>
             <ul style={{ margin: "6px 0 0", paddingLeft: "18px", color: "var(--muted)" }}>
-              <li>驗證碼嚴格區分大小寫（例如 A7k9M2x 與 a7k9m2x 視為不同）。</li>
-              <li>開放當日起算 7 天內尚未開始的單日固定時段。</li>
               <li>
-                成員於預約當日到現場領取時，由管理員執行「登記領取」轉為「借用中」（一旦領取後即不可取消）；歸還時由管理員執行「登記歸還」轉為「已歸還」。
+                開放當日起算 7 天內（<span className="mono">{openRange.from}</span> 至{" "}
+                <span className="mono">{openRange.to}</span>）尚未開始的固定時段。
               </li>
+              <li>
+                原時段尚未開始的「已核准／有效」預約，可以在「我的預約」申請改期到同一台設備的另一個時段。
+              </li>
+              <li>改期成功之前，原本的預約照常有效。</li>
             </ul>
           </div>
         </aside>

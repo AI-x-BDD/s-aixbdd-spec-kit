@@ -11,6 +11,13 @@ import {
   isWithinOpenDateWindow,
   parseDateOnlyToUtc,
 } from "../utils/taipeiTime.js";
+import {
+  toRescheduleRequestDto,
+  type RescheduleExpireReason,
+  type RescheduleRequestDto,
+  type RescheduleRequestStatus,
+  type TimeSlotSummaryDto,
+} from "./rescheduleService.js";
 
 export type ReservationStatus =
   "pending_approval" | "confirmed" | "checked_out" | "returned" | "rejected" | "cancelled";
@@ -44,6 +51,29 @@ export interface ReservationDto {
   canCancel: boolean;
   createdAt: string;
   cancelledAt: string | null;
+}
+
+export interface PendingRescheduleSummaryDto {
+  id: string;
+  requestNumber: string;
+  toReservationDate: string;
+  toSlot: TimeSlotSummaryDto;
+  createdAt: string;
+}
+
+/** 成員檢視的預約（B3）：在 005 的欄位上加上可改期判斷、改期審核中摘要與改期紀錄（FR-001、FR-004、FR-009）。 */
+export interface MemberReservationDto extends ReservationDto {
+  canReschedule: boolean;
+  pendingRescheduleRequest: PendingRescheduleSummaryDto | null;
+  rescheduleRequests: RescheduleRequestDto[];
+}
+
+export interface MemberReservationPageDto {
+  items: MemberReservationDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface ReservationPageDto {
@@ -143,12 +173,81 @@ export function toReservationDto(
   };
 }
 
+interface RescheduleSlotRow {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  sort_order: number;
+}
+
+/** 讀取成員預約時一併載入的改期紀錄：依 created_at 由新到舊、相同時依 id 由小到大（idx_reschedule_requests_reservation_created）。 */
+export const memberReservationInclude = {
+  equipment: true,
+  slot: true,
+  reviewer: true,
+  checkout_admin: true,
+  return_admin: true,
+  reschedule_requests: {
+    where: { deleted_at: null },
+    include: { from_slot: true, to_slot: true, reviewer: true },
+    orderBy: [{ created_at: "desc" as const }, { id: "asc" as const }],
+  },
+};
+
+export function toMemberReservationDto(
+  row: Parameters<typeof toReservationDto>[0] & {
+    reschedule_requests: Array<{
+      id: string;
+      request_no: string;
+      reservation_id: string;
+      status: RescheduleRequestStatus;
+      from_reservation_date: Date;
+      to_reservation_date: Date;
+      created_at: Date;
+      reviewed_by: string | null;
+      reviewed_at: Date | null;
+      reject_reason: string | null;
+      withdrawn_at: Date | null;
+      expired_at: Date | null;
+      expire_reason: RescheduleExpireReason | null;
+      from_slot: RescheduleSlotRow;
+      to_slot: RescheduleSlotRow;
+      reviewer?: { display_name: string } | null;
+    }>;
+  },
+  now: Date = new Date(),
+): MemberReservationDto {
+  const baseDto = toReservationDto(row, now);
+  const rescheduleRequests = row.reschedule_requests.map((rr) => toRescheduleRequestDto(rr));
+  const pending = rescheduleRequests.find((rr) => rr.status === "pending_approval");
+  const canReschedule =
+    row.status === "confirmed" &&
+    !hasSlotStarted(baseDto.reservationDate, row.slot.start_time, now) &&
+    !pending;
+
+  return {
+    ...baseDto,
+    canReschedule,
+    pendingRescheduleRequest: pending
+      ? {
+          id: pending.id,
+          requestNumber: pending.requestNumber,
+          toReservationDate: pending.toReservationDate,
+          toSlot: pending.toSlot,
+          createdAt: pending.createdAt,
+        }
+      : null,
+    rescheduleRequests,
+  };
+}
+
 export async function createReservation(params: {
   userId: string;
   equipmentId: string;
   reservationDate: string;
   slotId: string;
-}): Promise<ReservationDto> {
+}): Promise<MemberReservationDto> {
   if (!isValidDateString(params.reservationDate)) {
     throw new AppError(
       "VALIDATION_FAILED",
@@ -250,16 +349,10 @@ export async function createReservation(params: {
         status: targetStatus,
         updated_by: params.userId,
       },
-      include: {
-        equipment: true,
-        slot: true,
-        reviewer: true,
-        checkout_admin: true,
-        return_admin: true,
-      },
+      include: memberReservationInclude,
     });
 
-    return toReservationDto(created);
+    return toMemberReservationDto(created);
   } catch (err: unknown) {
     if (
       typeof err === "object" &&
@@ -277,7 +370,7 @@ export async function createReservation(params: {
       throw new AppError(
         "RESERVATION_CONFLICT",
         409,
-        `申請失敗：${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 剛剛已被其他成員預約，請改選其他可預約時段。`,
+        `預約失敗：${equipment.equipment_code} ${equipment.name} ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 剛被其他預約占用，請改選其他時段。`,
       );
     }
     throw err;
@@ -289,7 +382,7 @@ export async function listMyReservations(params: {
   status?: ReservationStatus;
   page: number;
   pageSize: number;
-}): Promise<ReservationPageDto> {
+}): Promise<MemberReservationPageDto> {
   const whereClause = {
     user_id: params.userId,
     deleted_at: null as Date | null,
@@ -316,13 +409,7 @@ export async function listMyReservations(params: {
 
   const rows = await prisma.reservations.findMany({
     where: whereClause,
-    include: {
-      equipment: true,
-      slot: true,
-      reviewer: true,
-      checkout_admin: true,
-      return_admin: true,
-    },
+    include: memberReservationInclude,
     orderBy: [
       { reservation_date: "desc" },
       { slot: { sort_order: "asc" } },
@@ -334,7 +421,7 @@ export async function listMyReservations(params: {
   });
 
   return {
-    items: rows.map((row) => toReservationDto(row)),
+    items: rows.map((row) => toMemberReservationDto(row)),
     page: params.page,
     pageSize: params.pageSize,
     totalItems,
@@ -539,7 +626,7 @@ export async function rejectReservation(params: {
 export async function cancelReservation(params: {
   userId: string;
   reservationId: string;
-}): Promise<ReservationDto> {
+}): Promise<MemberReservationDto> {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.reservations.findFirst({
       where: {
@@ -609,16 +696,10 @@ export async function cancelReservation(params: {
         updated_at: now,
         updated_by: params.userId,
       },
-      include: {
-        equipment: true,
-        slot: true,
-        reviewer: true,
-        checkout_admin: true,
-        return_admin: true,
-      },
+      include: memberReservationInclude,
     });
 
-    return toReservationDto(updated, now);
+    return toMemberReservationDto(updated, now);
   });
 }
 

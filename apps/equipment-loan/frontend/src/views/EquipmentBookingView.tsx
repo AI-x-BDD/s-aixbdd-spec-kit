@@ -208,8 +208,17 @@ export function EquipmentBookingView({
       setSelectedSlot(null);
       await loadEquipments();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "預約申請送出失敗，請稍後再試。";
+      // 與即時改期、核准改期同時搶同一時段而失敗（FR-014）：提示剛被占用，重新載入後該格顯示「已被預約」
+      const msg =
+        err instanceof ApiError && err.code === "RESERVATION_CONFLICT"
+          ? `預約失敗：${selectedSlot.equipmentCode} ${selectedSlot.equipmentName} ${selectedDate} ${selectedSlot.slotName} ${selectedSlot.startTime}–${selectedSlot.endTime} 剛被其他預約占用，請改選其他時段。`
+          : err instanceof ApiError
+            ? err.message
+            : "預約申請送出失敗，請稍後再試。";
       setBanner({ tone: "danger", text: msg });
+      if (err instanceof ApiError && err.code === "RESERVATION_CONFLICT") {
+        setSelectedSlot(null);
+      }
       await loadEquipments();
     } finally {
       setSubmitting(false);

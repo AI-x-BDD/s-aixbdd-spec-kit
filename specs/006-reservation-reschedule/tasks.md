@@ -136,18 +136,18 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 資料庫（D2）
 
-- [ ] T012 [US1] 在 `apps/equipment-loan/backend/prisma/schema.prisma` 新增 Enum `reschedule_request_status`（`pending_approval`、`approved`、`rejected`、`withdrawn`、`expired`）、Enum `reschedule_expire_reason`（`original_slot_started`、`new_slot_started`、`reservation_cancelled`、`reservation_checked_out`）與資料表 `reschedule_requests`：`id`、`request_no`（唯一，見 Notes 待確認 1）、`reservation_id`、`user_id`、`from_reservation_date`、`from_slot_id`、`to_reservation_date`、`to_slot_id`、`status`（預設 `pending_approval`）、`reviewed_by`、`reviewed_at`、`reject_reason`（`VarChar(200)`）、`withdrawn_at`、`expired_at`、`expire_reason`，以及 `created_at`、`updated_at`、`updated_by`、`deleted_at`；關聯指向 `reservations`、`users`、`time_slots`；以 `partialIndexes` 建立 `uq_reschedule_requests_pending_per_reservation`（`WHERE status = 'pending_approval' AND deleted_at IS NULL`），並建立 `idx_reschedule_requests_status_to_slot`、`idx_reschedule_requests_reservation_created`；不修改既有 model 的欄位、Enum 與索引（FR-002、FR-004、FR-009、FR-015）
+- [X] T012 [US1] 在 `apps/equipment-loan/backend/prisma/schema.prisma` 新增 Enum `reschedule_request_status`（`pending_approval`、`approved`、`rejected`、`withdrawn`、`expired`）、Enum `reschedule_expire_reason`（`original_slot_started`、`new_slot_started`、`reservation_cancelled`、`reservation_checked_out`）與資料表 `reschedule_requests`：`id`、`request_no`（唯一，見 Notes 待確認 1）、`reservation_id`、`user_id`、`from_reservation_date`、`from_slot_id`、`to_reservation_date`、`to_slot_id`、`status`（預設 `pending_approval`）、`reviewed_by`、`reviewed_at`、`reject_reason`（`VarChar(200)`）、`withdrawn_at`、`expired_at`、`expire_reason`，以及 `created_at`、`updated_at`、`updated_by`、`deleted_at`；關聯指向 `reservations`、`users`、`time_slots`；以 `partialIndexes` 建立 `uq_reschedule_requests_pending_per_reservation`（`WHERE status = 'pending_approval' AND deleted_at IS NULL`），並建立 `idx_reschedule_requests_status_to_slot`、`idx_reschedule_requests_reservation_created`；不修改既有 model 的欄位、Enum 與索引（FR-002、FR-004、FR-009、FR-015）
   - **Must Read**
     - `data/data-model.dbml` → `Enum reschedule_request_status`、`Enum reschedule_expire_reason` — Why：兩個新 Enum 的值與每個值代表的情況
     - `data/data-model.dbml` → `Table reschedule_requests` — Why：欄位型別、可為 null 的欄位、預設值、部分唯一索引條件與兩個查詢索引
     - `data/data-model.dbml` → `Ref: reschedule_requests.reservation_id > reservations.id`、`Ref: reschedule_requests.user_id > users.id`、`Ref: reschedule_requests.reviewed_by > users.id`、`Ref: reschedule_requests.from_slot_id > time_slots.id`、`Ref: reschedule_requests.to_slot_id > time_slots.id` — Why：5 條外鍵關聯
     - `research.md` → §1 — Why：以一支增量遷移新增資料，不修改 `reservations` 既有欄位與兩條部分唯一索引
-- [ ] T013 [US1] 在 `apps/equipment-loan/backend/prisma/migrations/` 以 `npx prisma migrate dev --create-only --name reschedule_requests` 產生增量遷移，檢查 `migration.sql` 只含新增 Enum、`reschedule_requests` 資料表、外鍵與索引，`uq_reschedule_requests_pending_per_reservation` 帶有 `WHERE` 條件，且沒有對既有資料表的 `ALTER`、`UPDATE`、`DROP`；在保有 005 資料的資料庫（T005 的狀態）執行 `npm run db:migrate` 並重新產生 Prisma Client，比對遷移前後 `reservations` 的筆數、`reservation_no`、`status`、`reservation_date` 與 `slot_id` 完全相同（FR-015、US1 情境 7）
+- [X] T013 [US1] 在 `apps/equipment-loan/backend/prisma/migrations/` 以 `npx prisma migrate dev --create-only --name reschedule_requests` 產生增量遷移，檢查 `migration.sql` 只含新增 Enum、`reschedule_requests` 資料表、外鍵與索引，`uq_reschedule_requests_pending_per_reservation` 帶有 `WHERE` 條件，且沒有對既有資料表的 `ALTER`、`UPDATE`、`DROP`；在保有 005 資料的資料庫（T005 的狀態）執行 `npm run db:migrate` 並重新產生 Prisma Client，比對遷移前後 `reservations` 的筆數、`reservation_no`、`status`、`reservation_date` 與 `slot_id` 完全相同（FR-015、US1 情境 7）
   - **Must Read**
     - `research.md` → §1 — Why：增量遷移的內容與「不改寫既有資料列」的無損遷移要求
     - `spec.md` → US1 情境 7、FR-015 — Why：升級後既有預約的狀態、日期與時段必須與升級前相同
     - `data/data-model.dbml` → `Table reschedule_requests` 的 `uq_reschedule_requests_pending_per_reservation` — Why：部分唯一索引必須帶的 `WHERE` 條件
-- [ ] T014 [US1] 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充 demo seed 的 US1 範例：保留 005 的預建帳號、4 台設備、3 個固定時段與預約 6 態範例；依執行當下的 `Asia/Taipei` 日期動態建立免審核設備（`EQ-104`）上一筆可即時改期的 `confirmed` 預約（同設備有未被占用的時段，另有一個時段被陳冠廷的 `confirmed` 預約占用，供展示改期被拒），以及免審核設備（`EQ-103`）上一筆 `approved` 改期申請範例（`reviewed_by`、`reviewed_at` 為 null），改期申請編號依 Notes 待確認 1 的暫行做法產生（FR-015）
+- [X] T014 [US1] 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充 demo seed 的 US1 範例：保留 005 的預建帳號、4 台設備、3 個固定時段與預約 6 態範例；依執行當下的 `Asia/Taipei` 日期動態建立免審核設備（`EQ-104`）上一筆可即時改期的 `confirmed` 預約（同設備有未被占用的時段，另有一個時段被陳冠廷的 `confirmed` 預約占用，供展示改期被拒），以及免審核設備（`EQ-103`）上一筆 `approved` 改期申請範例（`reviewed_by`、`reviewed_at` 為 null），改期申請編號依 Notes 待確認 1 的暫行做法產生（FR-015）
   - **Must Read**
     - `spec.md` → FR-015 — Why：demo seed 必須包含免審核設備上可即時改期的預約與「改期成功」範例
     - `research.md` → §5 — Why：seed 依執行當下日期動態建立，並保留 005 的 6 態範例
@@ -158,7 +158,7 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 後端（B2、B3）
 
-- [ ] T015 [US1] 新增 `apps/equipment-loan/backend/src/services/rescheduleService.ts`，實作 `createRescheduleRequest({ userId, reservationId, toReservationDate, toSlotId })`（`POST /api/reservations/:reservationId/reschedule-requests`）的可改期檢查與免審核即時改期：在單一 `prisma.$transaction(async (tx) => ...)` 內，預約或時段不存在回 `404 RESOURCE_NOT_FOUND`，非本人預約回 `403 FORBIDDEN`；預約不是 `confirmed` 或原時段已開始回 `409 RESCHEDULE_NOT_ALLOWED`；新時段與原時段相同、已開始、超出當日起算 7 天，或本人在同一設備、日期與時段已有 `pending_approval`、`confirmed`、`checked_out` 預約時回 `400 RESCHEDULE_TARGET_INVALID`；新時段已被 `confirmed`、`checked_out` 或 `returned` 紀錄占用時回 `409 RESCHEDULE_SLOT_CONFLICT`；設備在送出當下 `requires_approval = false` 時，更新該筆 `reservations` 的 `reservation_date`、`slot_id`、`updated_at`、`updated_by`（`id`、`reservation_no`、`status` 不變），並建立 `status = 'approved'` 的 `reschedule_requests`（保存 `from_*`、`to_*`，`reviewed_by`、`reviewed_at` 為 null）；寫入時違反 `uq_reservations_active_slot`（Prisma `P2002`）轉成 `409 RESCHEDULE_SLOT_CONFLICT` 並讓交易回滾；回傳 `CreateRescheduleRequestResponse`；`request_no` 的產生見 Notes 待確認 1；錯誤訊息依 ui/plan.md §5 寫出預約編號與時段；`requires_approval = true` 的路徑由 T026 實作（FR-001、FR-002、FR-014、SC-001、US1 情境 1、3–6）
+- [X] T015 [US1] 新增 `apps/equipment-loan/backend/src/services/rescheduleService.ts`，實作 `createRescheduleRequest({ userId, reservationId, toReservationDate, toSlotId })`（`POST /api/reservations/:reservationId/reschedule-requests`）的可改期檢查與免審核即時改期：在單一 `prisma.$transaction(async (tx) => ...)` 內，預約或時段不存在回 `404 RESOURCE_NOT_FOUND`，非本人預約回 `403 FORBIDDEN`；預約不是 `confirmed` 或原時段已開始回 `409 RESCHEDULE_NOT_ALLOWED`；新時段與原時段相同、已開始、超出當日起算 7 天，或本人在同一設備、日期與時段已有 `pending_approval`、`confirmed`、`checked_out` 預約時回 `400 RESCHEDULE_TARGET_INVALID`；新時段已被 `confirmed`、`checked_out` 或 `returned` 紀錄占用時回 `409 RESCHEDULE_SLOT_CONFLICT`；設備在送出當下 `requires_approval = false` 時，更新該筆 `reservations` 的 `reservation_date`、`slot_id`、`updated_at`、`updated_by`（`id`、`reservation_no`、`status` 不變），並建立 `status = 'approved'` 的 `reschedule_requests`（保存 `from_*`、`to_*`，`reviewed_by`、`reviewed_at` 為 null）；寫入時違反 `uq_reservations_active_slot`（Prisma `P2002`）轉成 `409 RESCHEDULE_SLOT_CONFLICT` 並讓交易回滾；回傳 `CreateRescheduleRequestResponse`；`request_no` 的產生見 Notes 待確認 1；錯誤訊息依 ui/plan.md §5 寫出預約編號與時段；`requires_approval = true` 的路徑由 T026 實作（FR-001、FR-002、FR-014、SC-001、US1 情境 1、3–6）
   - **Must Read**
     - `contracts/openapi.yaml` → `createRescheduleRequest`（含 `RescheduleBadRequest`、`CreateRescheduleConflict`） — Why：各項檢查的順序、錯誤碼與 `201` 回應內容
     - `research.md` → §2 — Why：單一互動式交易內完成檢查與寫入，`P2002` 轉成 `409`
@@ -167,19 +167,19 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
   - **Optional**
     - `ui/plan.md` → §5 `my-reservations.html` 的「新時段已被占用」「預約已不可改期」 — Why：需要對照錯誤訊息的寫法時
     - `spec.md` → Key Entities「改期申請 (Reschedule Request)」 — Why：需要確認免審核即時改期時審核欄位為空時
-- [ ] T016 [US1] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 擴充 B3 `listMyReservations`（`GET /api/reservations`）與 `listMyLoanReservations`（`GET /api/reservations/my`）的回應轉換：每筆預約加上 `canReschedule`（`status` 為 `confirmed`、原時段尚未開始且沒有改期審核中申請時為 true，由 005 升級的既有預約同樣計算）、`pendingRescheduleRequest`（`PendingRescheduleSummary` 或 null）、`rescheduleRequests`（依 `createdAt` 由新到舊、相同時依 `id` 由小到大，含 `reviewedByDisplayName` 與 `canWithdraw`）與 `equipmentRequiresApproval`；`cancelReservation` 的回應使用同一轉換；欄位命名對應沿用 005（見 Notes 待確認 5）（FR-001、FR-004、FR-009、US1 情境 4、7）
+- [X] T016 [US1] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 擴充 B3 `listMyReservations`（`GET /api/reservations`）與 `listMyLoanReservations`（`GET /api/reservations/my`）的回應轉換：每筆預約加上 `canReschedule`（`status` 為 `confirmed`、原時段尚未開始且沒有改期審核中申請時為 true，由 005 升級的既有預約同樣計算）、`pendingRescheduleRequest`（`PendingRescheduleSummary` 或 null）、`rescheduleRequests`（依 `createdAt` 由新到舊、相同時依 `id` 由小到大，含 `reviewedByDisplayName` 與 `canWithdraw`）與 `equipmentRequiresApproval`；`cancelReservation` 的回應使用同一轉換；欄位命名對應沿用 005（見 Notes 待確認 5）（FR-001、FR-004、FR-009、US1 情境 4、7）
   - **Must Read**
     - `contracts/openapi.yaml` → `listMyReservations`、`listMyLoanReservations` — Why：`canReschedule` 的計算條件與改期紀錄的回傳要求
     - `contracts/openapi.yaml` → `Reservation`、`RescheduleRequest`、`PendingRescheduleSummary` — Why：回應欄位、排序與可為 null 的欄位
     - `data/data-model.dbml` → `Table reschedule_requests` 的 `idx_reschedule_requests_reservation_created` — Why：依預約列出改期紀錄的查詢索引
-- [ ] T017 [US1] 在 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 掛上 `POST /api/reservations/:reservationId/reschedule-requests`（`createRescheduleRequest`）：套用 `requireAuth`，以 zod 驗證路徑參數 uuid 與 `CreateRescheduleRequestRequest`（`toReservationDate` 為 `YYYY-MM-DD`、`toSlotId` 為 uuid），不符時回 `400 VALIDATION_FAILED`；成功回 `201`（FR-001、FR-002）
+- [X] T017 [US1] 在 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 掛上 `POST /api/reservations/:reservationId/reschedule-requests`（`createRescheduleRequest`）：套用 `requireAuth`，以 zod 驗證路徑參數 uuid 與 `CreateRescheduleRequestRequest`（`toReservationDate` 為 `YYYY-MM-DD`、`toSlotId` 為 uuid），不符時回 `400 VALIDATION_FAILED`；成功回 `201`（FR-001、FR-002）
   - **Must Read**
     - `contracts/openapi.yaml` → `createRescheduleRequest`、`CreateRescheduleRequestRequest` — Why：路徑、請求欄位格式、狀態碼與回應
-- [ ] T018 [US1] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 與 `apps/equipment-loan/backend/src/routes/equipmentsRouter.ts` 擴充 B2 `listEquipments`（`GET /api/equipments`）：新增選填查詢參數 `equipmentId`（zod uuid，不符時回 `400 VALIDATION_FAILED`），只回傳該設備；確認即時改期後原時段不再被該預約占用，對其他成員回傳 `AVAILABLE`；`slotCode`、`isActive` 等欄位對應沿用 005（見 Notes 待確認 5）（FR-001、FR-002、US1 情境 2）
+- [X] T018 [US1] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 與 `apps/equipment-loan/backend/src/routes/equipmentsRouter.ts` 擴充 B2 `listEquipments`（`GET /api/equipments`）：新增選填查詢參數 `equipmentId`（zod uuid，不符時回 `400 VALIDATION_FAILED`），只回傳該設備；確認即時改期後原時段不再被該預約占用，對其他成員回傳 `AVAILABLE`；`slotCode`、`isActive` 等欄位對應沿用 005（見 Notes 待確認 5）（FR-001、FR-002、US1 情境 2）
   - **Must Read**
     - `contracts/openapi.yaml` → `listEquipments` — Why：`equipmentId` 篩選條件與原時段釋出後的狀態
     - `contracts/openapi.yaml` → `EquipmentSlotAvailability` — Why：時段狀態欄位與 `isBookable` 的條件
-- [ ] T019 [US1] 確認 `apps/equipment-loan/backend/src/services/reservationService.ts` 的 B2 `createReservation`（`POST /api/reservations`）：與即時改期同時搶同一設備、日期與時段時，寫入違反 `uq_reservations_active_slot` 的請求回 `409 RESERVATION_CONFLICT`，訊息為「預約失敗：… 剛被其他預約占用，請改選其他時段。」；改期成功後釋出的原時段可以照常預約（FR-014、US1 情境 2、6、Edge Cases 同時搶同一新時段）
+- [X] T019 [US1] 確認 `apps/equipment-loan/backend/src/services/reservationService.ts` 的 B2 `createReservation`（`POST /api/reservations`）：與即時改期同時搶同一設備、日期與時段時，寫入違反 `uq_reservations_active_slot` 的請求回 `409 RESERVATION_CONFLICT`，訊息為「預約失敗：… 剛被其他預約占用，請改選其他時段。」；改期成功後釋出的原時段可以照常預約（FR-014、US1 情境 2、6、Edge Cases 同時搶同一新時段）
   - **Must Read**
     - `contracts/openapi.yaml` → `createReservation`（含 `CreateReservationConflict`） — Why：與改期同時占用時只有一筆成功，失敗回 `RESERVATION_CONFLICT`
     - `spec.md` → FR-014、Edge Cases「同時搶同一新時段」 — Why：同時占用只能一筆成功，改期失敗者原預約不變
@@ -188,14 +188,14 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 前端（F1、F2、F3）
 
-- [ ] T020 [P] [US1] 在 `apps/equipment-loan/frontend/src/views/LoginView.tsx` 把預建帳號旁的提醒區塊改為「預約與改期提醒」，列出 3 點：開放當日起算 7 天內尚未開始的固定時段；原時段尚未開始的「已核准／有效」預約，可以在「我的預約」申請改期到同一台設備的另一個時段；改期成功之前，原本的預約照常有效；登入流程不變（FR-015、NFR-001）
+- [X] T020 [P] [US1] 在 `apps/equipment-loan/frontend/src/views/LoginView.tsx` 把預建帳號旁的提醒區塊改為「預約與改期提醒」，列出 3 點：開放當日起算 7 天內尚未開始的固定時段；原時段尚未開始的「已核准／有效」預約，可以在「我的預約」申請改期到同一台設備的另一個時段；改期成功之前，原本的預約照常有效；登入流程不變（FR-015、NFR-001）
   - **Must Read**
     - `ui/index.html` → 雛形狀態「待登入」 — Why：提醒區塊的標題與 3 點文字
     - `ui/plan.md` → §4 `index.html` 的「待登入」 — Why：登入頁的預設呈現
-- [ ] T021 [US1] 在 `apps/equipment-loan/frontend/src/api/client.ts` 新增 `createRescheduleRequest(reservationId, { toReservationDate, toSlotId })` 呼叫 `POST /api/reservations/:reservationId/reschedule-requests`，並讓 `listEquipments` 接受選填的 `equipmentId`（FR-001、FR-002）
+- [X] T021 [US1] 在 `apps/equipment-loan/frontend/src/api/client.ts` 新增 `createRescheduleRequest(reservationId, { toReservationDate, toSlotId })` 呼叫 `POST /api/reservations/:reservationId/reschedule-requests`，並讓 `listEquipments` 接受選填的 `equipmentId`（FR-001、FR-002）
   - **Must Read**
     - `contracts/openapi.yaml` → `createRescheduleRequest`、`listEquipments` — Why：請求參數、回應型別與錯誤碼
-- [ ] T022 [US1] 新增 `apps/equipment-loan/frontend/src/components/RescheduleDialog.tsx` 申請改期對話框：顯示預約編號、設備（含「免審核」或「需人工審核」）與原時段；以 `listEquipments({ date, equipmentId })` 逐日取得當日起算 7 天的同一設備時段狀態（合約一次只查一天），組成 7 天 × 3 時段格子，另加第 8 天欄位標示「未開放」；格子依狀態標示「原時段」、「已開始」、「本人已有預約」、「已被預約」、「可改期」；點選非「可改期」格子時依 ui/plan.md §5 顯示紅色提示；沒選新時段就送出時顯示「請先選擇一個標示「可改期」的新時段。」；送出中按鈕改為「送出改期中…」並停用格子；免審核設備顯示綠色說明「這台設備免審核：送出時新時段仍未被占用，就立即改期…」；`RESCHEDULE_SLOT_CONFLICT` 時在對話框顯示「改期失敗：… 沒有任何變更。」並把該格改為「已被預約」；置中彈窗，手機寬度改為全螢幕、格子可左右捲動（FR-001、FR-002、FR-014、NFR-001、US1 情境 3、5）
+- [X] T022 [US1] 新增 `apps/equipment-loan/frontend/src/components/RescheduleDialog.tsx` 申請改期對話框：顯示預約編號、設備（含「免審核」或「需人工審核」）與原時段；以 `listEquipments({ date, equipmentId })` 逐日取得當日起算 7 天的同一設備時段狀態（合約一次只查一天），組成 7 天 × 3 時段格子，另加第 8 天欄位標示「未開放」；格子依狀態標示「原時段」、「已開始」、「本人已有預約」、「已被預約」、「可改期」；點選非「可改期」格子時依 ui/plan.md §5 顯示紅色提示；沒選新時段就送出時顯示「請先選擇一個標示「可改期」的新時段。」；送出中按鈕改為「送出改期中…」並停用格子；免審核設備顯示綠色說明「這台設備免審核：送出時新時段仍未被占用，就立即改期…」；`RESCHEDULE_SLOT_CONFLICT` 時在對話框顯示「改期失敗：… 沒有任何變更。」並把該格改為「已被預約」；置中彈窗，手機寬度改為全螢幕、格子可左右捲動（FR-001、FR-002、FR-014、NFR-001、US1 情境 3、5）
   - **Must Read**
     - `ui/plan.md` → §3.3 A10、A11 — Why：選新時段與送出的操作
     - `ui/plan.md` → §4 `my-reservations.html` 的「申請改期（免審核設備）」「送出改期中」 — Why：對話框、格子標示與送出中的呈現
@@ -204,13 +204,13 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
     - `contracts/openapi.yaml` → `listEquipments`、`EquipmentSlotAvailability` — Why：判斷格子狀態要用的 `slotStatus`、`myReservationId` 與 `isBookable`
   - **Optional**
     - `ui/plan.md` → §2 — Why：需要確認對話框在手機寬度的版面規則時
-- [ ] T023 [US1] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 串接即時改期：只對 `canReschedule` 為 true 的預約顯示「申請改期」，點擊後開啟 `RescheduleDialog`；即時改期成功後重新載入清單，頁頂綠色橫幅「改期成功：預約 …已改到 …，預約編號與「已核准／有效」狀態不變；原時段 … 已釋出。」並附「到設備預約查看時段」；`RESCHEDULE_NOT_ALLOWED` 時頁頂紅色橫幅「無法改期：…只有原時段尚未開始的「已核准／有效」預約可以改期。」；原時段已開始的「已核准／有效」預約顯示「原時段已開始，不能申請改期或取消；請在時段結束前到現場由管理員登記領取。」（FR-001、FR-002、NFR-002、US1 情境 1、4、7）
+- [X] T023 [US1] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 串接即時改期：只對 `canReschedule` 為 true 的預約顯示「申請改期」，點擊後開啟 `RescheduleDialog`；即時改期成功後重新載入清單，頁頂綠色橫幅「改期成功：預約 …已改到 …，預約編號與「已核准／有效」狀態不變；原時段 … 已釋出。」並附「到設備預約查看時段」；`RESCHEDULE_NOT_ALLOWED` 時頁頂紅色橫幅「無法改期：…只有原時段尚未開始的「已核准／有效」預約可以改期。」；原時段已開始的「已核准／有效」預約顯示「原時段已開始，不能申請改期或取消；請在時段結束前到現場由管理員登記領取。」（FR-001、FR-002、NFR-002、US1 情境 1、4、7）
   - **Must Read**
     - `ui/plan.md` → §4 `my-reservations.html` 的「預約清單與改期紀錄」「即時改期成功」 — Why：哪些預約顯示「申請改期」與成功橫幅的文字
     - `ui/plan.md` → §5 `my-reservations.html` 的「預約已不可改期」 — Why：不可改期時的畫面與提示
     - `ui/my-reservations.html` → 雛形狀態「預約清單與改期紀錄」「即時改期成功」「預約已不可改期」 — Why：預約卡片按鈕位置與橫幅的實際樣子
     - `contracts/openapi.yaml` → `Reservation` 的 `canReschedule` — Why：顯示「申請改期」的條件
-- [ ] T024 [US1] 確認 `apps/equipment-loan/frontend/src/views/EquipmentBookingView.tsx`：即時改期後原時段對其他成員顯示「可預約」並可預約；送出預約收到 `RESERVATION_CONFLICT` 時頁頂紅色橫幅「預約失敗：… 剛被其他預約占用，請改選其他時段。」並把該時段改為「已被預約」（FR-002、FR-014、US1 情境 2、6）
+- [X] T024 [US1] 確認 `apps/equipment-loan/frontend/src/views/EquipmentBookingView.tsx`：即時改期後原時段對其他成員顯示「可預約」並可預約；送出預約收到 `RESERVATION_CONFLICT` 時頁頂紅色橫幅「預約失敗：… 剛被其他預約占用，請改選其他時段。」並把該時段改為「已被預約」（FR-002、FR-014、US1 情境 2、6）
   - **Must Read**
     - `ui/plan.md` → §4 `booking.html` 的「即時改期後原時段釋出（其他成員視角）」 — Why：原時段釋出後的呈現
     - `ui/plan.md` → §5 `booking.html` 的「時段已被占用」 — Why：同時搶占失敗的提示文字與時段狀態
