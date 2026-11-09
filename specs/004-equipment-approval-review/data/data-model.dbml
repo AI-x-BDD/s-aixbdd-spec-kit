@@ -1,0 +1,170 @@
+// Data Model: 設備人工審核設定與預約申請審核 (Equipment Approval Settings and Reservation Review)
+// Spec: specs/004-equipment-approval-review/spec.md
+// Date: 2026-11-09
+
+Project "equipment-approval-review" {
+  database_type: 'PostgreSQL'
+  Note: '涵蓋 D1 帳號、驗證碼挑戰與工作階段資料存取與 D2 設備審核設定、固定時段與預約審核紀錄持久化。延續第一版（003-equipment-loan-booking）結構並執行無損遷移（FR-011）。每張持久化資料表皆具備生命週期欄位並採用軟刪除（設定 deleted_at），查詢有效資料時皆排除 deleted_at 不為 null 的資料列。'
+}
+
+// ---------- Enums ----------
+
+Enum user_role {
+  member [note: '一般成員：可查看預建設備審核標示、對免審核或需人工審核設備送出 7 天內固定時段預約申請，並查看及於時段開始前取消本人待審核或已核准／有效申請（FR-001、FR-002、FR-003、FR-004、FR-008、FR-009、FR-011）']
+  admin [note: '管理員：可查看與切換設備免審核／需人工審核設定、查詢待審核申請清單與全體預約紀錄，並對未開始的待審核申請執行核准或駁回（FR-005、FR-006、FR-007、FR-008、FR-009、FR-010、FR-011）']
+}
+
+Enum equipment_status {
+  available [note: '可供預約借用（FR-001、FR-009、FR-011）']
+  unavailable [note: '暫停借用（預建設備皆為 available，停用管理不在本次範圍）']
+}
+
+Enum reservation_status {
+  pending_approval [note: '待審核：成員針對需人工審核設備送出的申請，核准前不占用時段，允許其他成員對同一時段提出待審申請（FR-001、FR-002、FR-005、SC-001）']
+  confirmed [note: '已核准／有效：免審核設備直接成立、管理員人工核准通過，或自第一版無損遷移的有效預約，正式鎖定並占用該設備於該日該固定時段（FR-002、FR-006、FR-010、FR-011、SC-001、SC-002、SC-003）']
+  rejected [note: '已駁回：於時段開始前由管理員駁回並可記錄駁回原因，不占用時段並完整保留歷史紀錄列，允許申請人重新申請（FR-003、FR-004、FR-007）']
+  cancelled [note: '已取消：於時段開始前由申請人本人取消（原為待審核則移出待審佇列，原為已核准／有效則立即釋出時段），完整保留歷史紀錄列（FR-003、FR-004、FR-011）']
+}
+
+// ---------- Tables ----------
+
+// D1 帳號、驗證碼挑戰與工作階段資料存取
+Table users {
+  id uuid [pk, note: '使用者唯一識別碼']
+  username varchar(64) [not null, unique, note: '登入帳號（例如 lin.yating、chen.guanting、wu.chenghan，FR-011）']
+  password_hash varchar(255) [not null, note: '以 crypto.scrypt 雜湊後的密碼字串（FR-011）']
+  display_name varchar(100) [not null, note: '顯示名稱（例如林雅婷、陳冠廷、吳承翰，FR-005、FR-011）']
+  role user_role [not null, default: 'member', note: '使用者角色：一般成員 member 或管理員 admin（FR-008、FR-009、FR-011、SC-005）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統預建或匿名操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (role, deleted_at) [name: 'idx_users_role_active', note: '依角色篩選未軟刪除的有效帳號並驗證管理員權限（FR-008、FR-009、FR-011、SC-005）']
+  }
+
+  Note: 'D1：Key Entities 使用者帳號；US1、US2、US3；FR-005 管理員檢視申請成員與審核管理員資訊、FR-008 限制待審清單與核准駁回僅供管理員執行、FR-009 限制設備審核設定切換僅供管理員執行、FR-011 保留第一版預建一般成員與管理員帳號；SC-003 第一版既有功能回歸測試 100% 通過、SC-005 一般成員越權操作 100% 攔截拒絕。刪除帳號時設定 deleted_at，不物理刪除資料列；查詢有效帳號時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table captcha_challenges {
+  id uuid [pk, note: '驗證碼挑戰唯一識別碼']
+  captcha_code varchar(7) [not null, note: '以 A–Z、a–z、0–9 隨機產生且同時含英文與阿拉伯數字的 7 位數驗證碼，比對時嚴格區分大小寫（FR-011）']
+  expires_at timestamptz [not null, note: '到期時間點（建立後 5 分鐘，FR-011）']
+  consumed_at timestamptz [note: '送出登入驗證（無論成功或失敗）或手動重整替換而立即失效的時間點；尚未使用時為 null（FR-011）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；未登入操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (expires_at, consumed_at) [name: 'idx_captcha_challenges_validity', note: '加速驗證挑戰是否仍在 5 分鐘有效期限內且尚未被消耗（FR-011、NFR-002、SC-003、SC-004）']
+  }
+
+  Note: 'D1：Key Entities 登入驗證碼挑戰；US1、US2、US3；FR-011 完整保留並向下相容第一版 7 位數區分大小寫英數驗證碼登入挑戰與單次消耗機制；NFR-002、SC-003 第一版既有功能回歸測試 100% 通過、SC-004 操作回應時間低於 2 秒。刪除驗證碼挑戰時設定 deleted_at，不物理刪除資料列；查詢有效驗證碼挑戰時排除 deleted_at 不為 null、consumed_at 不為 null 或已超過 expires_at 的資料列。'
+}
+
+Table sessions {
+  id uuid [pk, note: '工作階段唯一識別碼']
+  token varchar(128) [not null, unique, note: '登入成功後簽發的不透明 Bearer session token（FR-011）']
+  user_id uuid [not null, note: '所屬使用者帳號 ID（FR-008、FR-009、FR-011）']
+  expires_at timestamptz [not null, note: '工作階段到期時間點（FR-011）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間（登出時設定 deleted_at 使工作階段立即失效）；未刪除時為 null']
+
+  indexes {
+    (user_id, deleted_at) [name: 'idx_sessions_user_active', note: '依使用者查詢未軟刪除的有效工作階段（FR-011、NFR-002、SC-004）']
+    expires_at [name: 'idx_sessions_expires_at', note: '加速檢查工作階段有效期限（FR-011）']
+  }
+
+  Note: 'D1：登入工作階段持久化（支撐 Key Entities 使用者帳號之工作階段維持與角色權限驗證）；US1、US2、US3；FR-008 與 FR-009 依登入工作階段驗證管理員權限並攔截一般成員越權請求、FR-011 完整保留第一版工作階段維持與登出機制；NFR-002、SC-003 第一版既有功能回歸測試 100% 通過、SC-004 操作回應時間低於 2 秒、SC-005 一般成員越權操作 100% 攔截拒絕。登出或撤銷工作階段時設定 deleted_at，不物理刪除資料列；查詢有效工作階段時排除 deleted_at 不為 null 或已超過 expires_at 的資料列。'
+}
+
+// D2 設備審核設定、固定時段與預約審核紀錄持久化
+Table equipments {
+  id uuid [pk, note: '設備唯一識別碼']
+  equipment_code varchar(32) [not null, unique, note: '唯一設備編號（例如 EQ-101～EQ-104，FR-001、FR-009、FR-011）']
+  name varchar(120) [not null, note: '單件獨立設備名稱（FR-001、FR-009、FR-011）']
+  category varchar(64) [not null, note: '設備分類（例如光學檢測、電子量測、熱流分析、生醫分析，FR-001、FR-011）']
+  status equipment_status [not null, default: 'available', note: '設備目前可用狀態（FR-001、FR-011）']
+  requires_approval boolean [not null, default: false, note: '是否需要管理員人工審核：false 為免審核（送出後直接成為 confirmed），true 為需人工審核（送出後進入 pending_approval）；切換設定僅套用於切換後新送出的預約申請（FR-001、FR-002、FR-009、FR-010、FR-011、SC-001、SC-003）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；管理員切換審核設定時記錄管理員 ID，系統預建時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (category, status) [name: 'idx_equipments_category_status', note: '依分類與可用狀態查詢預建設備清單（FR-001、NFR-002、SC-004）']
+    (requires_approval, status) [name: 'idx_equipments_approval_status', note: '依人工審核設定與可用狀態篩選預建設備（FR-001、FR-009、NFR-002、SC-004）']
+  }
+
+  Note: 'D2：Key Entities 設備；US1、US2、US3；FR-001 標示每台預建設備屬於免審核或需人工審核模式、FR-002 依 requires_approval 決定新預約直接成為 confirmed 或進入 pending_approval、FR-009 管理員查看與切換指定設備的免審核／需人工審核設定並持久化保存、FR-010 切換 requires_approval 時不改寫既有預約與待審申請狀態、FR-011 無損遷移既有設備（預設 requires_approval = false）並於 demo seed 預建需人工審核與免審核設備；NFR-002、SC-001 需審核與免審核分流 100% 準確、SC-003 切換設定時 100% 既有預約與待審維持原狀態、SC-004 操作回應時間低於 2 秒。刪除設備時設定 deleted_at，不物理刪除資料列；查詢有效設備時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table time_slots {
+  id uuid [pk, note: '固定時段唯一識別碼']
+  slot_code varchar(32) [not null, unique, note: '固定時段代碼（morning、afternoon、evening，FR-001、FR-011）']
+  name varchar(32) [not null, note: '時段名稱（上午、下午、晚間，FR-001、FR-011）']
+  start_time varchar(5) [not null, note: '單日時段開始時間 HH:mm（09:00、13:00、18:00，依 Asia/Taipei 業務時區解讀，供檢查預約申請、取消與核准駁回是否尚未到達開始時間，FR-002、FR-004、FR-006、FR-008、FR-011）']
+  end_time varchar(5) [not null, note: '單日時段結束時間 HH:mm（12:00、17:00、21:00，依 Asia/Taipei 業務時區解讀，FR-001、FR-011）']
+  sort_order integer [not null, unique, note: '時段排序順序（1=上午、2=下午、3=晚間，供時段顯示、我的預約清單與管理員待審清單排序，FR-001、FR-004、FR-005、FR-011）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統預建時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  Note: 'D2：Key Entities 固定時段定義；US1、US2、US3；FR-001 顯示單日各固定時段狀態、FR-002 與 FR-004 及 FR-006 與 FR-008 驗證固定時段是否尚未到達開始時間、FR-004 與 FR-005 依固定時段順序排序個人預約與管理員待審清單、FR-011 保留第一版每日 3 個單日固定時段（上午 09:00–12:00、下午 13:00–17:00、晚間 18:00–21:00）；SC-003 第一版既有功能回歸測試 100% 通過。刪除時段定義時設定 deleted_at，不物理刪除資料列；查詢有效時段定義時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table reservations {
+  id uuid [pk, note: '預約紀錄唯一識別碼']
+  reservation_no varchar(32) [not null, unique, note: '顯示用唯一預約編號（例如 RV-20261109-08，FR-004、FR-005、FR-011）']
+  user_id uuid [not null, note: '申請預約之成員的使用者 ID（FR-002、FR-003、FR-004、FR-005）']
+  equipment_id uuid [not null, note: '申請預約之單件設備 ID（FR-002、FR-003、FR-006）']
+  reservation_date date [not null, note: '預約借用日期 YYYY-MM-DD（依 Asia/Taipei 業務時區解讀，FR-002、FR-004、FR-005、FR-006、FR-011）']
+  slot_id uuid [not null, note: '申請預約之單日固定時段 ID（FR-002、FR-003、FR-006）']
+  status reservation_status [not null, default: 'confirmed', note: '預約審核狀態：pending_approval（待審核）、confirmed（已核准／有效）、rejected（已駁回）、cancelled（已取消）；第一版既有有效預約無損遷移為 confirmed（FR-002、FR-004、FR-005、FR-006、FR-007、FR-010、FR-011）']
+  reviewed_by uuid [note: '執行核准或駁回的管理員使用者 ID；免審核直接成立、待審核中或第一版遷移之預約為 null（FR-005、FR-006、FR-007、FR-011）']
+  reviewed_at timestamptz [note: '管理員執行核准或駁回的時間點（UTC）；免審核直接成立或尚未審核時為 null（FR-004、FR-005、FR-006、FR-007）']
+  reject_reason varchar(200) [note: '管理員駁回申請時選填的駁回原因（上限 200 字）；未填寫或非已駁回狀態時為 null（FR-004、FR-005、FR-007）']
+  cancelled_at timestamptz [note: '取消時間點（UTC）；申請人於時段開始前取消待審核或已核准／有效申請時填入時間並將 status 更新為 cancelled，保留原資料列不物理刪除（FR-004、FR-011）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間（預約或待審申請送出時間點，FR-004、FR-005）']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；建立、取消、核准或駁回時記錄操作者 ID']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (equipment_id, reservation_date, slot_id) [unique, name: 'uq_reservations_active_slot', note: '僅在 status = confirmed 且 deleted_at IS NULL 時生效（PostgreSQL partial unique index），確保 pending_approval 不鎖定時段，且同一設備、同一日期與同一固定時段最多只有一筆 confirmed 有效預約；管理員核准衝突時攔截，取消後立即釋出時段（FR-002、FR-004、FR-006、SC-001、SC-002）']
+    (user_id, equipment_id, reservation_date, slot_id) [unique, name: 'uq_reservations_user_active_request', note: '僅在 status IN (pending_approval, confirmed) 且 deleted_at IS NULL 時生效（PostgreSQL partial unique index），禁止同一成員對同一設備、同一日期與同一固定時段重複持有未結束的待審核或已核准／有效申請，並允許在 rejected 或 cancelled 後重新申請且保留舊紀錄（FR-003、FR-004、FR-007）']
+    (status, reservation_date, slot_id, created_at) [name: 'idx_reservations_status_date_slot', note: '加速管理員查詢待審核申請清單（status = pending_approval）與全體預約狀態篩選，並依預約日期由近到遠、固定時段與申請建立時間由早到晚排序（FR-005、NFR-002、SC-004）']
+    (user_id, reservation_date, created_at) [name: 'idx_reservations_user_date_created', note: '加速成員查詢「我的預約」紀錄並依預約日期由新到舊與建立時間排序（FR-004、NFR-002、SC-004）']
+    (reservation_date, slot_id, created_at) [name: 'idx_reservations_date_slot_created', note: '加速管理員查詢全體成員預約清單並依預約日期、固定時段與建立時間排序（FR-005、NFR-002、SC-004）']
+    (reservation_date, equipment_id, status) [name: 'idx_reservations_date_equipment_status', note: '加速依所選日期查詢各單件設備的 3 個固定時段狀態（可預約、本人待審核、本人已預約、已被預約，FR-001、FR-002、NFR-002、SC-004）']
+  }
+
+  Note: 'D2：Key Entities 預約紀錄；US1、US2、US3；FR-001 區分顯示可預約、本人待審核、本人已預約、已被預約、FR-002 需人工審核設備建立 pending_approval 且不占位而免審核設備建立 confirmed 並立即占位、FR-003 禁止同一成員對同設備同時段重複持有未結束申請並允許已駁回或已取消後重新申請、FR-004 成員檢視四種狀態與審核資訊並於時段開始前取消待審或有效申請、FR-005 管理員查詢待審清單與依四種狀態篩選全體紀錄、FR-006 管理員核准時重檢時段衝突並更新為 confirmed 及記錄 reviewed_by 與 reviewed_at、FR-007 管理員駁回時記錄選填上限 200 字 reject_reason 與審核資訊並保留紀錄、FR-008 拒絕對非待審或已開始申請執行審核、FR-010 切換設備審核設定時保持既有 confirmed 與 pending_approval 紀錄原狀態不變、FR-011 無損遷移第一版既有有效預約為 confirmed 並預建四種狀態範例紀錄；NFR-002、SC-001 需審核與免審核狀態分流 100% 準確、SC-002 並發核准同一設備時段僅 1 筆成功且重複占用率 0%、SC-003 既有預約與待審 100% 無損保留、SC-004 操作回應時間低於 2 秒。取消或駁回申請時分別將 status 更新為 cancelled（記錄 cancelled_at）或 rejected（記錄 reviewed_by、reviewed_at、reject_reason），保留原資料列不物理刪除且不覆寫歷史紀錄；刪除資料時設定 deleted_at，查詢有效資料時排除 deleted_at 不為 null 的資料列。'
+}
+
+// ---------- Table Groups ----------
+
+TableGroup d1_auth_and_session_access [note: 'D1 帳號、驗證碼挑戰與工作階段資料存取'] {
+  users
+  captcha_challenges
+  sessions
+}
+
+TableGroup d2_equipment_and_reservation_persistence [note: 'D2 設備審核設定、固定時段與預約審核紀錄持久化'] {
+  equipments
+  time_slots
+  reservations
+}
+
+// ---------- Relationships ----------
+
+Ref: sessions.user_id > users.id
+Ref: reservations.user_id > users.id
+Ref: reservations.reviewed_by > users.id
+Ref: reservations.equipment_id > equipments.id
+Ref: reservations.slot_id > time_slots.id

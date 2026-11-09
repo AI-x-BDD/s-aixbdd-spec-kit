@@ -1,0 +1,1115 @@
+openapi: 3.1.0
+info:
+  title: 設備人工審核設定與預約申請審核 (Equipment Approval Settings and Reservation Review)
+  version: 0.1.0
+  description: |
+    前端呼叫後端的 HTTP 介面合約，涵蓋 B1 驗證碼挑戰與登入工作階段 API、B2 設備審核模式查詢與預約申請建立 API、B3 成員個人預約查詢與待審／有效申請取消 API、B4 管理員待審清單查詢與申請核准駁回 API、B5 管理員設備人工審核設定切換 API。需登入的端點透過 HTTP Header `Authorization: Bearer <token>` 傳遞工作階段權杖。
+servers:
+  - url: http://localhost:3000/api
+    description: 本機開發用 Express 伺服器
+tags:
+  - name: B1 驗證碼挑戰與登入工作階段 API
+    description: FR-011 保留第一版 7 位數區分大小寫英數驗證碼挑戰與登入工作階段維持；NFR-001 全介面與錯誤提示使用臺灣繁體中文；SC-003 第一版既有功能回歸測試通過率達 100%
+  - name: B2 設備審核模式查詢與預約申請建立 API
+    description: US1 情境 1–5、8；FR-001 回傳預建設備的免審核／需人工審核標示與對當前成員的時段狀態（可預約、本人待審核、本人已預約、已被預約，對一般成員隱藏他人身分）；FR-002 依設備審核模式建立待審核申請（不占位）或已核准／有效預約（立即占位）；FR-003 攔截同一成員對同一設備、日期與時段重複持有待審核或已核准／有效申請，並允許已駁回或已取消後重新申請；NFR-002 送出待審申請回應時間低於 2 秒；SC-001 需審核設備 100% 進入待審核、免審核設備 100% 立即成為已核准／有效；SC-004 送出待審申請回應時間低於 2 秒；Edge Cases 同一成員對同一設備時段重複申請或駁回後重送
+  - name: B3 成員個人預約查詢與待審／有效申請取消 API
+    description: US1 情境 6–7；FR-004 分頁查詢本人名下四種狀態申請紀錄（含審核時間與駁回原因），並允許在時段開始前取消本人的待審核或已核准／有效申請；FR-011 保留取消釋出與歷史紀錄；SC-003 第一版既有功能回歸測試通過率達 100%
+  - name: B4 管理員待審清單查詢與申請核准駁回 API
+    description: US2 情境 1–6；FR-005 分頁查詢管理員待審清單（依預約日期由近到遠、固定時段順序及申請建立時間由早到晚排序）與全體成員預約紀錄（支援四種狀態篩選）；FR-006 核准待審申請時驗證時段未開始且未被已核准／有效預約占用，通過則更新為已核准／有效並鎖定時段，衝突則拒絕；FR-007 駁回未開始待審申請並驗證選填駁回原因上限 200 字；FR-008 拒絕對非待審或已開始申請執行審核，並限制僅管理員角色可呼叫；NFR-002 查詢待審清單與核准／駁回回應時間低於 2 秒；SC-002 並發或重複核准同一設備時段僅 1 筆成功、重複占用率 0%；SC-004 操作回應時間低於 2 秒；SC-005 一般成員越權呼叫 100% 攔截；Edge Cases 多筆待審申請針對同一設備時段時的核准衝突、管理員正要核准時申請人已先行取消或時段已開始、一般成員越權存取待審清單、審核申請或修改設備審核設定
+  - name: B5 管理員設備人工審核設定切換 API
+    description: US3 情境 1–4；FR-009 供管理員查詢與切換指定設備的免審核／需人工審核設定並拒絕一般成員越權修改；FR-010 切換設備審核設定時保持既有已核准／有效預約與待審核申請原狀態不變，僅新申請套用新設定；NFR-002 切換設備審核設定回應時間低於 2 秒；SC-003 切換設定時 100% 既有預約與待審維持原狀態；SC-004 操作回應時間低於 2 秒；SC-005 一般成員越權修改 100% 攔截；Edge Cases 設備在「免審核」與「需人工審核」之間來回切換、一般成員越權存取待審清單、審核申請或修改設備審核設定
+paths:
+  /auth/captcha:
+    post:
+      operationId: createCaptchaChallenge
+      tags: [B1 驗證碼挑戰與登入工作階段 API]
+      summary: 產生或手動重整 7 位數區分大小寫英數驗證碼挑戰
+      description: 依 FR-011、NFR-001、SC-003 完整保留並向下相容第一版 7 位數區分大小寫英數驗證碼挑戰機制，隨機產生一組由完整大小寫英文與阿拉伯數字（A–Z、a–z、0–9）組成且同時包含英文與數字的 7 位數驗證碼挑戰，有效期限為建立後 5 分鐘。支援未登入使用者首次開啟登入頁取得驗證碼，或傳入選填的 previousChallengeId 手動重整更換驗證碼；手動重整時原驗證碼挑戰立即標記失效並回傳新挑戰（FR-011）。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCaptchaChallengeRequest'
+      responses:
+        '201':
+          description: 成功產生新的 7 位數英數驗證碼挑戰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptchaChallengeResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+  /auth/login:
+    post:
+      operationId: login
+      tags: [B1 驗證碼挑戰與登入工作階段 API]
+      summary: 以預建帳號、密碼與 7 位數區分大小寫英數驗證碼登入
+      description: 依 US1、US2、US3、FR-011、NFR-001、SC-003 驗證預建一般成員（member）或管理員（admin）帳號（username）、密碼（password）、驗證碼挑戰識別碼（challengeId）與 7 位數英數驗證碼（captchaCode）。驗證時嚴格區分驗證碼英文大小寫（例如 a123456 與 A123456 視為不同），且一旦送出登入驗證（無論成功或失敗），原驗證碼挑戰立即單次消耗並失效。當驗證碼挑戰不存在、超過 5 分鐘有效期限或已使用／已重整失效時回應 400（CAPTCHA_EXPIRED）；當驗證碼字元或英文大小寫不符時回應 400（CAPTCHA_MISMATCH）；當帳號或密碼不正確時回應 401（INVALID_CREDENTIALS）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登入成功，回傳工作階段 Bearer token 與使用者資訊
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/LoginBadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [B1 驗證碼挑戰與登入工作階段 API]
+      summary: 查詢目前登入工作階段的使用者資訊
+      description: 依 US1、US2、US3、FR-008、FR-009、FR-011、NFR-001、SC-003 驗證目前工作階段的 Bearer token 並回傳已登入使用者資訊（含角色 member 或 admin），供前端重新載入頁面時維持工作階段與角色權限守門；未登入或工作階段已失效時回應 401（UNAUTHORIZED）。
+      responses:
+        '200':
+          description: 目前登入的使用者資訊
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [B1 驗證碼挑戰與登入工作階段 API]
+      summary: 登出並使目前工作階段立即失效
+      description: 依 FR-011、NFR-001、SC-003 結束目前登入工作階段並使 Bearer token 立即失效；未登入或工作階段已失效時回應 401（UNAUTHORIZED）。
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /equipments:
+    get:
+      operationId: listEquipments
+      tags: [B2 設備審核模式查詢與預約申請建立 API]
+      summary: 分頁查詢預建單件設備清單、人工審核模式標示與指定日期的固定時段狀態
+      description: 依 US1、FR-001、FR-002、FR-003、FR-011、NFR-001、NFR-002、SC-001、SC-004 分頁查詢組織內預建的單件獨立設備清單（含唯一設備編號、設備名稱、分類、可用狀態，以及 requiresApproval 免審核／需人工審核標示），並搭配所選日期（date，依 Asia/Taipei 業務時區解讀）回傳每台設備於當日 3 個固定時段（上午 09:00–12:00、下午 13:00–17:00、晚間 18:00–21:00）對當前登入成員的狀態（available 可預約、pending_by_me 本人待審核、booked_by_me 本人已預約、booked_by_others 已被預約，對一般成員不揭露其他成員的待審申請或預約身分）。當其他成員已對某「需人工審核」設備時段送出 pending_approval 待審申請但尚未經管理員核准占用時，該時段對當前成員仍回傳 available 可預約並允許送出待審申請（US1 情境 3、FR-001、FR-002、SC-001）；當當前成員先前在該時段的申請已處於 rejected 已駁回或 cancelled 已取消，且該時段尚未到達開始時間也未被其他 confirmed 預約占用時（Edge Cases 同一成員對同一設備時段重複申請或駁回後重送），該時段對當前成員恢復為 available 可預約（FR-003）。排序依設備編號 equipmentCode 由小到大（ASC）排序，equipmentCode 相同時依唯一欄位 id 由小到大（ASC）排序；page 大於 totalPages 時回應 200，items 為空陣列，totalItems 與 totalPages 照常回傳。當 page 或 pageSize 不合法時回應 400（PAGINATION_INVALID）；未登入時回應 401（UNAUTHORIZED）。
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: 查詢時段狀態的單一日期（YYYY-MM-DD，依 Asia/Taipei 業務時區解讀）
+          schema:
+            type: string
+            format: date
+        - name: category
+          in: query
+          required: false
+          description: 選填的設備分類篩選條件
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 50
+        - name: requiresApproval
+          in: query
+          required: false
+          description: 選填的設備人工審核模式篩選條件（false 免審核、true 需人工審核）
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          required: false
+          description: 要查詢的頁碼，從 1 開始
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 每頁筆數，預設 20，上限 100
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 分頁的單件設備、人工審核模式標示與單日固定時段狀態清單
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAvailabilityPage'
+        '400':
+          $ref: '#/components/responses/PaginationOrQueryInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /reservations:
+    get:
+      operationId: listMyReservations
+      tags: [B3 成員個人預約查詢與待審／有效申請取消 API]
+      summary: 分頁查詢目前登入成員本人的預約與審核狀態紀錄清單
+      description: 依 US1、FR-004、FR-011、NFR-001、SC-003 分頁查詢目前登入成員名下的所有預約申請紀錄，完整回傳待審核（pending_approval）、已核准／有效（confirmed）、已駁回（rejected）與已取消（cancelled）四種狀態、設備資訊、預約日期、固定時段、審核管理員、審核時間、駁回原因、建立時間與取消時間，支援依 status 篩選。排序依預約日期 reservationDate 由新到舊（DESC）排序，reservationDate 相同時依固定時段順序 slotSortOrder 由小到大（ASC）排序，slotSortOrder 相同時依建立時間 createdAt 由新到舊（DESC）排序，createdAt 相同時依唯一欄位 id 由小到大（ASC）排序；page 大於 totalPages 時回應 200，items 為空陣列，totalItems 與 totalPages 照常回傳。當 page 或 pageSize 不合法時回應 400（PAGINATION_INVALID）；未登入時回應 401（UNAUTHORIZED）。
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: 選填的預約狀態篩選條件（pending_approval 待審核、confirmed 已核准／有效、rejected 已駁回、cancelled 已取消）
+          schema:
+            type: string
+            enum: [pending_approval, confirmed, rejected, cancelled]
+        - name: page
+          in: query
+          required: false
+          description: 要查詢的頁碼，從 1 開始
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 每頁筆數，預設 20，上限 100
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 分頁的成員個人預約與審核狀態紀錄清單
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationPage'
+        '400':
+          $ref: '#/components/responses/PaginationOrQueryInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createReservation
+      tags: [B2 設備審核模式查詢與預約申請建立 API]
+      summary: 建立單件設備於指定日期與固定時段的待審核申請或免審核預約
+      description: 依 US1、FR-002、FR-003、FR-010、FR-011、NFR-001、NFR-002、SC-001、SC-004 允許已登入的成員選擇當日起算 7 天內（含當日，依 Asia/Taipei 業務時區解讀）尚未開始且未被已核准／有效（confirmed）預約占用的設備固定時段送出申請，並依目標設備目前的 requiresApproval 設定決定結果：當設備設定為「需人工審核」（requiresApproval 為 true）時，建立狀態為 pending_approval（待審核）的預約申請且不鎖定時段，允許其他成員在該時段尚未被核准占用前對同一時段提出待審申請，回應 201（US1 情境 2–3、FR-002、SC-001）；當設備設定為「免審核」（requiresApproval 為 false）時，直接建立狀態為 confirmed（已核准／有效）的預約並立即鎖定占用該時段，回應 201（US1 情境 5、FR-002、SC-001）。當同一成員先前對該設備、該日期與該固定時段的申請已被管理員駁回（rejected）或已由本人取消（cancelled），且該時段尚未開始也未被其他 confirmed 預約占用時（Edge Cases 同一成員對同一設備時段重複申請或駁回後重送），允許該成員重新送出新申請並回應 201，原 rejected 或 cancelled 歷史紀錄仍完整保留（US1 情境 8、FR-003）。當選擇過去日期或超過當日起 7 天的日期時回應 400（DATE_OUT_OF_RANGE）；當選擇已開始或已結束的固定時段時回應 400（SLOT_ALREADY_STARTED）；未登入時回應 401（UNAUTHORIZED）；設備或固定時段不存在時回應 404（RESOURCE_NOT_FOUND）；當同一成員已對同一設備、同一日期與同一固定時段持有一筆未結束的 pending_approval 或 confirmed 申請時拒絕重複申請並回應 409（DUPLICATE_PENDING_OR_ACTIVE_RESERVATION）（US1 情境 4、FR-003、Edge Cases 同一成員對同一設備時段重複申請或駁回後重送）；當該時段已被其他 confirmed 預約占用時回應 409（RESERVATION_CONFLICT），或設備不可用時回應 409（EQUIPMENT_UNAVAILABLE）。NFR-002、SC-004 回應時間低於 2 秒。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '201':
+          description: 預約申請建立成功（免審核設備立即為 confirmed 並占用時段；需人工審核設備為 pending_approval 且核准前不占用時段）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/CreateReservationBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CreateReservationConflict'
+  /reservations/{reservationId}/cancel:
+    parameters:
+      - name: reservationId
+        in: path
+        required: true
+        description: 預約紀錄唯一識別碼
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: cancelReservation
+      tags: [B3 成員個人預約查詢與待審／有效申請取消 API]
+      summary: 取消本人尚未開始的待審核或已核准／有效預約申請
+      description: 依 US1、FR-003、FR-004、FR-011、NFR-001、SC-003 允許已登入的成員在預約時段開始時間之前（依 Asia/Taipei 業務時區解讀）取消屬於本人且處於 pending_approval（待審核）或 confirmed（已核准／有效）狀態的申請：若原為 confirmed 則立即釋出該設備時段供後續重新申請，若原為 pending_approval 則將其自管理員待審清單移除；兩者皆將狀態更新為 cancelled、記錄 cancelledAt 取消時間並完整保留歷史紀錄，取消後若該時段尚未開始且未被占用則允許再次提出申請（US1 情境 7–8、FR-003、FR-004、FR-011、Edge Cases 同一成員對同一設備時段重複申請或駁回後重送）。未登入時回應 401（UNAUTHORIZED）；當一般成員嘗試取消非本人擁有的預約申請時回應 403（FORBIDDEN）；預約紀錄不存在時回應 404（RESOURCE_NOT_FOUND）；當預約已到達或超過時段開始時間時回應 409（RESERVATION_ALREADY_STARTED），當預約已處於 cancelled 狀態時回應 409（RESERVATION_ALREADY_CANCELLED），當預約處於 rejected（已駁回）狀態時回應 409（INVALID_RESERVATION_STATUS）。
+      responses:
+        '200':
+          description: 取消申請成功，回傳更新為 cancelled 的預約紀錄
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CancelReservationConflict'
+  /admin/reservations/pending:
+    get:
+      operationId: listPendingReservations
+      tags: [B4 管理員待審清單查詢與申請核准駁回 API]
+      summary: 管理員分頁查詢待審核申請清單
+      description: 依 US2、FR-005、FR-008、FR-010、FR-011、NFR-001、NFR-002、SC-003、SC-004、SC-005 供以管理員（admin）身分登入的使用者分頁查詢所有處於 pending_approval（待審核）狀態的預約申請清單（含管理員將設備切換回免審核前已存在的待審申請，FR-010、Edge Cases 設備在「免審核」與「需人工審核」之間來回切換），支援依 equipmentId 篩選。排序依預約日期 reservationDate 由近到遠（ASC）排序，reservationDate 相同時依固定時段順序 slotSortOrder 由小到大（ASC）排序，slotSortOrder 相同時依申請建立時間 createdAt 由早到晚（ASC）排序，createdAt 相同時依唯一欄位 id 由小到大（ASC）排序（US2 情境 1、FR-005）；page 大於 totalPages 時回應 200，items 為空陣列，totalItems 與 totalPages 照常回傳。當 page 或 pageSize 不合法時回應 400（PAGINATION_INVALID）；未登入時回應 401（UNAUTHORIZED）；一般成員（member）嘗試存取待審清單時回應 403（FORBIDDEN）（US2 情境 6、FR-008、SC-005、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）。NFR-002、SC-004 查詢待審清單回應時間低於 2 秒。
+      parameters:
+        - name: equipmentId
+          in: query
+          required: false
+          description: 選填的設備唯一識別碼篩選條件
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          description: 要查詢的頁碼，從 1 開始
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 每頁筆數，預設 20，上限 100
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 分頁的管理員待審核申請清單
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReservationPage'
+        '400':
+          $ref: '#/components/responses/PaginationOrQueryInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/reservations:
+    get:
+      operationId: listAllReservations
+      tags: [B4 管理員待審清單查詢與申請核准駁回 API]
+      summary: 管理員分頁查詢全體成員的設備預約與審核紀錄清單
+      description: 依 US2、FR-005、FR-007、FR-008、FR-011、NFR-001、NFR-002、SC-003、SC-004、SC-005 允許以管理員（admin）身分登入的使用者分頁查詢全體成員的預約與審核紀錄清單（包含預約成員識別資訊、設備編號、設備名稱、設備是否需人工審核、預約日期、固定時段、預約狀態、審核管理員、審核時間、駁回原因、建立時間與取消時間），支援依四種預約狀態（pending_approval、confirmed、rejected、cancelled）或設備（equipmentId）篩選。排序依預約日期 reservationDate 由新到舊（DESC）排序，reservationDate 相同時依固定時段順序 slotSortOrder 由小到大（ASC）排序，slotSortOrder 相同時依建立時間 createdAt 由新到舊（DESC）排序，createdAt 相同時依唯一欄位 id 由小到大（ASC）排序；page 大於 totalPages 時回應 200，items 為空陣列，totalItems 與 totalPages 照常回傳。當 page 或 pageSize 不合法時回應 400（PAGINATION_INVALID）；未登入時回應 401（UNAUTHORIZED）；一般成員（member）嘗試存取管理員全體預約清單時回應 403（FORBIDDEN）（US2 情境 6、FR-008、SC-005、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）。
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: 選填的預約狀態篩選條件（pending_approval 待審核、confirmed 已核准／有效、rejected 已駁回、cancelled 已取消）
+          schema:
+            type: string
+            enum: [pending_approval, confirmed, rejected, cancelled]
+        - name: equipmentId
+          in: query
+          required: false
+          description: 選填的設備唯一識別碼篩選條件
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          description: 要查詢的頁碼，從 1 開始
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 每頁筆數，預設 20，上限 100
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 分頁的全體成員預約與審核紀錄清單
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReservationPage'
+        '400':
+          $ref: '#/components/responses/PaginationOrQueryInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/reservations/{reservationId}/approve:
+    parameters:
+      - name: reservationId
+        in: path
+        required: true
+        description: 待審核預約申請唯一識別碼
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: approveReservation
+      tags: [B4 管理員待審清單查詢與申請核准駁回 API]
+      summary: 管理員核准待審核預約申請並重檢時段衝突後鎖定占用時段
+      description: 依 US2、FR-002、FR-006、FR-008、NFR-001、NFR-002、SC-002、SC-004、SC-005 允許管理員（admin）對處於 pending_approval（待審核）狀態且尚未到達時段開始時間（依 Asia/Taipei 業務時區解讀）的申請執行核准。核准時於單一資料庫交易內即時重檢同一設備、同一日期與同一固定時段是否仍未被其他 confirmed（已核准／有效）預約占用：驗證通過時將申請狀態更新為 confirmed、記錄 reviewedBy 審核管理員與 reviewedAt 審核時間並正式鎖定占用該時段，回應 200（US2 情境 2、FR-006）。當預約時段已到達或超過開始時間時拒絕核准並回應 400（RESERVATION_ALREADY_STARTED）（US2 情境 5、FR-006、FR-008、Edge Cases 管理員正要核准時申請人已先行取消或時段已開始）；未登入時回應 401（UNAUTHORIZED）；一般成員（member）嘗試呼叫核准時回應 403（FORBIDDEN）（US2 情境 6、FR-008、SC-005、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）；申請紀錄不存在時回應 404（RESOURCE_NOT_FOUND）；當兩位以上成員對同一設備、同一日期與同一時段提出待審申請，且該時段已被先核准的另一筆 confirmed 預約占用時，攔截拒絕核准並回應 409（RESERVATION_CONFLICT），保持本筆申請為 pending_approval 狀態且重複占用率 0%（US2 情境 3、FR-006、SC-002、Edge Cases 多筆待審申請針對同一設備時段時的核准衝突）；當申請剛剛已被申請人取消或已非 pending_approval 狀態時回應 409（INVALID_RESERVATION_STATUS）（US2 情境 5、FR-008、Edge Cases 管理員正要核准時申請人已先行取消或時段已開始）。NFR-002、SC-004 執行核准回應時間低於 2 秒。
+      responses:
+        '200':
+          description: 核准成功並已正式鎖定占用該設備時段，回傳更新後的預約紀錄
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReservationItem'
+        '400':
+          $ref: '#/components/responses/ReviewReservationBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ReviewReservationConflict'
+  /admin/reservations/{reservationId}/reject:
+    parameters:
+      - name: reservationId
+        in: path
+        required: true
+        description: 待審核預約申請唯一識別碼
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: rejectReservation
+      tags: [B4 管理員待審清單查詢與申請核准駁回 API]
+      summary: 管理員駁回待審核預約申請並記錄選填駁回原因
+      description: 依 US2、FR-003、FR-007、FR-008、NFR-001、NFR-002、SC-004、SC-005 允許管理員（admin）對處於 pending_approval（待審核）狀態且尚未到達時段開始時間（依 Asia/Taipei 業務時區解讀）的申請執行駁回，並允許選填駁回原因 rejectReason（上限 200 字）。駁回成功後將申請狀態更新為 rejected（已駁回）、記錄 reviewedBy 審核管理員、reviewedAt 審核時間與 rejectReason 駁回原因，自待審佇列移出並完整保留於歷史紀錄中，同時允許申請人在該時段尚未被占用且尚未開始前重新提出申請（US2 情境 4、FR-003、FR-007、Edge Cases 多筆待審申請針對同一設備時段時的核准衝突、同一成員對同一設備時段重複申請或駁回後重送）。當選填的 rejectReason 超過 200 字或路徑參數格式不合法時回應 400（VALIDATION_FAILED）（FR-007）；當預約時段已到達或超過開始時間時拒絕駁回並回應 400（RESERVATION_ALREADY_STARTED）（US2 情境 5、FR-008、Edge Cases 管理員正要核准時申請人已先行取消或時段已開始）；未登入時回應 401（UNAUTHORIZED）；一般成員（member）嘗試呼叫駁回時回應 403（FORBIDDEN）（US2 情境 6、FR-008、SC-005、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）；申請紀錄不存在時回應 404（RESOURCE_NOT_FOUND）；當申請已被申請人先行取消或已非 pending_approval 狀態時回應 409（INVALID_RESERVATION_STATUS）（US2 情境 5、FR-008、Edge Cases 管理員正要核准時申請人已先行取消或時段已開始）。NFR-002、SC-004 執行駁回回應時間低於 2 秒。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectReservationRequest'
+      responses:
+        '200':
+          description: 駁回申請成功並保留歷史紀錄，回傳更新後的預約紀錄
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReservationItem'
+        '400':
+          $ref: '#/components/responses/ReviewReservationBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ReviewReservationConflict'
+  /admin/equipments:
+    get:
+      operationId: listAdminEquipments
+      tags: [B5 管理員設備人工審核設定切換 API]
+      summary: 管理員分頁查詢預建設備清單與目前人工審核設定
+      description: 依 US3、FR-009、FR-011、NFR-001、NFR-002、SC-004、SC-005 供以管理員（admin）身分登入的使用者分頁查詢組織內所有預建單件設備的目前人工審核設定（requiresApproval：false 免審核、true 需人工審核）、設備編號、設備名稱、分類、可用狀態與最後修改時間，支援依分類（category）或人工審核設定（requiresApproval）篩選。排序依設備編號 equipmentCode 由小到大（ASC）排序，equipmentCode 相同時依唯一欄位 id 由小到大（ASC）排序；page 大於 totalPages 時回應 200，items 為空陣列，totalItems 與 totalPages 照常回傳。當 page 或 pageSize 不合法時回應 400（PAGINATION_INVALID）；未登入時回應 401（UNAUTHORIZED）；一般成員（member）嘗試存取時回應 403（FORBIDDEN）（US3 情境 4、FR-009、SC-005、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）。
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: 選填的設備分類篩選條件
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 50
+        - name: requiresApproval
+          in: query
+          required: false
+          description: 選填的設備人工審核模式篩選條件（false 免審核、true 需人工審核）
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          required: false
+          description: 要查詢的頁碼，從 1 開始
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 每頁筆數，預設 20，上限 100
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 分頁的預建設備與人工審核設定清單
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEquipmentPage'
+        '400':
+          $ref: '#/components/responses/PaginationOrQueryInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/equipments/{equipmentId}/approval-mode:
+    parameters:
+      - name: equipmentId
+        in: path
+        required: true
+        description: 單件設備唯一識別碼
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateEquipmentApprovalMode
+      tags: [B5 管理員設備人工審核設定切換 API]
+      summary: 管理員切換指定設備的免審核／需人工審核設定
+      description: 依 US3、FR-009、FR-010、FR-011、NFR-001、NFR-002、SC-003、SC-004、SC-005 允許以管理員（admin）身分登入的使用者將指定預建設備的 requiresApproval 設定在 false（免審核）與 true（需人工審核）之間切換並立即持久化保存。當設備在「免審核」與「需人工審核」之間切換或來回切換時（Edge Cases 設備在「免審核」與「需人工審核」之間來回切換），系統正常更新設備的 requiresApproval 並回應 200，且切換前已存在的 confirmed（已核准／有效）既有預約維持原有效力與時段占用而不退回待審，切換前已存在的 pending_approval（待審核）申請仍保留在待審清單供管理員審核而不自動升為已核准，新設定僅適用於切換完成後新送出的預約申請（US3 情境 1–3、FR-010、SC-003）。當路徑參數或請求欄位格式不合法時回應 400（VALIDATION_FAILED）；未登入時回應 401（UNAUTHORIZED）；一般成員（member）嘗試修改設備人工審核設定時拒絕並回應 403（FORBIDDEN）（US3 情境 4、FR-009、SC-005、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）；指定的設備不存在時回應 404（RESOURCE_NOT_FOUND）。NFR-002、SC-004 切換設備審核設定回應時間低於 2 秒。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEquipmentApprovalModeRequest'
+      responses:
+        '200':
+          description: 成功更新設備人工審核設定（既有已核准／有效預約與待審核申請維持原狀態不變）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEquipmentSetting'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  schemas:
+    Error:
+      type: object
+      description: 本合約所有錯誤回應共用的格式
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 錯誤碼，指出錯誤情況
+          enum:
+            - VALIDATION_FAILED
+            - PAGINATION_INVALID
+            - CAPTCHA_MISMATCH
+            - CAPTCHA_EXPIRED
+            - INVALID_CREDENTIALS
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - RESOURCE_NOT_FOUND
+            - DATE_OUT_OF_RANGE
+            - SLOT_ALREADY_STARTED
+            - EQUIPMENT_UNAVAILABLE
+            - RESERVATION_CONFLICT
+            - DUPLICATE_PENDING_OR_ACTIVE_RESERVATION
+            - INVALID_RESERVATION_STATUS
+            - RESERVATION_ALREADY_STARTED
+            - RESERVATION_ALREADY_CANCELLED
+        message:
+          type: string
+          description: 給使用者看的繁體中文錯誤訊息
+    CreateCaptchaChallengeRequest:
+      type: object
+      description: 手動重整驗證碼時可選填傳入上一筆驗證碼挑戰 ID 使其立即失效
+      properties:
+        previousChallengeId:
+          type: string
+          format: uuid
+          description: 要立即作廢的上一筆驗證碼挑戰唯一識別碼
+    CaptchaChallengeResponse:
+      type: object
+      description: 7 位數區分大小寫英數驗證碼挑戰資訊
+      required: [challengeId, captchaCode, expiresAt]
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+          description: 驗證碼挑戰唯一識別碼
+        captchaCode:
+          type: string
+          minLength: 7
+          maxLength: 7
+          pattern: '^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{7}$'
+          description: 以 A–Z、a–z、0–9 隨機產生且同時包含英文與阿拉伯數字的 7 位數驗證碼（嚴格區分大小寫）
+        expiresAt:
+          type: string
+          format: date-time
+          description: 驗證碼挑戰到期時間（建立後 5 分鐘，ISO 8601 UTC）
+    LoginRequest:
+      type: object
+      description: 帳號密碼與 7 位數驗證碼登入請求
+      required: [username, password, challengeId, captchaCode]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 預建使用者登入帳號（例如 lin.yating、chen.guanting、wu.chenghan）
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 登入密碼
+        challengeId:
+          type: string
+          format: uuid
+          description: 登入頁目前顯示的驗證碼挑戰唯一識別碼
+        captchaCode:
+          type: string
+          minLength: 7
+          maxLength: 7
+          pattern: '^[A-Za-z0-9]{7}$'
+          description: 使用者輸入的 7 位數英數驗證碼（嚴格區分英文大小寫）
+    AuthenticatedUser:
+      type: object
+      description: 已通過驗證的使用者帳號資訊
+      required: [id, username, displayName, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 使用者唯一識別碼
+        username:
+          type: string
+          description: 登入帳號
+        displayName:
+          type: string
+          description: 使用者繁體中文顯示名稱
+        role:
+          type: string
+          enum: [member, admin]
+          description: 使用者角色（member 一般成員、admin 管理員）
+    LoginResponse:
+      type: object
+      description: 登入成功回應的工作階段權杖與使用者資訊
+      required: [token, expiresAt, user]
+      properties:
+        token:
+          type: string
+          description: 後續 API 請求帶入 Authorization Bearer 的工作階段權杖
+        expiresAt:
+          type: string
+          format: date-time
+          description: 工作階段權杖到期時間（ISO 8601 UTC）
+        user:
+          $ref: '#/components/schemas/AuthenticatedUser'
+    LogoutResponse:
+      type: object
+      description: 登出成功回應
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: 繁體中文登出完成訊息
+    EquipmentSlotAvailability:
+      type: object
+      description: 單件設備於指定日期的單一固定時段狀態（對一般成員隱藏其他成員的待審申請或預約身分）
+      required: [slotId, slotCode, slotName, startTime, endTime, sortOrder, availabilityStatus, isBookable, myReservationId]
+      properties:
+        slotId:
+          type: string
+          format: uuid
+          description: 固定時段唯一識別碼
+        slotCode:
+          type: string
+          enum: [MORNING, AFTERNOON, EVENING]
+          description: 固定時段代碼
+        slotName:
+          type: string
+          enum: [上午, 下午, 晚間]
+          description: 固定時段繁體中文名稱
+        startTime:
+          type: string
+          enum: ['09:00', '13:00', '18:00']
+          description: 時段開始時間（HH:mm，依 Asia/Taipei 業務時區解讀）
+        endTime:
+          type: string
+          enum: ['12:00', '17:00', '21:00']
+          description: 時段結束時間（HH:mm，依 Asia/Taipei 業務時區解讀）
+        sortOrder:
+          type: integer
+          minimum: 1
+          maximum: 3
+          description: 單日固定時段排序順序（1 上午、2 下午、3 晚間）
+        availabilityStatus:
+          type: string
+          enum: [available, pending_by_me, booked_by_me, booked_by_others]
+          description: 對當前登入成員的時段狀態（available 可預約、pending_by_me 本人待審核、booked_by_me 本人已預約、booked_by_others 已被預約；他人待審核但未核准時對當前成員仍為 available）
+        isBookable:
+          type: boolean
+          description: 該時段是否處於可預約日期範圍內、尚未到達開始時間且狀態為 available
+        myReservationId:
+          type: [string, 'null']
+          format: uuid
+          description: 當 availabilityStatus 為 pending_by_me 或 booked_by_me 時回傳本人的待審核或已核准／有效預約紀錄 ID，其餘情況為 null
+    EquipmentWithSlotAvailability:
+      type: object
+      description: 單件獨立設備基本資料、人工審核模式標示與指定日期的 3 個固定時段狀態
+      required: [id, equipmentCode, name, category, isActive, requiresApproval, reservationDate, slots]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 設備唯一識別碼
+        equipmentCode:
+          type: string
+          description: 唯一設備編號（例如 EQ-101）
+        name:
+          type: string
+          description: 設備名稱
+        category:
+          type: string
+          description: 設備分類
+        isActive:
+          type: boolean
+          description: 設備目前是否可用
+        requiresApproval:
+          type: boolean
+          description: 設備目前是否需要管理員人工審核（false 免審核、true 需人工審核）
+        reservationDate:
+          type: string
+          format: date
+          description: 查詢的預約日期（YYYY-MM-DD，依 Asia/Taipei 業務時區解讀）
+        slots:
+          type: array
+          description: 該設備於該日的 3 個固定時段狀態清單
+          items:
+            $ref: '#/components/schemas/EquipmentSlotAvailability'
+    EquipmentAvailabilityPage:
+      type: object
+      description: 單件設備與單日固定時段狀態的分頁回應
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          description: 本頁的單件設備與時段狀態清單
+          items:
+            $ref: '#/components/schemas/EquipmentWithSlotAvailability'
+        page:
+          type: integer
+          minimum: 1
+          description: 本次查詢採用的頁碼
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: 本次查詢採用的每頁筆數
+        totalItems:
+          type: integer
+          minimum: 0
+          description: 符合條件的設備總筆數
+        totalPages:
+          type: integer
+          minimum: 0
+          description: 總頁數，沒有資料時為 0
+    CreateReservationRequest:
+      type: object
+      description: 建立單日固定時段設備預約或待審核申請的請求資料
+      required: [equipmentId, reservationDate, slotId]
+      properties:
+        equipmentId:
+          type: string
+          format: uuid
+          description: 要預約的單件設備唯一識別碼
+        reservationDate:
+          type: string
+          format: date
+          description: 預約借用日期（YYYY-MM-DD，依 Asia/Taipei 業務時區解讀，須為當日起算 7 天內）
+        slotId:
+          type: string
+          format: uuid
+          description: 要預約的單日固定時段唯一識別碼
+    RejectReservationRequest:
+      type: object
+      description: 管理員駁回待審核預約申請的請求資料（駁回原因為選填，上限 200 字）
+      properties:
+        rejectReason:
+          type: [string, 'null']
+          maxLength: 200
+          description: 選填的駁回原因（上限 200 字，未填寫時可省略或傳入 null）
+    UpdateEquipmentApprovalModeRequest:
+      type: object
+      description: 管理員切換指定設備人工審核設定的請求資料
+      required: [requiresApproval]
+      properties:
+        requiresApproval:
+          type: boolean
+          description: 目標人工審核設定（false 免審核、true 需人工審核）
+    AdminEquipmentSetting:
+      type: object
+      description: 管理員檢視與切換的單件設備人工審核設定資訊
+      required: [id, equipmentCode, name, category, isActive, requiresApproval, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 設備唯一識別碼
+        equipmentCode:
+          type: string
+          description: 唯一設備編號（例如 EQ-101）
+        name:
+          type: string
+          description: 設備名稱
+        category:
+          type: string
+          description: 設備分類
+        isActive:
+          type: boolean
+          description: 設備目前是否可用
+        requiresApproval:
+          type: boolean
+          description: 設備目前是否需要管理員人工審核（false 免審核、true 需人工審核）
+        updatedAt:
+          type: string
+          format: date-time
+          description: 設備設定最後更新時間（ISO 8601 UTC）
+    AdminEquipmentPage:
+      type: object
+      description: 管理員預建設備與人工審核設定的分頁回應
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          description: 本頁的預建設備與人工審核設定清單
+          items:
+            $ref: '#/components/schemas/AdminEquipmentSetting'
+        page:
+          type: integer
+          minimum: 1
+          description: 本次查詢採用的頁碼
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: 本次查詢採用的每頁筆數
+        totalItems:
+          type: integer
+          minimum: 0
+          description: 符合條件的設備總筆數
+        totalPages:
+          type: integer
+          minimum: 0
+          description: 總頁數，沒有資料時為 0
+    Reservation:
+      type: object
+      description: 成員本人的設備預約與審核申請紀錄（涵蓋待審核、已核准／有效、已駁回與已取消四種狀態）
+      required: [id, reservationNumber, userId, equipmentId, equipmentCode, equipmentName, equipmentCategory, equipmentRequiresApproval, reservationDate, slotId, slotName, slotStartTime, slotEndTime, slotSortOrder, status, reviewedBy, reviewedByDisplayName, reviewedAt, rejectReason, createdAt, cancelledAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 預約紀錄唯一識別碼
+        reservationNumber:
+          type: string
+          description: 供畫面顯示的預約編號（例如 RV-20261109-08）
+        userId:
+          type: string
+          format: uuid
+          description: 預約成員唯一識別碼
+        equipmentId:
+          type: string
+          format: uuid
+          description: 設備唯一識別碼
+        equipmentCode:
+          type: string
+          description: 唯一設備編號（例如 EQ-101）
+        equipmentName:
+          type: string
+          description: 設備名稱
+        equipmentCategory:
+          type: string
+          description: 設備分類
+        equipmentRequiresApproval:
+          type: boolean
+          description: 該設備目前是否設定為需要人工審核（false 免審核、true 需人工審核）
+        reservationDate:
+          type: string
+          format: date
+          description: 預約借用日期（YYYY-MM-DD，依 Asia/Taipei 業務時區解讀）
+        slotId:
+          type: string
+          format: uuid
+          description: 固定時段唯一識別碼
+        slotName:
+          type: string
+          enum: [上午, 下午, 晚間]
+          description: 固定時段名稱
+        slotStartTime:
+          type: string
+          enum: ['09:00', '13:00', '18:00']
+          description: 固定時段開始時間（HH:mm，依 Asia/Taipei 業務時區解讀）
+        slotEndTime:
+          type: string
+          enum: ['12:00', '17:00', '21:00']
+          description: 固定時段結束時間（HH:mm，依 Asia/Taipei 業務時區解讀）
+        slotSortOrder:
+          type: integer
+          minimum: 1
+          maximum: 3
+          description: 固定時段排序順序（1 上午、2 下午、3 晚間）
+        status:
+          type: string
+          enum: [pending_approval, confirmed, rejected, cancelled]
+          description: 預約審核狀態（pending_approval 待審核、confirmed 已核准／有效、rejected 已駁回、cancelled 已取消）
+        reviewedBy:
+          type: [string, 'null']
+          format: uuid
+          description: 執行核准或駁回的管理員唯一識別碼（免審核直接成立、待審核中或第一版遷移之預約為 null）
+        reviewedByDisplayName:
+          type: [string, 'null']
+          description: 執行核准或駁回的管理員繁體中文顯示名稱（例如 吳承翰；免審核直接成立、待審核中或第一版遷移之預約為 null）
+        reviewedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 管理員執行核准或駁回的審核時間（ISO 8601 UTC，免審核直接成立或尚未審核時為 null）
+        rejectReason:
+          type: [string, 'null']
+          maxLength: 200
+          description: 管理員駁回申請時選填的駁回原因（上限 200 字，未填寫或非已駁回狀態時為 null）
+        createdAt:
+          type: string
+          format: date-time
+          description: 預約或待審申請建立時間（ISO 8601 UTC）
+        cancelledAt:
+          type: [string, 'null']
+          format: date-time
+          description: 預約取消時間（ISO 8601 UTC，未取消時為 null）
+    ReservationPage:
+      type: object
+      description: 成員個人預約與審核紀錄的分頁回應
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          description: 本頁的個人預約與審核紀錄清單
+          items:
+            $ref: '#/components/schemas/Reservation'
+        page:
+          type: integer
+          minimum: 1
+          description: 本次查詢採用的頁碼
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: 本次查詢採用的每頁筆數
+        totalItems:
+          type: integer
+          minimum: 0
+          description: 符合條件的預約紀錄總筆數
+        totalPages:
+          type: integer
+          minimum: 0
+          description: 總頁數，沒有資料時為 0
+    AdminReservationItem:
+      type: object
+      description: 管理員檢視的待審核申請或全體成員預約紀錄項目（含申請成員與審核管理員識別資訊）
+      required: [id, reservationNumber, userId, username, userDisplayName, equipmentId, equipmentCode, equipmentName, equipmentCategory, equipmentRequiresApproval, reservationDate, slotId, slotName, slotStartTime, slotEndTime, slotSortOrder, status, reviewedBy, reviewedByUsername, reviewedByDisplayName, reviewedAt, rejectReason, createdAt, cancelledAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 預約紀錄唯一識別碼
+        reservationNumber:
+          type: string
+          description: 供畫面顯示的預約編號（例如 RV-20261109-08）
+        userId:
+          type: string
+          format: uuid
+          description: 預約成員唯一識別碼
+        username:
+          type: string
+          description: 預約成員登入帳號（例如 lin.yating）
+        userDisplayName:
+          type: string
+          description: 預約成員繁體中文顯示名稱（例如 林雅婷）
+        equipmentId:
+          type: string
+          format: uuid
+          description: 設備唯一識別碼
+        equipmentCode:
+          type: string
+          description: 唯一設備編號（例如 EQ-101）
+        equipmentName:
+          type: string
+          description: 設備名稱
+        equipmentCategory:
+          type: string
+          description: 設備分類
+        equipmentRequiresApproval:
+          type: boolean
+          description: 該設備目前是否設定為需要人工審核（false 免審核、true 需人工審核）
+        reservationDate:
+          type: string
+          format: date
+          description: 預約借用日期（YYYY-MM-DD，依 Asia/Taipei 業務時區解讀）
+        slotId:
+          type: string
+          format: uuid
+          description: 固定時段唯一識別碼
+        slotName:
+          type: string
+          enum: [上午, 下午, 晚間]
+          description: 固定時段名稱
+        slotStartTime:
+          type: string
+          enum: ['09:00', '13:00', '18:00']
+          description: 固定時段開始時間（HH:mm，依 Asia/Taipei 業務時區解讀）
+        slotEndTime:
+          type: string
+          enum: ['12:00', '17:00', '21:00']
+          description: 固定時段結束時間（HH:mm，依 Asia/Taipei 業務時區解讀）
+        slotSortOrder:
+          type: integer
+          minimum: 1
+          maximum: 3
+          description: 固定時段排序順序（1 上午、2 下午、3 晚間）
+        status:
+          type: string
+          enum: [pending_approval, confirmed, rejected, cancelled]
+          description: 預約審核狀態（pending_approval 待審核、confirmed 已核准／有效、rejected 已駁回、cancelled 已取消）
+        reviewedBy:
+          type: [string, 'null']
+          format: uuid
+          description: 執行核准或駁回的管理員唯一識別碼（免審核直接成立、待審核中或第一版遷移之預約為 null）
+        reviewedByUsername:
+          type: [string, 'null']
+          description: 執行核准或駁回的管理員登入帳號（例如 wu.chenghan；免審核直接成立、待審核中或第一版遷移之預約為 null）
+        reviewedByDisplayName:
+          type: [string, 'null']
+          description: 執行核准或駁回的管理員繁體中文顯示名稱（例如 吳承翰；免審核直接成立、待審核中或第一版遷移之預約為 null）
+        reviewedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 管理員執行核准或駁回的審核時間（ISO 8601 UTC，免審核直接成立或尚未審核時為 null）
+        rejectReason:
+          type: [string, 'null']
+          maxLength: 200
+          description: 管理員駁回申請時選填的駁回原因（上限 200 字，未填寫或非已駁回狀態時為 null）
+        createdAt:
+          type: string
+          format: date-time
+          description: 預約或待審申請建立時間（ISO 8601 UTC）
+        cancelledAt:
+          type: [string, 'null']
+          format: date-time
+          description: 預約取消時間（ISO 8601 UTC，未取消時為 null）
+    AdminReservationPage:
+      type: object
+      description: 管理員待審核申請或全體成員預約紀錄的分頁回應
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          description: 本頁的管理員預約與審核紀錄清單
+          items:
+            $ref: '#/components/schemas/AdminReservationItem'
+        page:
+          type: integer
+          minimum: 1
+          description: 本次查詢採用的頁碼
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: 本次查詢採用的每頁筆數
+        totalItems:
+          type: integer
+          minimum: 0
+          description: 符合條件的預約紀錄總筆數
+        totalPages:
+          type: integer
+          minimum: 0
+          description: 總頁數，沒有資料時為 0
+  responses:
+    ValidationFailed:
+      description: 請求欄位或路徑參數格式不合法（VALIDATION_FAILED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PaginationOrQueryInvalid:
+      description: page 或 pageSize 分頁參數不合法（PAGINATION_INVALID），或查詢篩選參數格式不符（VALIDATION_FAILED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    LoginBadRequest:
+      description: 登入欄位格式不符（VALIDATION_FAILED）、7 位數驗證碼內容或英文大小寫不符（CAPTCHA_MISMATCH），或驗證碼挑戰已超過 5 分鐘有效期限／已單次消耗失效（CAPTCHA_EXPIRED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InvalidCredentials:
+      description: 帳號或密碼不正確，且原驗證碼已單次消耗失效（INVALID_CREDENTIALS）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未登入或工作階段無效（UNAUTHORIZED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 已登入但角色不符（非管理員）或無權操作他人預約資源（FORBIDDEN）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 指定的設備、固定時段或預約申請紀錄不存在（RESOURCE_NOT_FOUND）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    CreateReservationBadRequest:
+      description: 欄位格式不符（VALIDATION_FAILED）、預約日期不在當日起算 7 天開放範圍內（DATE_OUT_OF_RANGE），或所選固定時段已開始／已結束（SLOT_ALREADY_STARTED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    CreateReservationConflict:
+      description: 同一成員已對同一設備、同一日期與同一固定時段持有未結束的待審核或已核准／有效申請（DUPLICATE_PENDING_OR_ACTIVE_RESERVATION）、該設備於指定日期與固定時段已被其他已核准／有效預約占用（RESERVATION_CONFLICT），或該設備目前不可用（EQUIPMENT_UNAVAILABLE）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    CancelReservationConflict:
+      description: 該預約申請已到達或超過時段開始時間無法取消（RESERVATION_ALREADY_STARTED）、已處於已取消狀態（RESERVATION_ALREADY_CANCELLED），或已處於已駁回狀態無法取消（INVALID_RESERVATION_STATUS）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ReviewReservationBadRequest:
+      description: 路徑參數或選填駁回原因格式不合法／超過 200 字上限（VALIDATION_FAILED），或該筆申請的預約時段已到達／超過開始時間無法執行核准或駁回（RESERVATION_ALREADY_STARTED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ReviewReservationConflict:
+      description: 該筆申請已非待審核狀態（如申請人已先行取消、已核准或已駁回，INVALID_RESERVATION_STATUS）、核准時該設備於同一日期與同一固定時段已被另一筆已核准／有效預約占用（RESERVATION_CONFLICT），或該申請時段已開始（RESERVATION_ALREADY_STARTED）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
