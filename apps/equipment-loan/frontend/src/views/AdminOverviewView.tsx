@@ -4,12 +4,16 @@ import {
   type AdminEquipmentSettingDto,
   type AdminReservationItemDto,
   type AdminReservationPageDto,
+  type AdminRescheduleRequestItem,
   ApiError,
   apiRequest,
+  approveRescheduleRequest,
   approveReservationApi,
   fetchAdminEquipments,
   fetchPendingReservations,
+  listRescheduleRequests,
   pickupReservationByAdmin,
+  rejectRescheduleRequest,
   rejectReservationApi,
   type ReservationStatus,
   returnReservationByAdmin,
@@ -65,6 +69,26 @@ function formatIsoToTaipeiDateTime(iso: string | null): string {
   return `${datePart} ${timePart}`;
 }
 
+function slotRangeText(
+  date: string,
+  slot: { slotName: string; startTime: string; endTime: string },
+): string {
+  return `${date} ${slot.slotName} ${slot.startTime}–${slot.endTime}`;
+}
+
+/** 「改期申請」標示：琥珀色虛線框（ui/admin.html 的 badge-reschedule） */
+const RESCHEDULE_BADGE_STYLE: React.CSSProperties = {
+  background: "var(--surface)",
+  color: "var(--pending)",
+  border: "1px dashed var(--pending)",
+};
+
+/** 從核准失敗訊息取出占用新時段的預約編號（Notes 待確認 4：細節由後端寫在 message） */
+function extractOccupantNumber(message: string): string | null {
+  const match = message.match(/已被預約\s*(\S+?)\s*占用/);
+  return match ? match[1] : null;
+}
+
 interface AdminOverviewViewProps {
   currentUser: AuthenticatedUser;
   onGoToBooking: () => void;
@@ -78,6 +102,18 @@ export function AdminOverviewView({
 }: AdminOverviewViewProps): React.ReactElement {
   const [equipments, setEquipments] = useState<AdminEquipmentSettingDto[]>([]);
   const [pendingList, setPendingList] = useState<AdminReservationItem[]>([]);
+  const [rescheduleList, setRescheduleList] = useState<AdminRescheduleRequestItem[]>([]);
+  const [reviewTab, setReviewTab] = useState<"reschedule" | "reservation">("reschedule");
+  const [approvingRescheduleId, setApprovingRescheduleId] = useState<string | null>(null);
+  const [rescheduleRejectTarget, setRescheduleRejectTarget] =
+    useState<AdminRescheduleRequestItem | null>(null);
+  const [rescheduleRejectReason, setRescheduleRejectReason] = useState<string>("");
+  const [rescheduleRejectError, setRescheduleRejectError] = useState<string>("");
+  const [rejectingReschedule, setRejectingReschedule] = useState<boolean>(false);
+  const [rescheduleConflict, setRescheduleConflict] = useState<{
+    id: string;
+    occupantNumber: string | null;
+  } | null>(null);
   const [reservations, setReservations] = useState<AdminReservationItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<"ALL" | ReservationStatus>("ALL");
   const [equipmentFilter, setEquipmentFilter] = useState<string>("ALL");
@@ -109,16 +145,21 @@ export function AdminOverviewView({
         resParams.set("equipmentId", equipmentFilter);
       }
 
-      const [eqData, pendingData, resData] = await Promise.all([
+      const [eqData, pendingData, resData, rescheduleData] = await Promise.all([
         fetchAdminEquipments(),
         fetchPendingReservations(
           equipmentFilter !== "ALL" ? { equipmentId: equipmentFilter } : undefined,
         ),
         apiRequest<AdminReservationPageDto>(`/admin/reservations?${resParams.toString()}`),
+        listRescheduleRequests({
+          status: "pending_approval",
+          ...(equipmentFilter !== "ALL" ? { equipmentId: equipmentFilter } : {}),
+        }),
       ]);
 
       setEquipments(eqData.items);
       setPendingList(pendingData.items);
+      setRescheduleList(rescheduleData.items);
       setReservations(resData.items);
       setForbidden(false);
     } catch (err) {
@@ -144,9 +185,19 @@ export function AdminOverviewView({
     setBanner(null);
     try {
       const updated = await updateEquipmentApprovalModeApi(eq.id, !eq.requiresApproval);
+      // FR-008：切換前送出的改期審核中申請仍留在待審清單
+      const kept = await listRescheduleRequests({
+        status: "pending_approval",
+        equipmentId: updated.id,
+      });
+      const keptNumbers = kept.items.map((rr) => rr.requestNumber);
+      const rescheduleNote =
+        keptNumbers.length > 0
+          ? `切換前送出的 ${keptNumbers.length} 筆改期審核中申請（${keptNumbers.join("、")}）仍留在待審清單，請繼續核准或駁回；之後新送出的改期依新設定處理。`
+          : "之後新送出的預約與改期依新設定處理。";
       setBanner({
         tone: "success",
-        text: `已更新設備審核設定：${updated.equipmentCode} ${updated.name} 已設為「${updated.requiresApproval ? "需人工審核" : "免審核"}」；既有「已核准／有效」預約與既有「待審核」申請均維持原狀態與效力不變，新設定僅適用於後續新送出的預約申請。`,
+        text: `已更新設備審核設定：${updated.equipmentCode} ${updated.name} 已設為「${updated.requiresApproval ? "需人工審核" : "免審核"}」；既有「已核准／有效」預約與既有「待審核」申請均維持原狀態與效力不變，新設定僅適用於後續新送出的預約申請。${rescheduleNote}`,
       });
       await loadAdminData();
     } catch (err) {
@@ -174,6 +225,70 @@ export function AdminOverviewView({
       await loadAdminData();
     } finally {
       setReviewingId(null);
+    }
+  };
+
+  const handleApproveReschedule = async (item: AdminRescheduleRequestItem): Promise<void> => {
+    setApprovingRescheduleId(item.id);
+    setBanner(null);
+    try {
+      const rr = await approveRescheduleRequest(item.id);
+      setRescheduleConflict(null);
+      setBanner({
+        tone: "success",
+        text: `已核准改期申請 ${rr.requestNumber}：${rr.userDisplayName}的預約 ${rr.reservationNumber}（${rr.equipmentCode} ${rr.equipmentName}）已改到 ${slotRangeText(rr.toReservationDate, rr.toSlot)}，狀態仍為「已核准／有效」；原時段 ${slotRangeText(rr.fromReservationDate, rr.fromSlot)} 已釋出。審核管理員${rr.reviewedByDisplayName ?? currentUser.displayName}，審核時間 ${formatIsoToTaipeiDateTime(rr.reviewedAt)}。`,
+      });
+      await loadAdminData();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "核准改期申請失敗，請稍後再試。";
+      if (err instanceof ApiError && err.code === "RESCHEDULE_SLOT_CONFLICT") {
+        // 申請維持「改期審核中」並留在清單，該列標紅框
+        setRescheduleConflict({ id: item.id, occupantNumber: extractOccupantNumber(msg) });
+      } else {
+        setRescheduleConflict(null);
+      }
+      setBanner({ tone: "danger", text: msg });
+      await loadAdminData();
+    } finally {
+      setApprovingRescheduleId(null);
+    }
+  };
+
+  const handleOpenRescheduleReject = (item: AdminRescheduleRequestItem): void => {
+    setRescheduleRejectTarget(item);
+    setRescheduleRejectReason("");
+    setRescheduleRejectError("");
+  };
+
+  const handleConfirmRescheduleReject = async (): Promise<void> => {
+    if (!rescheduleRejectTarget) return;
+    const length = Array.from(rescheduleRejectReason).length;
+    if (length > 200) {
+      // 超過 200 字時欄位紅框並顯示提示，不關閉對話框
+      setRescheduleRejectError(`駁回原因最多 200 字，目前 ${length} 字。`);
+      return;
+    }
+    const trimmed = rescheduleRejectReason.trim();
+    setRejectingReschedule(true);
+    setRescheduleRejectError("");
+    try {
+      const rr = await rejectRescheduleRequest(rescheduleRejectTarget.id, {
+        rejectReason: trimmed.length > 0 ? trimmed : null,
+      });
+      setRescheduleRejectTarget(null);
+      if (rescheduleConflict?.id === rr.id) setRescheduleConflict(null);
+      setBanner({
+        tone: "success",
+        text: `已駁回改期申請 ${rr.requestNumber}，狀態變成「改期被駁回」。${rr.userDisplayName}的預約 ${rr.reservationNumber} 維持 ${slotRangeText(rr.fromReservationDate, rr.fromSlot)}，不會變動；成員可在「我的預約」查看駁回原因。`,
+      });
+      await loadAdminData();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "駁回改期申請失敗，請稍後再試。";
+      setRescheduleRejectTarget(null);
+      setBanner({ tone: "danger", text: msg });
+      await loadAdminData();
+    } finally {
+      setRejectingReschedule(false);
     }
   };
 
@@ -297,10 +412,10 @@ export function AdminOverviewView({
           >
             !
           </div>
-          <h2>權限不足：拒絕存取管理員審核與現場借還管理</h2>
+          <h2 style={{ color: "var(--danger)" }}>權限不足</h2>
           <p className="muted" style={{ margin: "8px 0 22px" }}>
-            權限不足：「登記領取」、「登記歸還」與「審核及借用管理」僅供管理員（admin）角色執行，您目前的身分為一般成員（
-            {currentUser.displayName}），系統已攔截拒絕操作。
+            核准或駁回改期申請、審核預約與登記領取歸還，只限管理員操作。您目前登入的身分是一般成員（
+            {currentUser.displayName}）。
           </p>
           <div
             style={{
@@ -423,145 +538,279 @@ export function AdminOverviewView({
         data-testid="admin-pending-section"
         style={{ padding: "20px", marginBottom: "24px" }}
       >
+        <h2 style={{ margin: "0 0 12px", fontSize: "18px" }}>待審清單</h2>
         <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "12px",
-            flexWrap: "wrap",
-            marginBottom: "14px",
-          }}
+          role="tablist"
+          aria-label="待審清單分頁"
+          style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}
         >
-          <div>
-            <h2 style={{ margin: 0, fontSize: "18px" }}>
-              待審核申請清單（共 {pendingList.length} 筆待審）
-            </h2>
-            <p className="muted" style={{ margin: "4px 0 0", fontSize: "13px" }}>
-              預設依預約日期由近到遠、固定時段順序及申請建立時間由早到晚排序；核准時系統將即時重檢時段衝突並正式鎖定時段。
-            </p>
-          </div>
+          {(
+            [
+              ["reschedule", `改期申請（${rescheduleList.length}）`],
+              ["reservation", `預約申請（${pendingList.length}）`],
+            ] as const
+          ).map(([key, label]) => {
+            const selected = reviewTab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                data-testid={`review-tab-${key}`}
+                onClick={() => setReviewTab(key)}
+                style={{
+                  height: "36px",
+                  padding: "0 14px",
+                  border: `1px solid ${selected ? "var(--primary)" : "var(--line)"}`,
+                  borderRadius: "8px",
+                  background: selected ? "var(--primary-soft)" : "var(--surface)",
+                  color: selected ? "var(--primary)" : "var(--ink)",
+                  font: "inherit",
+                  fontSize: "14px",
+                  fontWeight: selected ? 700 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {loading ? (
-          <div style={{ padding: "16px 0", color: "var(--muted)" }}>正在載入待審核申請清單…</div>
-        ) : pendingList.length === 0 ? (
-          <div
-            style={{
-              padding: "24px",
-              textAlign: "center",
-              background: "var(--surface-muted)",
-              borderRadius: "10px",
-              color: "var(--muted)",
-            }}
-            data-testid="pending-empty"
-          >
-            目前沒有待審核的預約申請紀錄。
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table
-              data-testid="admin-pending-table"
+        {reviewTab === "reschedule" ? (
+          loading && rescheduleList.length === 0 ? (
+            <div style={{ padding: "16px 0", color: "var(--muted)" }}>正在載入待審改期申請…</div>
+          ) : rescheduleList.length === 0 ? (
+            <div
               style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "14px",
-                textAlign: "left",
+                padding: "24px",
+                textAlign: "center",
+                background: "var(--surface-muted)",
+                borderRadius: "10px",
+                color: "var(--muted)",
+              }}
+              data-testid="reschedule-pending-empty"
+            >
+              <h3 style={{ margin: "0 0 6px", color: "var(--ink)" }}>目前沒有待審的改期申請</h3>
+              <p style={{ margin: 0 }}>成員對需人工審核設備送出改期後，申請會出現在這裡。</p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }} data-testid="reschedule-pending-list">
+              {rescheduleList.map((rr) => {
+                const isConflict = rescheduleConflict?.id === rr.id;
+                const isApproving = approvingRescheduleId === rr.id;
+                return (
+                  <div
+                    key={rr.id}
+                    data-testid={`rr-item-${rr.requestNumber}`}
+                    data-conflict={isConflict ? "true" : undefined}
+                    style={{
+                      padding: "14px 16px",
+                      border: `1px solid ${isConflict ? "var(--danger)" : "var(--line)"}`,
+                      background: isConflict ? "var(--danger-soft)" : undefined,
+                      borderRadius: "10px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "12px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ display: "grid", gap: "4px", fontSize: "14px" }}>
+                      <div>
+                        <span className="badge" style={RESCHEDULE_BADGE_STYLE}>
+                          改期申請
+                        </span>{" "}
+                        <span className="mono">{rr.requestNumber}</span>｜{rr.userDisplayName}
+                        ｜預約 <span className="mono">{rr.reservationNumber}</span>
+                      </div>
+                      <div>
+                        <span className="mono">{rr.equipmentCode}</span> {rr.equipmentName}
+                      </div>
+                      <div className="mono" style={{ fontSize: "13px" }}>
+                        原 {slotRangeText(rr.fromReservationDate, rr.fromSlot)} → 新{" "}
+                        {slotRangeText(rr.toReservationDate, rr.toSlot)}
+                      </div>
+                      <div className="mono" style={{ fontSize: "12px", color: "var(--muted)" }}>
+                        申請時間 {formatIsoToTaipeiDateTime(rr.createdAt)}
+                        {isConflict &&
+                          `｜新時段已被${rescheduleConflict?.occupantNumber ? `預約 ${rescheduleConflict.occupantNumber} ` : ""}占用`}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        disabled={isApproving}
+                        data-testid={`rr-approve-btn-${rr.requestNumber}`}
+                        onClick={() => void handleApproveReschedule(rr)}
+                      >
+                        {isApproving ? "核准中…" : "核准改期"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        disabled={isApproving}
+                        data-testid={`rr-reject-btn-${rr.requestNumber}`}
+                        onClick={() => handleOpenRescheduleReject(rr)}
+                      >
+                        駁回
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+                flexWrap: "wrap",
+                marginBottom: "14px",
               }}
             >
-              <thead>
-                <tr
+              <div>
+                <h2 style={{ margin: 0, fontSize: "18px" }}>
+                  待審核申請清單（共 {pendingList.length} 筆待審）
+                </h2>
+                <p className="muted" style={{ margin: "4px 0 0", fontSize: "13px" }}>
+                  預設依預約日期由近到遠、固定時段順序及申請建立時間由早到晚排序；核准時系統將即時重檢時段衝突並正式鎖定時段。
+                </p>
+              </div>
+            </div>
+
+            {loading ? (
+              <div style={{ padding: "16px 0", color: "var(--muted)" }}>
+                正在載入待審核申請清單…
+              </div>
+            ) : pendingList.length === 0 ? (
+              <div
+                style={{
+                  padding: "24px",
+                  textAlign: "center",
+                  background: "var(--surface-muted)",
+                  borderRadius: "10px",
+                  color: "var(--muted)",
+                }}
+                data-testid="pending-empty"
+              >
+                目前沒有待審核的預約申請紀錄。
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table
+                  data-testid="admin-pending-table"
                   style={{
-                    background: "var(--surface-muted)",
-                    color: "var(--muted)",
-                    fontSize: "13px",
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "14px",
+                    textAlign: "left",
                   }}
                 >
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                    預約編號
-                  </th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                    申請成員
-                  </th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                    申請設備
-                  </th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                    預約日期與時段
-                  </th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                    申請建立時間
-                  </th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                    審核操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingList.map((item) => {
-                  const isBusy = reviewingId === item.id;
-                  return (
+                  <thead>
                     <tr
-                      key={item.id}
-                      data-testid={`pending-row-${item.reservationNumber}`}
-                      style={{ borderBottom: "1px solid var(--line)" }}
+                      style={{
+                        background: "var(--surface-muted)",
+                        color: "var(--muted)",
+                        fontSize: "13px",
+                      }}
                     >
-                      <td className="mono" style={{ padding: "12px 14px", fontWeight: 600 }}>
-                        {item.reservationNumber}
-                      </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        <strong>{item.userDisplayName}</strong>{" "}
-                        <span className="muted mono" style={{ fontSize: "12px" }}>
-                          ({item.username})
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        <span className="mono" style={{ color: "var(--primary)", fontWeight: 600 }}>
-                          {item.equipmentCode}
-                        </span>{" "}
-                        {item.equipmentName}
-                      </td>
-                      <td className="mono" style={{ padding: "12px 14px" }}>
-                        {item.reservationDate} {item.slotName} {item.slotStartTime}–
-                        {item.slotEndTime}
-                      </td>
-                      <td className="mono" style={{ padding: "12px 14px" }}>
-                        {formatIsoToTaipeiDateTime(item.createdAt)}
-                      </td>
-                      <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            gap: "8px",
-                            alignItems: "center",
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            disabled={isBusy}
-                            data-testid={`approve-btn-${item.reservationNumber}`}
-                            onClick={() => void handleApprove(item)}
-                          >
-                            {isBusy ? "審核處理中…" : "核准申請"}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            disabled={isBusy}
-                            data-testid={`reject-btn-${item.reservationNumber}`}
-                            onClick={() => handleOpenRejectModal(item)}
-                          >
-                            {isBusy ? "審核處理中…" : "駁回申請"}
-                          </button>
-                        </div>
-                      </td>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
+                        預約編號
+                      </th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
+                        申請成員
+                      </th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
+                        申請設備
+                      </th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
+                        預約日期與時段
+                      </th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
+                        申請建立時間
+                      </th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
+                        審核操作
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {pendingList.map((item) => {
+                      const isBusy = reviewingId === item.id;
+                      return (
+                        <tr
+                          key={item.id}
+                          data-testid={`pending-row-${item.reservationNumber}`}
+                          style={{ borderBottom: "1px solid var(--line)" }}
+                        >
+                          <td className="mono" style={{ padding: "12px 14px", fontWeight: 600 }}>
+                            {item.reservationNumber}
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            <strong>{item.userDisplayName}</strong>{" "}
+                            <span className="muted mono" style={{ fontSize: "12px" }}>
+                              ({item.username})
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            <span
+                              className="mono"
+                              style={{ color: "var(--primary)", fontWeight: 600 }}
+                            >
+                              {item.equipmentCode}
+                            </span>{" "}
+                            {item.equipmentName}
+                          </td>
+                          <td className="mono" style={{ padding: "12px 14px" }}>
+                            {item.reservationDate} {item.slotName} {item.slotStartTime}–
+                            {item.slotEndTime}
+                          </td>
+                          <td className="mono" style={{ padding: "12px 14px" }}>
+                            {formatIsoToTaipeiDateTime(item.createdAt)}
+                          </td>
+                          <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                            <div
+                              style={{
+                                display: "inline-flex",
+                                gap: "8px",
+                                alignItems: "center",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary"
+                                disabled={isBusy}
+                                data-testid={`approve-btn-${item.reservationNumber}`}
+                                onClick={() => void handleApprove(item)}
+                              >
+                                {isBusy ? "審核處理中…" : "核准申請"}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger"
+                                disabled={isBusy}
+                                data-testid={`reject-btn-${item.reservationNumber}`}
+                                onClick={() => handleOpenRejectModal(item)}
+                              >
+                                {isBusy ? "審核處理中…" : "駁回申請"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -1069,6 +1318,143 @@ export function AdminOverviewView({
                 onClick={() => void handleConfirmReject()}
               >
                 {reviewingId === rejectTarget.id ? "審核處理中…" : "確認駁回申請"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {rescheduleRejectTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rr-reject-modal-title"
+          data-testid="rr-reject-modal"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 30,
+            background: "rgba(15, 23, 42, 0.55)",
+            display: "grid",
+            placeItems: "center",
+            padding: "16px",
+          }}
+        >
+          <div className="card" style={{ width: "100%", maxWidth: "520px", padding: "24px" }}>
+            <h2 id="rr-reject-modal-title">駁回改期申請</h2>
+            <dl
+              style={{
+                margin: "14px 0",
+                display: "grid",
+                gridTemplateColumns: "auto 1fr",
+                gap: "6px 12px",
+                fontSize: "14px",
+              }}
+            >
+              <dt className="muted">改期申請</dt>
+              <dd className="mono" style={{ margin: 0 }}>
+                {rescheduleRejectTarget.requestNumber}
+              </dd>
+              <dt className="muted">成員</dt>
+              <dd style={{ margin: 0 }}>{rescheduleRejectTarget.userDisplayName}</dd>
+              <dt className="muted">設備</dt>
+              <dd style={{ margin: 0 }}>
+                {rescheduleRejectTarget.equipmentCode} {rescheduleRejectTarget.equipmentName}
+              </dd>
+              <dt className="muted">原時段</dt>
+              <dd className="mono" style={{ margin: 0 }}>
+                {slotRangeText(
+                  rescheduleRejectTarget.fromReservationDate,
+                  rescheduleRejectTarget.fromSlot,
+                )}
+              </dd>
+              <dt className="muted">新時段</dt>
+              <dd className="mono" style={{ margin: 0 }}>
+                {slotRangeText(
+                  rescheduleRejectTarget.toReservationDate,
+                  rescheduleRejectTarget.toSlot,
+                )}
+              </dd>
+            </dl>
+            <div
+              style={{
+                margin: "12px 0",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                border: "1px solid var(--line)",
+                background: "var(--surface-muted)",
+              }}
+            >
+              駁回後，成員的原預約不會變動。
+            </div>
+            <div style={{ marginBottom: "18px" }}>
+              <label
+                htmlFor="rr-reject-reason-input"
+                style={{ display: "block", fontWeight: 600, marginBottom: "6px" }}
+              >
+                駁回原因（選填，最多 200 字）
+              </label>
+              <textarea
+                id="rr-reject-reason-input"
+                data-testid="rr-reject-reason-input"
+                rows={3}
+                value={rescheduleRejectReason}
+                disabled={rejectingReschedule}
+                onChange={(e) => {
+                  setRescheduleRejectReason(e.target.value);
+                  if (Array.from(e.target.value).length <= 200) setRescheduleRejectError("");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: `1px solid ${rescheduleRejectError ? "var(--danger)" : "var(--line)"}`,
+                  borderRadius: "8px",
+                  background: "var(--surface)",
+                  color: "var(--ink)",
+                  font: "inherit",
+                  resize: "vertical",
+                }}
+              />
+              <div
+                className="mono"
+                data-testid="rr-reject-char-count"
+                style={{
+                  fontSize: "12px",
+                  color: "var(--muted)",
+                  textAlign: "right",
+                  marginTop: "4px",
+                }}
+              >
+                {Array.from(rescheduleRejectReason).length} / 200
+              </div>
+              {rescheduleRejectError && (
+                <div
+                  role="alert"
+                  data-testid="rr-reject-reason-error"
+                  style={{ marginTop: "6px", color: "var(--danger)", fontSize: "13px" }}
+                >
+                  {rescheduleRejectError}
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                className="btn"
+                disabled={rejectingReschedule}
+                data-testid="rr-reject-close-btn"
+                onClick={() => setRescheduleRejectTarget(null)}
+              >
+                返回
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={rejectingReschedule}
+                data-testid="rr-reject-confirm-btn"
+                onClick={() => void handleConfirmRescheduleReject()}
+              >
+                {rejectingReschedule ? "駁回中…" : "確認駁回"}
               </button>
             </div>
           </div>

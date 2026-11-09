@@ -409,3 +409,40 @@ export function returnReservationByAdmin(reservationId: string): Promise<AdminRe
     method: "POST",
   });
 }
+
+export function listRescheduleRequests(params?: {
+  status?: RescheduleRequestStatus;
+  equipmentId?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<AdminRescheduleRequestPage> {
+  const qs = new URLSearchParams({
+    page: String(params?.page ?? 1),
+    pageSize: String(params?.pageSize ?? 50),
+  });
+  if (params?.status) qs.set("status", params.status);
+  if (params?.equipmentId) qs.set("equipmentId", params.equipmentId);
+  return apiRequest<AdminRescheduleRequestPage>(`/admin/reschedule-requests?${qs.toString()}`);
+}
+
+export function approveRescheduleRequest(
+  rescheduleRequestId: string,
+): Promise<AdminRescheduleRequestItem> {
+  return apiRequest<AdminRescheduleRequestItem>(
+    `/admin/reschedule-requests/${rescheduleRequestId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function rejectRescheduleRequest(
+  rescheduleRequestId: string,
+  body: { rejectReason?: string | null },
+): Promise<AdminRescheduleRequestItem> {
+  return apiRequest<AdminRescheduleRequestItem>(
+    `/admin/reschedule-requests/${rescheduleRequestId}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify({ rejectReason: body.rejectReason ?? null }),
+    },
+  );
+}

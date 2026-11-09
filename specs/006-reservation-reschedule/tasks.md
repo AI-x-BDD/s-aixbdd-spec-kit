@@ -228,7 +228,7 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 資料庫（D2）
 
-- [ ] T025 [US2] 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充 demo seed 的 US2 範例：維持 `EQ-101`、`EQ-102` 為 `requires_approval = true`；依執行當下的 `Asia/Taipei` 日期動態建立一筆可以核准的 `pending_approval` 改期申請（林雅婷、新時段未被占用）、一筆新時段已被其他 `confirmed` 預約占用而核准會被拒的 `pending_approval` 改期申請（陳冠廷），以及一筆 `rejected` 改期申請範例（`reviewed_by` 為吳承翰、填寫 `reject_reason`），改期申請編號見 Notes 待確認 1；執行 `npm run db:seed` 後確認管理員待審清單至少有這兩筆改期審核中申請（FR-015、US2 情境 8）
+- [X] T025 [US2] 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充 demo seed 的 US2 範例：維持 `EQ-101`、`EQ-102` 為 `requires_approval = true`；依執行當下的 `Asia/Taipei` 日期動態建立一筆可以核准的 `pending_approval` 改期申請（林雅婷、新時段未被占用）、一筆新時段已被其他 `confirmed` 預約占用而核准會被拒的 `pending_approval` 改期申請（陳冠廷），以及一筆 `rejected` 改期申請範例（`reviewed_by` 為吳承翰、填寫 `reject_reason`），改期申請編號見 Notes 待確認 1；執行 `npm run db:seed` 後確認管理員待審清單至少有這兩筆改期審核中申請（FR-015、US2 情境 8）
   - **Must Read**
     - `spec.md` → US2 情境 8、FR-015 — Why：seed 重設後待審清單必須有可核准與核准會被拒的申請
     - `ui/plan.md` → §4 `admin.html` 的「審核設定、待審清單與借用管理總覽」 — Why：待審清單要展示的改期申請情境
@@ -238,65 +238,65 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 後端（B3、B4、B6）
 
-- [ ] T026 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 的 `createRescheduleRequest` 加入需人工審核路徑與單一審核中限制：兩條路徑都先檢查該預約是否已有 `pending_approval` 的改期申請，有時回 `409 RESCHEDULE_ALREADY_PENDING`，訊息為「無法送出：預約 … 已有一筆改期審核中的申請 …，請先撤回這筆申請，再重新申請改期。」；設備在送出當下 `requires_approval = true` 時，只建立 `status = 'pending_approval'` 的 `reschedule_requests`（`request_no` 見 Notes 待確認 1），不寫入 `reservations`、不保留新時段；並發建立時違反 `uq_reschedule_requests_pending_per_reservation`（`P2002`）同樣轉成 `409 RESCHEDULE_ALREADY_PENDING`，與 `uq_reservations_active_slot` 的 `P2002` 分開判斷（FR-003、FR-004、FR-008、SC-002、US2 情境 1、2）
+- [X] T026 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 的 `createRescheduleRequest` 加入需人工審核路徑與單一審核中限制：兩條路徑都先檢查該預約是否已有 `pending_approval` 的改期申請，有時回 `409 RESCHEDULE_ALREADY_PENDING`，訊息為「無法送出：預約 … 已有一筆改期審核中的申請 …，請先撤回這筆申請，再重新申請改期。」；設備在送出當下 `requires_approval = true` 時，只建立 `status = 'pending_approval'` 的 `reschedule_requests`（`request_no` 見 Notes 待確認 1），不寫入 `reservations`、不保留新時段；並發建立時違反 `uq_reschedule_requests_pending_per_reservation`（`P2002`）同樣轉成 `409 RESCHEDULE_ALREADY_PENDING`，與 `uq_reservations_active_slot` 的 `P2002` 分開判斷（FR-003、FR-004、FR-008、SC-002、US2 情境 1、2）
   - **Must Read**
     - `contracts/openapi.yaml` → `createRescheduleRequest`（含 `CreateRescheduleConflict`） — Why：需人工審核設備建立改期審核中申請與 `RESCHEDULE_ALREADY_PENDING` 的情況
     - `data/data-model.dbml` → `Table reschedule_requests` 的 `uq_reschedule_requests_pending_per_reservation` — Why：同一預約最多一筆改期審核中申請的資料庫保證
     - `research.md` → §1、§2 — Why：改期審核期間原預約列完全不被寫入，並發送出時只會成立一筆
   - **Optional**
     - `ui/plan.md` → §5 `my-reservations.html` 的「已有改期審核中申請」 — Why：需要對照錯誤訊息的寫法時
-- [ ] T027 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `listRescheduleRequests({ status, equipmentId, page, pageSize })`（`GET /api/admin/reschedule-requests`）：只取未軟刪除的申請，依 `toReservationDate` 由近到遠、`toSlot.sortOrder` 由小到大、`createdAt` 由早到晚、`id` 由小到大排序；回傳 `AdminRescheduleRequestPage`，每筆含申請成員、預約編號、設備、原日期時段、新日期時段與申請時間；不受設備目前 `requires_approval` 影響（FR-005、FR-008、US2 情境 3、7）
+- [X] T027 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `listRescheduleRequests({ status, equipmentId, page, pageSize })`（`GET /api/admin/reschedule-requests`）：只取未軟刪除的申請，依 `toReservationDate` 由近到遠、`toSlot.sortOrder` 由小到大、`createdAt` 由早到晚、`id` 由小到大排序；回傳 `AdminRescheduleRequestPage`，每筆含申請成員、預約編號、設備、原日期時段、新日期時段與申請時間；不受設備目前 `requires_approval` 影響（FR-005、FR-008、US2 情境 3、7）
   - **Must Read**
     - `contracts/openapi.yaml` → `listRescheduleRequests` — Why：篩選條件、排序、分頁與越界頁碼的規則
     - `contracts/openapi.yaml` → `AdminRescheduleRequestItem`、`AdminRescheduleRequestPage` — Why：每筆申請的回應欄位
     - `data/data-model.dbml` → `Table reschedule_requests` 的 `idx_reschedule_requests_status_to_slot` — Why：待審清單排序使用的索引
-- [ ] T028 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `approveRescheduleRequest({ adminUserId, rescheduleRequestId })`（`POST /api/admin/reschedule-requests/:rescheduleRequestId/approve`）：在單一交易內檢查申請仍為 `pending_approval`（否則 `409 INVALID_RESCHEDULE_STATUS`）、原預約仍為 `confirmed`、原時段與新時段都尚未開始、新時段未被 `confirmed`、`checked_out` 或 `returned` 紀錄占用；通過時更新原預約的 `reservation_date`、`slot_id`、`updated_by`（`id`、`reservation_no`、`status` 不變），申請改為 `approved` 並寫入 `reviewed_by`、`reviewed_at`；新時段被占用或寫入時違反 `uq_reservations_active_slot` 回 `409 RESCHEDULE_SLOT_CONFLICT`，交易回滾、申請維持 `pending_approval`；錯誤訊息寫出占用的預約編號（見 Notes 待確認 4）；回傳 `AdminRescheduleRequestItem`（FR-006、FR-014、SC-002、US2 情境 3、4、Edge Cases 核准時新時段已被他人占用）
+- [X] T028 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `approveRescheduleRequest({ adminUserId, rescheduleRequestId })`（`POST /api/admin/reschedule-requests/:rescheduleRequestId/approve`）：在單一交易內檢查申請仍為 `pending_approval`（否則 `409 INVALID_RESCHEDULE_STATUS`）、原預約仍為 `confirmed`、原時段與新時段都尚未開始、新時段未被 `confirmed`、`checked_out` 或 `returned` 紀錄占用；通過時更新原預約的 `reservation_date`、`slot_id`、`updated_by`（`id`、`reservation_no`、`status` 不變），申請改為 `approved` 並寫入 `reviewed_by`、`reviewed_at`；新時段被占用或寫入時違反 `uq_reservations_active_slot` 回 `409 RESCHEDULE_SLOT_CONFLICT`，交易回滾、申請維持 `pending_approval`；錯誤訊息寫出占用的預約編號（見 Notes 待確認 4）；回傳 `AdminRescheduleRequestItem`（FR-006、FR-014、SC-002、US2 情境 3、4、Edge Cases 核准時新時段已被他人占用）
   - **Must Read**
     - `contracts/openapi.yaml` → `approveRescheduleRequest`（含 `ApproveRescheduleConflict`） — Why：核准時的重檢項目、錯誤碼與回滾後的狀態
     - `spec.md` → FR-006、Edge Cases「核准時新時段已被他人占用」 — Why：核准成功與被拒時預約與申請各自的結果
     - `research.md` → §2 — Why：核准在單一交易內完成，衝突以 `P2002` 轉成 `409`
   - **Optional**
     - `ui/plan.md` → §5 `admin.html` 的「核准時新時段已被占用」 — Why：需要對照錯誤訊息的寫法時
-- [ ] T029 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `rejectRescheduleRequest({ adminUserId, rescheduleRequestId, rejectReason })`（`POST /api/admin/reschedule-requests/:rescheduleRequestId/reject`）：申請不是 `pending_approval` 時回 `409 INVALID_RESCHEDULE_STATUS`；申請改為 `rejected`，寫入 `reviewed_by`、`reviewed_at` 與選填的 `reject_reason`，原預約的日期、時段與狀態不變；回傳 `AdminRescheduleRequestItem`（FR-007、SC-002、US2 情境 5）
+- [X] T029 [US2] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `rejectRescheduleRequest({ adminUserId, rescheduleRequestId, rejectReason })`（`POST /api/admin/reschedule-requests/:rescheduleRequestId/reject`）：申請不是 `pending_approval` 時回 `409 INVALID_RESCHEDULE_STATUS`；申請改為 `rejected`，寫入 `reviewed_by`、`reviewed_at` 與選填的 `reject_reason`，原預約的日期、時段與狀態不變；回傳 `AdminRescheduleRequestItem`（FR-007、SC-002、US2 情境 5）
   - **Must Read**
     - `contracts/openapi.yaml` → `rejectRescheduleRequest`、`RejectRescheduleRequestRequest` — Why：駁回原因上限、錯誤碼與回應
     - `spec.md` → FR-007 — Why：駁回要記錄的資料，以及原預約不得變動
-- [ ] T030 [US2] 在 `apps/equipment-loan/backend/src/routes/adminRouter.ts` 掛上 `GET /api/admin/reschedule-requests`（`listRescheduleRequests`）、`POST /api/admin/reschedule-requests/:rescheduleRequestId/approve`（`approveRescheduleRequest`）、`POST /api/admin/reschedule-requests/:rescheduleRequestId/reject`（`rejectRescheduleRequest`）：三者都套用 `requireAuth` 與 `requireAdmin`（一般成員回 `403 FORBIDDEN`）；以 zod 驗證 `status`（`RescheduleRequestStatus`）、`equipmentId`、`page`、`pageSize`（不合法回 `400 PAGINATION_INVALID`）、路徑參數 uuid 與 `rejectReason`（最多 200 字，不符回 `400 VALIDATION_FAILED`）（FR-005、SC-006、US2 情境 6）
+- [X] T030 [US2] 在 `apps/equipment-loan/backend/src/routes/adminRouter.ts` 掛上 `GET /api/admin/reschedule-requests`（`listRescheduleRequests`）、`POST /api/admin/reschedule-requests/:rescheduleRequestId/approve`（`approveRescheduleRequest`）、`POST /api/admin/reschedule-requests/:rescheduleRequestId/reject`（`rejectRescheduleRequest`）：三者都套用 `requireAuth` 與 `requireAdmin`（一般成員回 `403 FORBIDDEN`）；以 zod 驗證 `status`（`RescheduleRequestStatus`）、`equipmentId`、`page`、`pageSize`（不合法回 `400 PAGINATION_INVALID`）、路徑參數 uuid 與 `rejectReason`（最多 200 字，不符回 `400 VALIDATION_FAILED`）（FR-005、SC-006、US2 情境 6）
   - **Must Read**
     - `contracts/openapi.yaml` → `listRescheduleRequests`、`approveRescheduleRequest`、`rejectRescheduleRequest` — Why：三個路由的路徑、參數、狀態碼與回應
     - `contracts/openapi.yaml` → `PaginationOrQueryInvalid`、`Forbidden` — Why：分頁錯誤與一般成員越權的回應
     - `spec.md` → FR-005、US2 情境 6 — Why：一般成員呼叫核准或駁回必須被拒並回傳權限不足的提示
-- [ ] T031 [US2] 確認 `apps/equipment-loan/backend/src/services/equipmentService.ts` 的 B6 `updateEquipmentApprovalMode`（`PATCH /api/admin/equipments/:equipmentId/approval-mode`）不更新任何 `reschedule_requests`：切換前送出的改期審核中申請維持 `pending_approval` 並留在待審清單，切換後新送出的改期依最新設定判斷（FR-008、US2 情境 7）
+- [X] T031 [US2] 確認 `apps/equipment-loan/backend/src/services/equipmentService.ts` 的 B6 `updateEquipmentApprovalMode`（`PATCH /api/admin/equipments/:equipmentId/approval-mode`）不更新任何 `reschedule_requests`：切換前送出的改期審核中申請維持 `pending_approval` 並留在待審清單，切換後新送出的改期依最新設定判斷（FR-008、US2 情境 7）
   - **Must Read**
     - `contracts/openapi.yaml` → `updateEquipmentApprovalMode` — Why：切換時既有預約與改期審核中申請都維持原狀態
     - `spec.md` → FR-008 — Why：切換前後送出的改期各自的處理方式
-- [ ] T032 [US2] 確認 `apps/equipment-loan/backend/src/services/reservationService.ts` 的 B4 `approveReservation`（`POST /api/admin/reservations/:reservationId/approve`）：改期成功釋出原時段後，針對該時段的待審預約可以照常核准；他人改期審核中申請的新時段不阻擋核准；與即時改期、核准改期同時占用同一時段時只有一筆成功，失敗回 `409 RESERVATION_CONFLICT`（FR-002、FR-006、FR-014、Edge Cases 改期成功後原時段的其他待審申請）
+- [X] T032 [US2] 確認 `apps/equipment-loan/backend/src/services/reservationService.ts` 的 B4 `approveReservation`（`POST /api/admin/reservations/:reservationId/approve`）：改期成功釋出原時段後，針對該時段的待審預約可以照常核准；他人改期審核中申請的新時段不阻擋核准；與即時改期、核准改期同時占用同一時段時只有一筆成功，失敗回 `409 RESERVATION_CONFLICT`（FR-002、FR-006、FR-014、Edge Cases 改期成功後原時段的其他待審申請）
   - **Must Read**
     - `contracts/openapi.yaml` → `approveReservation` — Why：釋出時段後可核准、改期審核中申請不占用時段，以及衝突時的錯誤碼
     - `spec.md` → Edge Cases「改期成功後原時段的其他待審申請」 — Why：原時段釋出後待審預約可以依 004 規則核准
 
 ### 前端（F3、F4）
 
-- [ ] T033 [US2] 在 `apps/equipment-loan/frontend/src/api/client.ts` 新增 `listRescheduleRequests({ status, equipmentId, page, pageSize })`、`approveRescheduleRequest(rescheduleRequestId)` 與 `rejectRescheduleRequest(rescheduleRequestId, { rejectReason })`（FR-005、FR-006、FR-007）
+- [X] T033 [US2] 在 `apps/equipment-loan/frontend/src/api/client.ts` 新增 `listRescheduleRequests({ status, equipmentId, page, pageSize })`、`approveRescheduleRequest(rescheduleRequestId)` 與 `rejectRescheduleRequest(rescheduleRequestId, { rejectReason })`（FR-005、FR-006、FR-007）
   - **Must Read**
     - `contracts/openapi.yaml` → `listRescheduleRequests`、`approveRescheduleRequest`、`rejectRescheduleRequest` — Why：三個呼叫的參數、回應型別與錯誤碼
-- [ ] T034 [US2] 在 `apps/equipment-loan/frontend/src/components/RescheduleDialog.tsx` 依 `equipmentRequiresApproval` 顯示需人工審核設備的琥珀色說明「這台設備需人工審核：送出後建立「改期審核中」的申請。管理員核准前，原預約照常有效並繼續占用原時段，新時段不會替您保留。」（FR-003、US2 情境 1）
+- [X] T034 [US2] 在 `apps/equipment-loan/frontend/src/components/RescheduleDialog.tsx` 依 `equipmentRequiresApproval` 顯示需人工審核設備的琥珀色說明「這台設備需人工審核：送出後建立「改期審核中」的申請。管理員核准前，原預約照常有效並繼續占用原時段，新時段不會替您保留。」（FR-003、US2 情境 1）
   - **Must Read**
     - `ui/plan.md` → §4 `my-reservations.html` 的「申請改期（需人工審核設備）」 — Why：需人工審核設備的說明文字與格子標示
     - `ui/my-reservations.html` → 雛形狀態「申請改期（需人工審核設備）」 — Why：說明區塊的實際樣子
-- [ ] T035 [US2] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 處理改期審核中申請的送出結果：`rescheduleRequest.status` 為 `pending_approval` 時頁頂琥珀色橫幅「改期申請 … 已送出，目前為「改期審核中」。管理員核准前，預約 … 仍為 … 的「已核准／有效」；新時段 … 不會替您保留。」，重新載入後該預約不再顯示「申請改期」；`RESCHEDULE_ALREADY_PENDING` 時頁頂紅色橫幅顯示須先撤回的提示（FR-003、FR-004、US2 情境 1、2）
+- [X] T035 [US2] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 處理改期審核中申請的送出結果：`rescheduleRequest.status` 為 `pending_approval` 時頁頂琥珀色橫幅「改期申請 … 已送出，目前為「改期審核中」。管理員核准前，預約 … 仍為 … 的「已核准／有效」；新時段 … 不會替您保留。」，重新載入後該預約不再顯示「申請改期」；`RESCHEDULE_ALREADY_PENDING` 時頁頂紅色橫幅顯示須先撤回的提示（FR-003、FR-004、US2 情境 1、2）
   - **Must Read**
     - `ui/plan.md` → §4 `my-reservations.html` 的「改期申請已送出」 — Why：送出後的橫幅文字與按鈕隱藏
     - `ui/plan.md` → §5 `my-reservations.html` 的「已有改期審核中申請」 — Why：重複送出時的提示文字
     - `ui/my-reservations.html` → 雛形狀態「改期申請已送出」「已有改期審核中申請」 — Why：橫幅的實際樣子
-- [ ] T036 [US2] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 的待審清單加入「改期申請（n）」與「預約申請（n）」分頁，預設顯示改期申請：以 `listRescheduleRequests({ status: 'pending_approval' })` 取得清單，每筆顯示「改期申請」標示、改期申請編號、成員、預約編號、設備、「原 … → 新 …」與申請時間，提供「核准改期」與「駁回」；核准中按鈕改為「核准中…」並停用；核准成功後頁頂綠色橫幅「已核准改期申請 …：…已改到 …，狀態仍為「已核准／有效」；原時段 … 已釋出。審核管理員 …，審核時間 …。」並移出清單；`RESCHEDULE_SLOT_CONFLICT` 時該列紅框並顯示頁頂紅色橫幅，申請留在清單（見 Notes 待確認 4）；清單為空時顯示「目前沒有待審的改期申請」；「預約申請」分頁沿用既有待審預約清單（FR-005、FR-006、US2 情境 3、4）
+- [X] T036 [US2] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 的待審清單加入「改期申請（n）」與「預約申請（n）」分頁，預設顯示改期申請：以 `listRescheduleRequests({ status: 'pending_approval' })` 取得清單，每筆顯示「改期申請」標示、改期申請編號、成員、預約編號、設備、「原 … → 新 …」與申請時間，提供「核准改期」與「駁回」；核准中按鈕改為「核准中…」並停用；核准成功後頁頂綠色橫幅「已核准改期申請 …：…已改到 …，狀態仍為「已核准／有效」；原時段 … 已釋出。審核管理員 …，審核時間 …。」並移出清單；`RESCHEDULE_SLOT_CONFLICT` 時該列紅框並顯示頁頂紅色橫幅，申請留在清單（見 Notes 待確認 4）；清單為空時顯示「目前沒有待審的改期申請」；「預約申請」分頁沿用既有待審預約清單（FR-005、FR-006、US2 情境 3、4）
   - **Must Read**
     - `ui/plan.md` → §3.3 A14、A15 — Why：切換分頁與核准改期的操作
     - `ui/plan.md` → §4 `admin.html` 的「審核設定、待審清單與借用管理總覽」「待審預約申請分頁」「核准改期處理中」「改期核准成功」「待審清單沒有改期申請」 — Why：清單、分頁、處理中與成功的呈現
     - `ui/plan.md` → §5 `admin.html` 的「核准時新時段已被占用」 — Why：核准被拒時該列與橫幅的呈現
     - `ui/admin.html` → 雛形狀態「審核設定、待審清單與借用管理總覽」「改期核准成功」「核准時新時段已被占用」 — Why：清單項目配置與橫幅的實際樣子
     - `contracts/openapi.yaml` → `approveRescheduleRequest` — Why：核准的錯誤碼與回應
-- [ ] T037 [US2] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 加入改期駁回、審核設定切換提示與越權畫面：「駁回」開啟「駁回改期申請」對話框，列出改期申請、成員、設備、原時段與新時段，駁回原因欄顯示「n / 200」，超過 200 字時欄位紅框並顯示「駁回原因最多 200 字，目前 n 字。」且不關閉；「確認駁回」處理中改為「駁回中…」；駁回成功後頁頂綠色橫幅說明狀態變成「改期被駁回」、原預約不變；切換設備審核設定後的提示列出仍留在待審清單的改期審核中申請；一般成員開啟時隱藏管理區塊，顯示「權限不足」卡片與「返回設備預約」、「切換管理員帳號登入」（FR-005、FR-007、FR-008、SC-006、US2 情境 5–7）
+- [X] T037 [US2] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 加入改期駁回、審核設定切換提示與越權畫面：「駁回」開啟「駁回改期申請」對話框，列出改期申請、成員、設備、原時段與新時段，駁回原因欄顯示「n / 200」，超過 200 字時欄位紅框並顯示「駁回原因最多 200 字，目前 n 字。」且不關閉；「確認駁回」處理中改為「駁回中…」；駁回成功後頁頂綠色橫幅說明狀態變成「改期被駁回」、原預約不變；切換設備審核設定後的提示列出仍留在待審清單的改期審核中申請；一般成員開啟時隱藏管理區塊，顯示「權限不足」卡片與「返回設備預約」、「切換管理員帳號登入」（FR-005、FR-007、FR-008、SC-006、US2 情境 5–7）
   - **Must Read**
     - `ui/plan.md` → §3.3 A16、A17 — Why：駁回與切換審核設定的操作
     - `ui/plan.md` → §4 `admin.html` 的「填寫改期駁回原因」「駁回改期處理中」「改期已駁回」「已切換設備審核設定」 — Why：駁回對話框、處理中、成功與切換提示的呈現

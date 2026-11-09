@@ -37,6 +37,13 @@ interface MyReservationsViewProps {
   onGoToBooking: (targetDate?: string) => void;
 }
 
+/** 琥珀色橫幅（改期審核中），沿用 index.html 的 --pending 與 --pending-soft 色彩 */
+const PENDING_BANNER_STYLE: React.CSSProperties = {
+  background: "var(--pending-soft)",
+  color: "var(--pending)",
+  borderColor: "var(--pending)",
+};
+
 export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): React.ReactElement {
   const [statusFilter, setStatusFilter] = useState<"ALL" | ReservationStatus>("ALL");
   const [activeLoans, setActiveLoans] = useState<ReservationItem[]>([]);
@@ -45,7 +52,7 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
   const [pendingCancel, setPendingCancel] = useState<ReservationItem | null>(null);
   const [cancelling, setCancelling] = useState<boolean>(false);
   const [banner, setBanner] = useState<{
-    tone: "danger" | "success" | "info";
+    tone: "danger" | "success" | "info" | "pending";
     text: string;
     showRebookBtn?: boolean;
     rebookDate?: string;
@@ -130,12 +137,21 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
         rebookDate: rr.toReservationDate,
         rebookText: "到設備預約查看時段",
       });
+    } else if (rr.status === "pending_approval") {
+      // 需人工審核設備（FR-003）：原預約維持原時段，新時段不保留
+      setBanner({
+        tone: "pending",
+        text: `改期申請 ${rr.requestNumber} 已送出，目前為「改期審核中」。管理員核准前，預約 ${updated.reservationNumber} 仍為 ${rr.fromReservationDate} ${rr.fromSlot.slotName} ${rr.fromSlot.startTime}–${rr.fromSlot.endTime} 的「已核准／有效」；新時段 ${rr.toReservationDate} ${rr.toSlot.slotName} ${rr.toSlot.startTime}–${rr.toSlot.endTime} 不會替您保留。`,
+      });
     }
     void loadReservations();
   };
 
   const handleRescheduleError = (err: ApiError): boolean => {
-    if (err.code !== "RESCHEDULE_NOT_ALLOWED") return false;
+    // RESCHEDULE_ALREADY_PENDING（FR-004）：頁頂紅色橫幅顯示須先撤回的提示
+    if (err.code !== "RESCHEDULE_NOT_ALLOWED" && err.code !== "RESCHEDULE_ALREADY_PENDING") {
+      return false;
+    }
     setRescheduling(null);
     setBanner({ tone: "danger", text: err.message });
     void loadReservations();
@@ -153,6 +169,7 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
       {banner && (
         <div
           className={`banner banner-${banner.tone}`}
+          style={banner.tone === "pending" ? PENDING_BANNER_STYLE : undefined}
           role="alert"
           data-testid="my-reservations-banner"
         >

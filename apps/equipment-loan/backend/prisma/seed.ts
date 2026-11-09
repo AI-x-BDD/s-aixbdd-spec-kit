@@ -154,6 +154,7 @@ export async function seedDatabase(): Promise<void> {
   const tomorrow = getTaipeiDateOffset(1);
   const dayAfterTomorrow = getTaipeiDateOffset(2);
   const threeDaysLater = getTaipeiDateOffset(3);
+  const fourDaysLater = getTaipeiDateOffset(4);
 
   await prisma.reservations.createMany({
     data: [
@@ -359,6 +360,36 @@ export async function seedDatabase(): Promise<void> {
         updated_at: new Date("2026-11-08T08:20:00Z"),
         updated_by: linYating.id,
       },
+      // 006 US2：林雅婷占用 EQ-102 三天後下午，展示陳冠廷改期申請核准時新時段已被占用
+      {
+        id: "44444444-4444-4444-8444-444444444016",
+        reservation_no: "RV-20261109-12",
+        user_id: linYating.id,
+        equipment_id: eq102.id,
+        reservation_date: threeDaysLater,
+        slot_id: slotAfternoon.id,
+        status: "confirmed",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-09T02:30:00Z"),
+        created_at: new Date("2026-11-09T02:10:00Z"),
+        updated_at: new Date("2026-11-09T02:30:00Z"),
+        updated_by: wuChenghan.id,
+      },
+      // 006 US2：陳冠廷在需人工審核設備 EQ-102 四天後上午的預約，申請改到三天後下午
+      {
+        id: "44444444-4444-4444-8444-444444444017",
+        reservation_no: "RV-20261108-11",
+        user_id: chenGuanting.id,
+        equipment_id: eq102.id,
+        reservation_date: fourDaysLater,
+        slot_id: slotMorning.id,
+        status: "confirmed",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T06:00:00Z"),
+        created_at: new Date("2026-11-08T04:30:00Z"),
+        updated_at: new Date("2026-11-08T06:00:00Z"),
+        updated_by: wuChenghan.id,
+      },
     ],
   });
 
@@ -381,6 +412,64 @@ export async function seedDatabase(): Promise<void> {
       updated_at: instantRescheduledAt,
       updated_by: linYating.id,
     },
+  });
+
+  // 006 US2：需人工審核設備的改期申請範例（FR-015、US2 情境 8）
+  // 可以核准：林雅婷 RV-20261108-04（EQ-101 明天上午）申請改到後天晚間，新時段未被占用
+  const approvableAppliedAt = new Date("2026-11-09T01:15:00Z");
+  // 核准會被拒：陳冠廷 RV-20261108-11（EQ-102 四天後上午）申請改到三天後下午，新時段已被 RV-20261109-12 占用
+  const conflictingAppliedAt = new Date("2026-11-09T01:50:00Z");
+  // 改期被駁回：陳冠廷 RV-20261108-07（EQ-101 明天下午）申請改到後天上午，由吳承翰駁回
+  const rejectedAppliedAt = new Date("2026-11-08T09:10:00Z");
+  const rejectedReviewedAt = new Date("2026-11-08T10:30:00Z");
+  await prisma.reschedule_requests.createMany({
+    data: [
+      {
+        id: "55555555-5555-4555-8555-555555555002",
+        request_no: generateRescheduleRequestNo(approvableAppliedAt),
+        reservation_id: "44444444-4444-4444-8444-444444444004",
+        user_id: linYating.id,
+        from_reservation_date: tomorrow,
+        from_slot_id: slotMorning.id,
+        to_reservation_date: dayAfterTomorrow,
+        to_slot_id: slotEvening.id,
+        status: "pending_approval",
+        created_at: approvableAppliedAt,
+        updated_at: approvableAppliedAt,
+        updated_by: linYating.id,
+      },
+      {
+        id: "55555555-5555-4555-8555-555555555003",
+        request_no: generateRescheduleRequestNo(conflictingAppliedAt),
+        reservation_id: "44444444-4444-4444-8444-444444444017",
+        user_id: chenGuanting.id,
+        from_reservation_date: fourDaysLater,
+        from_slot_id: slotMorning.id,
+        to_reservation_date: threeDaysLater,
+        to_slot_id: slotAfternoon.id,
+        status: "pending_approval",
+        created_at: conflictingAppliedAt,
+        updated_at: conflictingAppliedAt,
+        updated_by: chenGuanting.id,
+      },
+      {
+        id: "55555555-5555-4555-8555-555555555004",
+        request_no: generateRescheduleRequestNo(rejectedAppliedAt),
+        reservation_id: "44444444-4444-4444-8444-444444444012",
+        user_id: chenGuanting.id,
+        from_reservation_date: tomorrow,
+        from_slot_id: slotAfternoon.id,
+        to_reservation_date: dayAfterTomorrow,
+        to_slot_id: slotMorning.id,
+        status: "rejected",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: rejectedReviewedAt,
+        reject_reason: "後天上午顯微鏡需保留給校外合作計畫，請改選其他時段後重新申請。",
+        created_at: rejectedAppliedAt,
+        updated_at: rejectedReviewedAt,
+        updated_by: wuChenghan.id,
+      },
+    ],
   });
 }
 

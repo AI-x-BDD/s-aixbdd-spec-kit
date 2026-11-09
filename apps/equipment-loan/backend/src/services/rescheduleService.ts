@@ -146,10 +146,40 @@ function isUniqueViolation(err: unknown): boolean {
   );
 }
 
+const PENDING_PER_RESERVATION_INDEX = "uq_reschedule_requests_pending_per_reservation";
+
+/** 判斷 P2002 是否來自 uq_reschedule_requests_pending_per_reservation（與 uq_reservations_active_slot 分開判斷）。 */
+function isPendingPerReservationViolation(err: unknown): boolean {
+  const cause = (
+    err as {
+      meta?: {
+        driverAdapterError?: {
+          cause?: { constraint?: { index?: string }; originalMessage?: string };
+        };
+        target?: unknown;
+      };
+    }
+  ).meta;
+  const adapterCause = cause?.driverAdapterError?.cause;
+  return (
+    adapterCause?.constraint?.index === PENDING_PER_RESERVATION_INDEX ||
+    (adapterCause?.originalMessage ?? "").includes(PENDING_PER_RESERVATION_INDEX) ||
+    String(cause?.target ?? "").includes(PENDING_PER_RESERVATION_INDEX)
+  );
+}
+
+function alreadyPendingError(reservationNo: string, requestNo: string): AppError {
+  return rescheduleError(
+    "RESCHEDULE_ALREADY_PENDING",
+    `無法送出：預約 ${reservationNo} 已有一筆改期審核中的申請 ${requestNo}，請先撤回這筆申請，再重新申請改期。`,
+  );
+}
+
 /**
  * 成員送出改期（POST /api/reservations/:reservationId/reschedule-requests）。
  * 在單一互動式交易內完成 FR-001 的可改期檢查；免審核設備即時改期（FR-002），
- * 新時段占用由 uq_reservations_active_slot 保護，P2002 轉成 409 RESCHEDULE_SLOT_CONFLICT（FR-014）。
+ * 新時段占用由 uq_reservations_active_slot 保護，P2002 轉成 409 RESCHEDULE_SLOT_CONFLICT（FR-014）；
+ * 需人工審核設備只建立 pending_approval 申請（FR-003），同一預約已有審核中申請時回 409 RESCHEDULE_ALREADY_PENDING（FR-004）。
  */
 export async function createRescheduleRequest(params: {
   userId: string;
@@ -167,6 +197,7 @@ export async function createRescheduleRequest(params: {
 
   // 交易回滾後組 P2002 訊息時使用
   let conflictMessage: string | null = null;
+  let reservationNoForError: string | null = null;
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -189,12 +220,21 @@ export async function createRescheduleRequest(params: {
       const fromDateStr = formatUtcDateToDateStr(reservation.reservation_date);
       const fromSlot = reservation.slot;
       const fromText = formatSlotText(fromDateStr, fromSlot);
+      reservationNoForError = reservation.reservation_no;
 
       if (reservation.status !== "confirmed") {
         throw rescheduleError(
           "RESCHEDULE_NOT_ALLOWED",
           `無法改期：預約 ${reservation.reservation_no} 目前為「${RESERVATION_STATUS_LABEL[reservation.status]}」。只有原時段尚未開始的「已核准／有效」預約可以改期。`,
         );
+      }
+
+      // 免審核與需人工審核兩條路徑都先檢查單一審核中限制（FR-004）
+      const existingPending = await tx.reschedule_requests.findFirst({
+        where: { reservation_id: reservation.id, status: "pending_approval", deleted_at: null },
+      });
+      if (existingPending) {
+        throw alreadyPendingError(reservation.reservation_no, existingPending.request_no);
       }
 
       const now = new Date();
@@ -269,8 +309,33 @@ export async function createRescheduleRequest(params: {
       }
 
       if (reservation.equipment.requires_approval) {
-        // 需人工審核設備建立 pending_approval 申請的路徑由 T026 實作
-        throw new Error("需人工審核設備的改期申請尚未實作。");
+        // 需人工審核設備（FR-003）：只建立 pending_approval 申請，不寫入 reservations、不保留新時段
+        const pending = await tx.reschedule_requests.create({
+          data: {
+            request_no: generateRescheduleRequestNo(now),
+            reservation_id: reservation.id,
+            user_id: params.userId,
+            from_reservation_date: reservation.reservation_date,
+            from_slot_id: fromSlot.id,
+            to_reservation_date: toDateUtc,
+            to_slot_id: toSlot.id,
+            status: "pending_approval",
+            created_at: now,
+            updated_at: now,
+            updated_by: params.userId,
+          },
+          include: { from_slot: true, to_slot: true, reviewer: true },
+        });
+
+        const unchangedReservation = await tx.reservations.findUniqueOrThrow({
+          where: { id: reservation.id },
+          include: memberReservationInclude,
+        });
+
+        return {
+          rescheduleRequest: toRescheduleRequestDto(pending),
+          reservation: toMemberReservationDto(unchangedReservation, now),
+        };
       }
 
       // 只在預約仍為原日期時段且為 confirmed 時改寫，避免同一預約的並發改期或取消互相覆蓋
@@ -326,6 +391,20 @@ export async function createRescheduleRequest(params: {
       };
     });
   } catch (err: unknown) {
+    if (isUniqueViolation(err) && isPendingPerReservationViolation(err)) {
+      // 並發送出時只成立一筆（FR-004）：交易已回滾，查出已成立的申請編號組訊息
+      const winner = await prisma.reschedule_requests.findFirst({
+        where: {
+          reservation_id: params.reservationId,
+          status: "pending_approval",
+          deleted_at: null,
+        },
+      });
+      throw alreadyPendingError(
+        reservationNoForError ?? params.reservationId,
+        winner?.request_no ?? "（另一筆）",
+      );
+    }
     if (isUniqueViolation(err)) {
       throw rescheduleError(
         "RESCHEDULE_SLOT_CONFLICT",
@@ -334,4 +413,390 @@ export async function createRescheduleRequest(params: {
     }
     throw err;
   }
+}
+
+export interface AdminRescheduleRequestItemDto {
+  id: string;
+  requestNumber: string;
+  reservationId: string;
+  reservationNumber: string;
+  userId: string;
+  username: string;
+  userDisplayName: string;
+  equipmentId: string;
+  equipmentCode: string;
+  equipmentName: string;
+  equipmentRequiresApproval: boolean;
+  status: RescheduleRequestStatus;
+  fromReservationDate: string;
+  fromSlot: TimeSlotSummaryDto;
+  toReservationDate: string;
+  toSlot: TimeSlotSummaryDto;
+  createdAt: string;
+  reviewedBy: string | null;
+  reviewedByUsername: string | null;
+  reviewedByDisplayName: string | null;
+  reviewedAt: string | null;
+  rejectReason: string | null;
+  withdrawnAt: string | null;
+  expiredAt: string | null;
+  expireReason: RescheduleExpireReason | null;
+}
+
+export interface AdminRescheduleRequestPageDto {
+  items: AdminRescheduleRequestItemDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export const adminRescheduleRequestInclude = {
+  reservation: { include: { equipment: true } },
+  user: true,
+  reviewer: true,
+  from_slot: true,
+  to_slot: true,
+} as const;
+
+export function toAdminRescheduleRequestDto(row: {
+  id: string;
+  request_no: string;
+  reservation_id: string;
+  user_id: string;
+  status: RescheduleRequestStatus;
+  from_reservation_date: Date;
+  to_reservation_date: Date;
+  created_at: Date;
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  reject_reason: string | null;
+  withdrawn_at: Date | null;
+  expired_at: Date | null;
+  expire_reason: RescheduleExpireReason | null;
+  from_slot: SlotRow;
+  to_slot: SlotRow;
+  user: { username: string; display_name: string };
+  reviewer: { username: string; display_name: string } | null;
+  reservation: {
+    reservation_no: string;
+    equipment_id: string;
+    equipment: { equipment_code: string; name: string; requires_approval: boolean };
+  };
+}): AdminRescheduleRequestItemDto {
+  return {
+    id: row.id,
+    requestNumber: row.request_no,
+    reservationId: row.reservation_id,
+    reservationNumber: row.reservation.reservation_no,
+    userId: row.user_id,
+    username: row.user.username,
+    userDisplayName: row.user.display_name,
+    equipmentId: row.reservation.equipment_id,
+    equipmentCode: row.reservation.equipment.equipment_code,
+    equipmentName: row.reservation.equipment.name,
+    equipmentRequiresApproval: row.reservation.equipment.requires_approval,
+    status: row.status,
+    fromReservationDate: formatUtcDateToDateStr(row.from_reservation_date),
+    fromSlot: toTimeSlotSummaryDto(row.from_slot),
+    toReservationDate: formatUtcDateToDateStr(row.to_reservation_date),
+    toSlot: toTimeSlotSummaryDto(row.to_slot),
+    createdAt: row.created_at.toISOString(),
+    reviewedBy: row.reviewed_by,
+    reviewedByUsername: row.reviewer ? row.reviewer.username : null,
+    reviewedByDisplayName: row.reviewer ? row.reviewer.display_name : null,
+    reviewedAt: row.reviewed_at ? row.reviewed_at.toISOString() : null,
+    rejectReason: row.reject_reason,
+    withdrawnAt: row.withdrawn_at ? row.withdrawn_at.toISOString() : null,
+    expiredAt: row.expired_at ? row.expired_at.toISOString() : null,
+    expireReason: row.expire_reason,
+  };
+}
+
+/**
+ * 管理員分頁查詢改期申請（GET /api/admin/reschedule-requests，FR-005）。
+ * 依新日期、新時段順序、申請時間與 id 排序；不受設備目前 requires_approval 影響（FR-008）。
+ */
+export async function listRescheduleRequests(params: {
+  status?: RescheduleRequestStatus;
+  equipmentId?: string;
+  page: number;
+  pageSize: number;
+}): Promise<AdminRescheduleRequestPageDto> {
+  const whereClause = {
+    deleted_at: null as Date | null,
+    ...(params.status ? { status: params.status } : {}),
+    ...(params.equipmentId ? { reservation: { equipment_id: params.equipmentId } } : {}),
+  };
+
+  const totalItems = await prisma.reschedule_requests.count({ where: whereClause });
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+
+  if (totalPages === 0 || params.page > totalPages) {
+    return {
+      items: [],
+      page: params.page,
+      pageSize: params.pageSize,
+      totalItems,
+      totalPages,
+    };
+  }
+
+  const rows = await prisma.reschedule_requests.findMany({
+    where: whereClause,
+    include: adminRescheduleRequestInclude,
+    orderBy: [
+      { to_reservation_date: "asc" },
+      { to_slot: { sort_order: "asc" } },
+      { created_at: "asc" },
+      { id: "asc" },
+    ],
+    skip: (params.page - 1) * params.pageSize,
+    take: params.pageSize,
+  });
+
+  return {
+    items: rows.map((row) => toAdminRescheduleRequestDto(row)),
+    page: params.page,
+    pageSize: params.pageSize,
+    totalItems,
+    totalPages,
+  };
+}
+
+const RESCHEDULE_STATUS_LABEL: Record<RescheduleRequestStatus, string> = {
+  pending_approval: "改期審核中",
+  approved: "改期成功",
+  rejected: "改期被駁回",
+  withdrawn: "改期已撤回",
+  expired: "改期已失效",
+};
+
+function notPendingError(
+  action: "核准" | "駁回",
+  requestNo: string,
+  status: RescheduleRequestStatus,
+) {
+  return rescheduleError(
+    "INVALID_RESCHEDULE_STATUS",
+    `無法${action}：改期申請 ${requestNo} 目前為「${RESCHEDULE_STATUS_LABEL[status]}」。只有「改期審核中」的申請可以核准或駁回。`,
+  );
+}
+
+/**
+ * 管理員核准改期申請（POST /api/admin/reschedule-requests/:rescheduleRequestId/approve，FR-006）。
+ * 單一交易內重檢申請狀態、原預約狀態、原／新時段尚未開始與新時段占用；
+ * 新時段被占用或寫入違反 uq_reservations_active_slot（P2002）時回 409 RESCHEDULE_SLOT_CONFLICT，交易回滾、申請維持 pending_approval。
+ */
+interface ApproveConflictContext {
+  requestNo: string;
+  equipmentId: string;
+  toDate: Date;
+  toSlotId: string;
+  toText: string;
+  memberName: string;
+  reservationNo: string;
+  fromText: string;
+}
+
+function buildApproveConflictMessage(ctx: ApproveConflictContext, occupantNo: string): string {
+  return `無法核准改期申請 ${ctx.requestNo}：新時段 ${ctx.toText} 已被預約 ${occupantNo} 占用。這筆申請維持「改期審核中」，${ctx.memberName}的預約 ${ctx.reservationNo} 仍為 ${ctx.fromText}。您可以改為駁回。`;
+}
+
+export async function approveRescheduleRequest(params: {
+  adminUserId: string;
+  rescheduleRequestId: string;
+}): Promise<AdminRescheduleRequestItemDto> {
+  // 交易回滾後組 P2002 訊息時使用
+  const conflictHolder: { ctx: ApproveConflictContext | null } = { ctx: null };
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const request = await tx.reschedule_requests.findFirst({
+        where: { id: params.rescheduleRequestId, deleted_at: null },
+        include: adminRescheduleRequestInclude,
+      });
+      if (!request) {
+        throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的改期申請不存在。");
+      }
+
+      if (request.status !== "pending_approval") {
+        throw notPendingError("核准", request.request_no, request.status);
+      }
+
+      const reservation = request.reservation;
+      const fromDateStr = formatUtcDateToDateStr(request.from_reservation_date);
+      const toDateStr = formatUtcDateToDateStr(request.to_reservation_date);
+      const fromText = formatSlotText(fromDateStr, request.from_slot);
+      const toText = formatSlotText(toDateStr, request.to_slot);
+
+      if (reservation.status !== "confirmed") {
+        throw rescheduleError(
+          "INVALID_RESCHEDULE_STATUS",
+          `無法核准：改期申請 ${request.request_no} 的原預約 ${reservation.reservation_no} 目前為「${RESERVATION_STATUS_LABEL[reservation.status]}」，不是「已核准／有效」，這筆申請不能再核准。`,
+        );
+      }
+
+      const now = new Date();
+      if (hasSlotStarted(fromDateStr, request.from_slot.start_time, now)) {
+        throw rescheduleError(
+          "INVALID_RESCHEDULE_STATUS",
+          `無法核准：改期申請 ${request.request_no} 的原時段 ${fromText} 已開始，這筆申請不能再核准。${request.user.display_name}的預約 ${reservation.reservation_no} 維持原時段。`,
+        );
+      }
+      if (hasSlotStarted(toDateStr, request.to_slot.start_time, now)) {
+        throw rescheduleError(
+          "INVALID_RESCHEDULE_STATUS",
+          `無法核准：改期申請 ${request.request_no} 的新時段 ${toText} 已開始，這筆申請不能再核准。${request.user.display_name}的預約 ${reservation.reservation_no} 維持原時段。`,
+        );
+      }
+
+      const conflictContext: ApproveConflictContext = {
+        requestNo: request.request_no,
+        equipmentId: reservation.equipment_id,
+        toDate: request.to_reservation_date,
+        toSlotId: request.to_slot_id,
+        toText,
+        memberName: request.user.display_name,
+        reservationNo: reservation.reservation_no,
+        fromText,
+      };
+      conflictHolder.ctx = conflictContext;
+
+      const occupied = await tx.reservations.findFirst({
+        where: {
+          equipment_id: reservation.equipment_id,
+          reservation_date: request.to_reservation_date,
+          slot_id: request.to_slot_id,
+          status: { in: ["confirmed", "checked_out", "returned"] },
+          deleted_at: null,
+        },
+      });
+      if (occupied) {
+        throw rescheduleError(
+          "RESCHEDULE_SLOT_CONFLICT",
+          buildApproveConflictMessage(conflictContext, occupied.reservation_no),
+        );
+      }
+
+      // 只在預約仍為原日期時段且為 confirmed 時改寫（id、reservation_no、status 不變）
+      const moved = await tx.reservations.updateMany({
+        where: {
+          id: request.reservation_id,
+          reservation_date: request.from_reservation_date,
+          slot_id: request.from_slot_id,
+          status: "confirmed",
+          deleted_at: null,
+        },
+        data: {
+          reservation_date: request.to_reservation_date,
+          slot_id: request.to_slot_id,
+          updated_at: now,
+          updated_by: params.adminUserId,
+        },
+      });
+      if (moved.count !== 1) {
+        throw rescheduleError(
+          "INVALID_RESCHEDULE_STATUS",
+          `無法核准：改期申請 ${request.request_no} 的原預約 ${reservation.reservation_no} 剛被變更，請重新整理後再試。`,
+        );
+      }
+
+      // 只在申請仍為 pending_approval 時改為 approved，避免與撤回或另一位管理員的審核互相覆蓋
+      const reviewed = await tx.reschedule_requests.updateMany({
+        where: { id: request.id, status: "pending_approval", deleted_at: null },
+        data: {
+          status: "approved",
+          reviewed_by: params.adminUserId,
+          reviewed_at: now,
+          updated_at: now,
+          updated_by: params.adminUserId,
+        },
+      });
+      if (reviewed.count !== 1) {
+        throw rescheduleError(
+          "INVALID_RESCHEDULE_STATUS",
+          `無法核准：改期申請 ${request.request_no} 剛被處理，已不是「改期審核中」。`,
+        );
+      }
+
+      const updated = await tx.reschedule_requests.findUniqueOrThrow({
+        where: { id: request.id },
+        include: adminRescheduleRequestInclude,
+      });
+      return toAdminRescheduleRequestDto(updated);
+    });
+  } catch (err: unknown) {
+    const ctx = conflictHolder.ctx;
+    if (isUniqueViolation(err) && ctx) {
+      const occupant = await prisma.reservations.findFirst({
+        where: {
+          equipment_id: ctx.equipmentId,
+          reservation_date: ctx.toDate,
+          slot_id: ctx.toSlotId,
+          status: { in: ["confirmed", "checked_out", "returned"] },
+          deleted_at: null,
+        },
+      });
+      throw rescheduleError(
+        "RESCHEDULE_SLOT_CONFLICT",
+        buildApproveConflictMessage(ctx, occupant?.reservation_no ?? "（另一筆預約）"),
+      );
+    }
+    throw err;
+  }
+}
+
+/**
+ * 管理員駁回改期申請（POST /api/admin/reschedule-requests/:rescheduleRequestId/reject，FR-007）。
+ * 只把 pending_approval 申請改為 rejected 並記錄審核者、審核時間與選填駁回原因；原預約不寫入（SC-002）。
+ */
+export async function rejectRescheduleRequest(params: {
+  adminUserId: string;
+  rescheduleRequestId: string;
+  rejectReason?: string | null;
+}): Promise<AdminRescheduleRequestItemDto> {
+  const trimmedReason = params.rejectReason?.trim() ?? "";
+  if (trimmedReason.length > 200) {
+    throw new AppError("VALIDATION_FAILED", 400, "駁回原因為選填，但長度不得超過 200 字。");
+  }
+  const rejectReason = trimmedReason === "" ? null : trimmedReason;
+
+  return prisma.$transaction(async (tx) => {
+    const request = await tx.reschedule_requests.findFirst({
+      where: { id: params.rescheduleRequestId, deleted_at: null },
+    });
+    if (!request) {
+      throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的改期申請不存在。");
+    }
+    if (request.status !== "pending_approval") {
+      throw notPendingError("駁回", request.request_no, request.status);
+    }
+
+    const now = new Date();
+    // 只在申請仍為 pending_approval 時改為 rejected，避免與撤回或核准互相覆蓋
+    const reviewed = await tx.reschedule_requests.updateMany({
+      where: { id: request.id, status: "pending_approval", deleted_at: null },
+      data: {
+        status: "rejected",
+        reviewed_by: params.adminUserId,
+        reviewed_at: now,
+        reject_reason: rejectReason,
+        updated_at: now,
+        updated_by: params.adminUserId,
+      },
+    });
+    if (reviewed.count !== 1) {
+      throw rescheduleError(
+        "INVALID_RESCHEDULE_STATUS",
+        `無法駁回：改期申請 ${request.request_no} 剛被處理，已不是「改期審核中」。`,
+      );
+    }
+
+    const updated = await tx.reschedule_requests.findUniqueOrThrow({
+      where: { id: request.id },
+      include: adminRescheduleRequestInclude,
+    });
+    return toAdminRescheduleRequestDto(updated);
+  });
 }

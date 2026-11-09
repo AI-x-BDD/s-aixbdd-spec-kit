@@ -11,6 +11,11 @@ import {
   rejectReservation,
   returnReservationByAdmin,
 } from "../services/reservationService.js";
+import {
+  approveRescheduleRequest,
+  listRescheduleRequests,
+  rejectRescheduleRequest,
+} from "../services/rescheduleService.js";
 
 export const adminRouter = express.Router();
 
@@ -191,6 +196,79 @@ adminRouter.post(
     const result = await returnReservationByAdmin({
       adminUserId: req.authUser!.id,
       reservationId,
+    });
+    res.status(200).json(result);
+  },
+);
+
+const listRescheduleRequestsQuerySchema = z.object({
+  status: z
+    .enum(["pending_approval", "approved", "rejected", "withdrawn", "expired"], {
+      message:
+        "查詢參數 status 必須為 pending_approval、approved、rejected、withdrawn 或 expired。",
+    })
+    .optional(),
+  equipmentId: z.string().uuid("設備 ID 格式不合法").optional(),
+});
+
+const rescheduleRequestIdParamsSchema = z.object({
+  rescheduleRequestId: z.string().uuid("改期申請 ID 格式不合法"),
+});
+
+const rejectRescheduleBodySchema = z
+  .object({
+    rejectReason: z
+      .string()
+      .max(200, "駁回原因為選填，但長度不得超過 200 字。")
+      .nullable()
+      .optional(),
+  })
+  .optional();
+
+adminRouter.get("/reschedule-requests", requireAuth, requireAdmin, async (req, res) => {
+  const { page, pageSize } = parsePaginationParams(req.query);
+  const query = listRescheduleRequestsQuerySchema.parse({
+    status: req.query.status,
+    equipmentId: req.query.equipmentId,
+  });
+
+  const result = await listRescheduleRequests({
+    status: query.status,
+    equipmentId: query.equipmentId,
+    page,
+    pageSize,
+  });
+
+  res.status(200).json(result);
+});
+
+adminRouter.post(
+  "/reschedule-requests/:rescheduleRequestId/approve",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { rescheduleRequestId } = rescheduleRequestIdParamsSchema.parse(req.params);
+    const result = await approveRescheduleRequest({
+      adminUserId: req.authUser!.id,
+      rescheduleRequestId,
+    });
+    res.status(200).json(result);
+  },
+);
+
+adminRouter.post(
+  "/reschedule-requests/:rescheduleRequestId/reject",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { rescheduleRequestId } = rescheduleRequestIdParamsSchema.parse(req.params);
+    const parsedBody = rejectRescheduleBodySchema.parse(
+      req.body && Object.keys(req.body).length > 0 ? req.body : undefined,
+    );
+    const result = await rejectRescheduleRequest({
+      adminUserId: req.authUser!.id,
+      rescheduleRequestId,
+      rejectReason: parsedBody?.rejectReason ?? null,
     });
     res.status(200).json(result);
   },
