@@ -301,6 +301,190 @@ export async function listMyReservations(params: {
   };
 }
 
+function getStatusZhLabel(status: ReservationStatus): string {
+  switch (status) {
+    case "pending_approval":
+      return "待審核";
+    case "confirmed":
+      return "已核准／有效";
+    case "rejected":
+      return "已駁回";
+    case "cancelled":
+      return "已取消";
+  }
+}
+
+export async function approveReservation(params: {
+  adminUserId: string;
+  reservationId: string;
+}): Promise<AdminReservationItemDto> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const existing = await tx.reservations.findFirst({
+        where: {
+          id: params.reservationId,
+          deleted_at: null,
+        },
+        include: {
+          user: true,
+          equipment: true,
+          slot: true,
+          reviewer: true,
+        },
+      });
+
+      if (!existing) {
+        throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的待審核預約申請紀錄不存在。");
+      }
+
+      if (existing.status !== "pending_approval") {
+        throw new AppError(
+          "INVALID_RESERVATION_STATUS",
+          409,
+          `無法執行審核：預約編號 ${existing.reservation_no} 目前狀態為「${getStatusZhLabel(existing.status)}」，僅處於「待審核」狀態的申請可執行核准或駁回。`,
+        );
+      }
+
+      const reservationDateStr = formatUtcDateToDateStr(existing.reservation_date);
+      if (hasSlotStarted(reservationDateStr, existing.slot.start_time)) {
+        throw new AppError(
+          "RESERVATION_ALREADY_STARTED",
+          400,
+          `無法執行審核：該筆申請的預約時段（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已到達或超過開始時間，管理員僅能審核尚未開始的待審核申請。`,
+        );
+      }
+
+      const conflict = await tx.reservations.findFirst({
+        where: {
+          equipment_id: existing.equipment_id,
+          reservation_date: existing.reservation_date,
+          slot_id: existing.slot_id,
+          status: "confirmed",
+          deleted_at: null,
+        },
+      });
+
+      if (conflict) {
+        throw new AppError(
+          "RESERVATION_CONFLICT",
+          409,
+          `無法核准申請：預約編號 ${existing.reservation_no} 所申請的 ${existing.equipment.equipment_code} ${existing.equipment.name}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已被另一筆「已核准／有效」預約（${conflict.reservation_no}）占用；${existing.reservation_no} 仍維持「待審核」狀態，請改為執行駁回。`,
+        );
+      }
+
+      const now = new Date();
+      const updated = await tx.reservations.update({
+        where: { id: existing.id },
+        data: {
+          status: "confirmed",
+          reviewed_by: params.adminUserId,
+          reviewed_at: now,
+          updated_at: now,
+          updated_by: params.adminUserId,
+        },
+        include: {
+          user: true,
+          equipment: true,
+          slot: true,
+          reviewer: true,
+        },
+      });
+
+      return toAdminReservationDto(updated);
+    });
+  } catch (err: unknown) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      (err as { code?: string }).code === "P2002"
+    ) {
+      throw new AppError(
+        "RESERVATION_CONFLICT",
+        409,
+        "無法核准申請：該設備於同一日期與同一固定時段剛剛已被另一筆「已核准／有效」預約占用；本筆申請仍維持「待審核」狀態，請改為執行駁回。",
+      );
+    }
+    throw err;
+  }
+}
+
+export async function rejectReservation(params: {
+  adminUserId: string;
+  reservationId: string;
+  rejectReason?: string | null;
+}): Promise<AdminReservationItemDto> {
+  const normalizedReason =
+    params.rejectReason !== undefined && params.rejectReason !== null
+      ? params.rejectReason.trim()
+      : null;
+
+  if (normalizedReason !== null && normalizedReason.length > 200) {
+    throw new AppError(
+      "VALIDATION_FAILED",
+      400,
+      `駁回原因為選填，但長度不得超過 200 字（目前已輸入 ${normalizedReason.length} 字）。`,
+    );
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.reservations.findFirst({
+      where: {
+        id: params.reservationId,
+        deleted_at: null,
+      },
+      include: {
+        user: true,
+        equipment: true,
+        slot: true,
+        reviewer: true,
+      },
+    });
+
+    if (!existing) {
+      throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的待審核預約申請紀錄不存在。");
+    }
+
+    if (existing.status !== "pending_approval") {
+      throw new AppError(
+        "INVALID_RESERVATION_STATUS",
+        409,
+        `無法執行審核：預約編號 ${existing.reservation_no} 目前狀態為「${getStatusZhLabel(existing.status)}」，僅處於「待審核」狀態的申請可執行核准或駁回。`,
+      );
+    }
+
+    const reservationDateStr = formatUtcDateToDateStr(existing.reservation_date);
+    if (hasSlotStarted(reservationDateStr, existing.slot.start_time)) {
+      throw new AppError(
+        "RESERVATION_ALREADY_STARTED",
+        400,
+        `無法執行審核：該筆申請的預約時段（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已到達或超過開始時間，管理員僅能審核尚未開始的待審核申請。`,
+      );
+    }
+
+    const now = new Date();
+    const updated = await tx.reservations.update({
+      where: { id: existing.id },
+      data: {
+        status: "rejected",
+        reviewed_by: params.adminUserId,
+        reviewed_at: now,
+        reject_reason: normalizedReason && normalizedReason.length > 0 ? normalizedReason : null,
+        updated_at: now,
+        updated_by: params.adminUserId,
+      },
+      include: {
+        user: true,
+        equipment: true,
+        slot: true,
+        reviewer: true,
+      },
+    });
+
+    return toAdminReservationDto(updated);
+  });
+}
+
 export async function cancelReservation(params: {
   userId: string;
   reservationId: string;
@@ -389,6 +573,104 @@ export interface AdminReservationPageDto {
   totalPages: number;
 }
 
+export function toAdminReservationDto(row: {
+  id: string;
+  reservation_no: string;
+  user_id: string;
+  equipment_id: string;
+  reservation_date: Date;
+  slot_id: string;
+  status: ReservationStatus;
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  reject_reason: string | null;
+  created_at: Date;
+  cancelled_at: Date | null;
+  user: {
+    username: string;
+    display_name: string;
+  };
+  equipment: {
+    equipment_code: string;
+    name: string;
+    category: string;
+    requires_approval: boolean;
+  };
+  slot: {
+    name: string;
+    start_time: string;
+    end_time: string;
+    sort_order: number;
+  };
+  reviewer?: {
+    username: string;
+    display_name: string;
+  } | null;
+}): AdminReservationItemDto {
+  return {
+    ...toReservationDto(row),
+    username: row.user.username,
+    userDisplayName: row.user.display_name,
+    reviewedByUsername: row.reviewer ? row.reviewer.username : null,
+  };
+}
+
+export async function listPendingReservations(params: {
+  equipmentId?: string;
+  page: number;
+  pageSize: number;
+}): Promise<AdminReservationPageDto> {
+  const whereClause = {
+    deleted_at: null as Date | null,
+    status: "pending_approval" as const,
+    ...(params.equipmentId ? { equipment_id: params.equipmentId } : {}),
+  };
+
+  const totalItems = await prisma.reservations.count({
+    where: whereClause,
+  });
+
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+
+  if (totalPages === 0 || params.page > totalPages) {
+    return {
+      items: [],
+      page: params.page,
+      pageSize: params.pageSize,
+      totalItems,
+      totalPages,
+    };
+  }
+
+  const skip = (params.page - 1) * params.pageSize;
+
+  const rows = await prisma.reservations.findMany({
+    where: whereClause,
+    include: {
+      user: true,
+      equipment: true,
+      slot: true,
+      reviewer: true,
+    },
+    orderBy: [
+      { reservation_date: "asc" },
+      { slot: { sort_order: "asc" } },
+      { created_at: "asc" },
+      { id: "asc" },
+    ],
+    skip,
+    take: params.pageSize,
+  });
+
+  return {
+    items: rows.map(toAdminReservationDto),
+    page: params.page,
+    pageSize: params.pageSize,
+    totalItems,
+    totalPages,
+  };
+}
+
 export async function listAllReservations(params: {
   status?: ReservationStatus;
   equipmentId?: string;
@@ -438,12 +720,7 @@ export async function listAllReservations(params: {
   });
 
   return {
-    items: rows.map((row) => ({
-      ...toReservationDto(row),
-      username: row.user.username,
-      userDisplayName: row.user.display_name,
-      reviewedByUsername: row.reviewer ? row.reviewer.username : null,
-    })),
+    items: rows.map(toAdminReservationDto),
     page: params.page,
     pageSize: params.pageSize,
     totalItems,
