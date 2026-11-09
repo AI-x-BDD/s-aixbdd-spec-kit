@@ -3,7 +3,13 @@ import { getErrorMessage } from "../text/zh-TW";
 const SESSION_TOKEN_KEY = "el_session_token";
 
 export type SlotStatus =
-  "AVAILABLE" | "MY_PENDING" | "MY_CONFIRMED" | "MY_CHECKED_OUT" | "MY_RETURNED" | "OCCUPIED";
+  | "AVAILABLE"
+  | "MY_PENDING"
+  | "MY_CONFIRMED"
+  | "MY_CHECKED_OUT"
+  | "MY_RETURNED"
+  | "OCCUPIED"
+  | "MY_RESCHEDULE_PENDING";
 
 export type SlotAvailabilityStatus =
   | "available"
@@ -11,10 +17,65 @@ export type SlotAvailabilityStatus =
   | "booked_by_me"
   | "checked_out_by_me"
   | "returned_by_me"
-  | "booked_by_others";
+  | "booked_by_others"
+  | "reschedule_pending_by_me";
 
 export type ReservationStatus =
   "pending_approval" | "confirmed" | "checked_out" | "returned" | "rejected" | "cancelled";
+
+export type RescheduleRequestStatus =
+  "pending_approval" | "approved" | "rejected" | "withdrawn" | "expired";
+
+export type RescheduleExpireReason =
+  | "original_slot_started"
+  | "new_slot_started"
+  | "reservation_cancelled"
+  | "reservation_checked_out";
+
+export interface TimeSlotSummary {
+  slotId: string;
+  slotName: "上午" | "下午" | "晚間";
+  startTime: string;
+  endTime: string;
+  sortOrder: number;
+}
+
+export interface MyRescheduleSlotRef {
+  rescheduleRequestId: string;
+  requestNumber: string;
+  reservationId: string;
+  reservationNumber: string;
+  fromReservationDate: string;
+  fromSlot: TimeSlotSummary;
+}
+
+export interface PendingRescheduleSummary {
+  id: string;
+  requestNumber: string;
+  toReservationDate: string;
+  toSlot: TimeSlotSummary;
+  createdAt: string;
+}
+
+export interface RescheduleRequest {
+  id: string;
+  requestNumber: string;
+  reservationId: string;
+  status: RescheduleRequestStatus;
+  fromReservationDate: string;
+  fromSlot: TimeSlotSummary;
+  toReservationDate: string;
+  toSlot: TimeSlotSummary;
+  createdAt: string;
+  reviewedBy: string | null;
+  reviewedByDisplayName: string | null;
+  reviewedAt: string | null;
+  rejectReason: string | null;
+  withdrawnAt: string | null;
+  expiredAt: string | null;
+  expireReason: RescheduleExpireReason | null;
+  canWithdraw: boolean;
+}
 
 export interface SlotAvailabilityDto {
   slotId: string;
@@ -27,6 +88,7 @@ export interface SlotAvailabilityDto {
   availabilityStatus: SlotAvailabilityStatus;
   isBookable: boolean;
   myReservationId: string | null;
+  myRescheduleRequest: MyRescheduleSlotRef | null;
 }
 
 export type EquipmentSlotAvailability = SlotAvailabilityDto;
@@ -50,7 +112,7 @@ export interface EquipmentAvailabilityPageDto {
   totalPages: number;
 }
 
-export interface ReservationDto {
+interface ReservationBaseDto {
   id: string;
   reservationNumber: string;
   userId: string;
@@ -81,6 +143,12 @@ export interface ReservationDto {
   cancelledAt: string | null;
 }
 
+export interface ReservationDto extends ReservationBaseDto {
+  canReschedule: boolean;
+  pendingRescheduleRequest: PendingRescheduleSummary | null;
+  rescheduleRequests: RescheduleRequest[];
+}
+
 export type Reservation = ReservationDto;
 
 export interface ReservationPageDto {
@@ -91,7 +159,7 @@ export interface ReservationPageDto {
   totalPages: number;
 }
 
-export interface AdminReservationItemDto extends ReservationDto {
+export interface AdminReservationItemDto extends ReservationBaseDto {
   username: string;
   userDisplayName: string;
   reviewedByUsername: string | null;
@@ -99,6 +167,7 @@ export interface AdminReservationItemDto extends ReservationDto {
   returnedByUsername: string | null;
   canPickup: boolean;
   canReturn: boolean;
+  pendingRescheduleRequest: PendingRescheduleSummary | null;
 }
 
 export type AdminReservationItem = AdminReservationItemDto;
@@ -109,6 +178,47 @@ export interface AdminReservationPageDto {
   pageSize: number;
   totalItems: number;
   totalPages: number;
+}
+
+export interface AdminRescheduleRequestItem {
+  id: string;
+  requestNumber: string;
+  reservationId: string;
+  reservationNumber: string;
+  userId: string;
+  username: string;
+  userDisplayName: string;
+  equipmentId: string;
+  equipmentCode: string;
+  equipmentName: string;
+  equipmentRequiresApproval: boolean;
+  status: RescheduleRequestStatus;
+  fromReservationDate: string;
+  fromSlot: TimeSlotSummary;
+  toReservationDate: string;
+  toSlot: TimeSlotSummary;
+  createdAt: string;
+  reviewedBy: string | null;
+  reviewedByUsername: string | null;
+  reviewedByDisplayName: string | null;
+  reviewedAt: string | null;
+  rejectReason: string | null;
+  withdrawnAt: string | null;
+  expiredAt: string | null;
+  expireReason: RescheduleExpireReason | null;
+}
+
+export interface AdminRescheduleRequestPage {
+  items: AdminRescheduleRequestItem[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface CreateRescheduleRequestResponse {
+  rescheduleRequest: RescheduleRequest;
+  reservation: ReservationDto;
 }
 
 export interface AdminEquipmentSettingDto {

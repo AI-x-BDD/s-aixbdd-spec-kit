@@ -20,7 +20,44 @@ export type ErrorCode =
   | "PICKUP_WINDOW_EXPIRED"
   | "RESERVATION_ALREADY_CHECKED_OUT"
   | "RESERVATION_ALREADY_STARTED"
-  | "RESERVATION_ALREADY_CANCELLED";
+  | "RESERVATION_ALREADY_CANCELLED"
+  | RescheduleErrorCode;
+
+export type RescheduleErrorCode =
+  | "RESCHEDULE_NOT_ALLOWED"
+  | "RESCHEDULE_TARGET_INVALID"
+  | "RESCHEDULE_SLOT_CONFLICT"
+  | "RESCHEDULE_ALREADY_PENDING"
+  | "INVALID_RESCHEDULE_STATUS";
+
+/** 改期錯誤碼對應的 HTTP 狀態碼（contracts/openapi.yaml 的 RescheduleBadRequest、CreateRescheduleConflict、RescheduleStatusConflict、ApproveRescheduleConflict）。 */
+export const RESCHEDULE_ERROR_STATUS: Record<RescheduleErrorCode, number> = {
+  RESCHEDULE_NOT_ALLOWED: 409,
+  RESCHEDULE_TARGET_INVALID: 400,
+  RESCHEDULE_SLOT_CONFLICT: 409,
+  RESCHEDULE_ALREADY_PENDING: 409,
+  INVALID_RESCHEDULE_STATUS: 409,
+};
+
+/** 改期錯誤碼的預設繁體中文訊息；呼叫端可傳入更具體的失敗原因（NFR-001）。 */
+export const RESCHEDULE_ERROR_MESSAGE: Record<RescheduleErrorCode, string> = {
+  RESCHEDULE_NOT_ALLOWED:
+    "這筆預約目前不可申請改期：只有已核准／有效且原時段尚未開始的預約可以改期。",
+  RESCHEDULE_TARGET_INVALID:
+    "新時段不可申請：新時段不可與原時段相同、不可已開始、須在今日起 7 天內，且本人在該時段不可已有未結束的預約。",
+  RESCHEDULE_SLOT_CONFLICT: "新時段已被占用，請改選其他時段。",
+  RESCHEDULE_ALREADY_PENDING: "這筆預約已有改期審核中的申請，請先撤回後再重新申請。",
+  INVALID_RESCHEDULE_STATUS:
+    "這筆改期申請已非改期審核中（已核准、已駁回、已撤回或已失效），無法再撤回或審核。",
+};
+
+export function rescheduleError(code: RescheduleErrorCode, message?: string): AppError {
+  return new AppError(
+    code,
+    RESCHEDULE_ERROR_STATUS[code],
+    message ?? RESCHEDULE_ERROR_MESSAGE[code],
+  );
+}
 
 export class AppError extends Error {
   public readonly code: ErrorCode;

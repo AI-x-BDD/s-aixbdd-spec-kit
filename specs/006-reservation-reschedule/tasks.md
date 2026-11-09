@@ -84,7 +84,7 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 資料庫（D1–D2 共用）
 
-- [ ] T006 [P] 比對 `apps/equipment-loan/backend/prisma/schema.prisma` 與 data-model 中沿用 005 的資料表：D1 的 `users`、`captcha_challenges`、`sessions`，D2 的 `equipments`、`time_slots`、`reservations`（含 Enum `reservation_status` 的 6 個值、部分唯一索引 `uq_reservations_active_slot` 與 `uq_reservations_user_active_request`）；確認欄位、Enum 與索引一致，本次不修改這些資料表；發現差異時停下來回報（FR-015、FR-014）
+- [X] T006 [P] 比對 `apps/equipment-loan/backend/prisma/schema.prisma` 與 data-model 中沿用 005 的資料表：D1 的 `users`、`captcha_challenges`、`sessions`，D2 的 `equipments`、`time_slots`、`reservations`（含 Enum `reservation_status` 的 6 個值、部分唯一索引 `uq_reservations_active_slot` 與 `uq_reservations_user_active_request`）；確認欄位、Enum 與索引一致，本次不修改這些資料表；發現差異時停下來回報（FR-015、FR-014）
   - **Must Read**
     - `data/data-model.dbml` → `Project "reservation-reschedule"` 的 Note — Why：沿用 005 的資料表、Enum 與索引皆不變，只以增量遷移新增改期申請
     - `data/data-model.dbml` → `Table users`、`Table captcha_challenges`、`Table sessions` — Why：D1 要比對的欄位與索引
@@ -92,17 +92,17 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 後端（B1–B5 共用）
 
-- [ ] T007 [P] 在 `apps/equipment-loan/backend/src/middleware/errorHandler.ts` 加入 5 個改期錯誤碼與 HTTP 狀態碼：`RESCHEDULE_NOT_ALLOWED`（409）、`RESCHEDULE_TARGET_INVALID`（400）、`RESCHEDULE_SLOT_CONFLICT`（409）、`RESCHEDULE_ALREADY_PENDING`（409）、`INVALID_RESCHEDULE_STATUS`（409）；保留既有錯誤碼，錯誤回應維持 `{ code, message }`，`message` 以臺灣繁體中文寫出失敗原因（NFR-001）
+- [X] T007 [P] 在 `apps/equipment-loan/backend/src/middleware/errorHandler.ts` 加入 5 個改期錯誤碼與 HTTP 狀態碼：`RESCHEDULE_NOT_ALLOWED`（409）、`RESCHEDULE_TARGET_INVALID`（400）、`RESCHEDULE_SLOT_CONFLICT`（409）、`RESCHEDULE_ALREADY_PENDING`（409）、`INVALID_RESCHEDULE_STATUS`（409）；保留既有錯誤碼，錯誤回應維持 `{ code, message }`，`message` 以臺灣繁體中文寫出失敗原因（NFR-001）
   - **Must Read**
     - `contracts/openapi.yaml` → `Error` — Why：錯誤回應格式與完整錯誤碼清單
     - `contracts/openapi.yaml` → `RescheduleBadRequest`、`CreateRescheduleConflict`、`RescheduleStatusConflict`、`ApproveRescheduleConflict` — Why：5 個新錯誤碼各自對應的 HTTP 狀態碼與情況
     - `spec.md` → NFR-001 — Why：錯誤提示必須明確說明失敗原因
-- [ ] T008 [P] 在 `apps/equipment-loan/backend/src/utils/taipeiTime.ts` 擴充台灣時區工具：依預約日期與 `time_slots.start_time` 算出時段開始的 UTC 時間點、判斷時段在指定時間是否已開始、判斷日期是否在當日起算 7 天內；沿用既有 `Intl.DateTimeFormat`（`Asia/Taipei`）換算，供可改期檢查、核准檢查與自動失效共用（FR-001、FR-006、FR-011、FR-012）
+- [X] T008 [P] 在 `apps/equipment-loan/backend/src/utils/taipeiTime.ts` 擴充台灣時區工具：依預約日期與 `time_slots.start_time` 算出時段開始的 UTC 時間點、判斷時段在指定時間是否已開始、判斷日期是否在當日起算 7 天內；沿用既有 `Intl.DateTimeFormat`（`Asia/Taipei`）換算，供可改期檢查、核准檢查與自動失效共用（FR-001、FR-006、FR-011、FR-012）
   - **Must Read**
     - `research.md` → §3 — Why：時段開始時間沿用 `taipeiTime.ts` 的 `Asia/Taipei` 換算，失效時間要寫入時段開始時間
     - `data/data-model.dbml` → `Table time_slots` 的 `start_time` — Why：開始時間的格式與用途
     - `spec.md` → FR-001 — Why：7 天範圍與「尚未開始」的判斷依 `Asia/Taipei`
-- [ ] T009 [P] 確認 `apps/equipment-loan/backend/src/middleware/authMiddleware.ts` 的 `requireAuth`（未登入回 `401 UNAUTHORIZED`）與 `requireAdmin`（一般成員回 `403 FORBIDDEN`）可直接套用到本次新增的改期路由，並提供目前使用者 ID 與角色；B1 的 `createCaptchaChallenge`、`login`、`getCurrentUser`、`logout` 行為不變（FR-005、FR-015、SC-006）
+- [X] T009 [P] 確認 `apps/equipment-loan/backend/src/middleware/authMiddleware.ts` 的 `requireAuth`（未登入回 `401 UNAUTHORIZED`）與 `requireAdmin`（一般成員回 `403 FORBIDDEN`）可直接套用到本次新增的改期路由，並提供目前使用者 ID 與角色；B1 的 `createCaptchaChallenge`、`login`、`getCurrentUser`、`logout` 行為不變（FR-005、FR-015、SC-006）
   - **Must Read**
     - `contracts/openapi.yaml` → `Unauthorized`、`Forbidden` — Why：未登入、角色不符與非本人資源的錯誤回應
     - `spec.md` → FR-005、SC-006 — Why：一般成員呼叫核准或駁回改期申請必須 100% 被拒絕
@@ -111,14 +111,14 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 前端（F2–F4 共用）
 
-- [ ] T010 [P] 在 `apps/equipment-loan/frontend/src/text/zh-TW.ts` 加入改期相關的臺灣繁體中文文字：改期申請 5 態標籤（`pending_approval`「改期審核中」、`approved`「改期成功」、`rejected`「改期被駁回」、`withdrawn`「改期已撤回」、`expired`「改期已失效」）、時段狀態 `MY_RESCHEDULE_PENDING`「本人改期審核中」、4 種失效原因標籤（見 Notes 待確認 2）、5 個新錯誤碼的說明，以及「申請改期」、「撤回」、「改期申請」等按鈕與標示文字；預約 6 態標籤不變（NFR-001、FR-009、FR-017）
+- [X] T010 [P] 在 `apps/equipment-loan/frontend/src/text/zh-TW.ts` 加入改期相關的臺灣繁體中文文字：改期申請 5 態標籤（`pending_approval`「改期審核中」、`approved`「改期成功」、`rejected`「改期被駁回」、`withdrawn`「改期已撤回」、`expired`「改期已失效」）、時段狀態 `MY_RESCHEDULE_PENDING`「本人改期審核中」、4 種失效原因標籤（見 Notes 待確認 2）、5 個新錯誤碼的說明，以及「申請改期」、「撤回」、「改期申請」等按鈕與標示文字；預約 6 態標籤不變（NFR-001、FR-009、FR-017）
   - **Must Read**
     - `contracts/openapi.yaml` → `RescheduleRequestStatus`、`RescheduleExpireReason`、`SlotStatus` — Why：要對應標籤的狀態值與失效原因值
     - `contracts/openapi.yaml` → `Error` — Why：新錯誤碼的名稱
     - `spec.md` → NFR-001 — Why：新增介面文字、狀態標籤、按鈕與錯誤提示都要使用臺灣繁體中文
   - **Optional**
     - `ui/plan.md` → §4 `my-reservations.html` 的「預約清單與改期紀錄」 — Why：需要對照失效原因在畫面上的寫法時
-- [ ] T011 在 `apps/equipment-loan/frontend/src/api/client.ts` 依合約加入或擴充 TypeScript 型別：`RescheduleRequestStatus`、`RescheduleExpireReason`、`RescheduleRequest`、`PendingRescheduleSummary`、`MyRescheduleSlotRef`、`AdminRescheduleRequestItem`、`AdminRescheduleRequestPage`、`CreateRescheduleRequestResponse`；`Reservation` 新增 `canReschedule`、`pendingRescheduleRequest`、`rescheduleRequests`，`AdminReservationItem` 新增 `pendingRescheduleRequest`，`EquipmentSlotAvailability` 新增 `myRescheduleRequest` 與 `SlotStatus` 的 `MY_RESCHEDULE_PENDING`、`availabilityStatus` 的 `reschedule_pending_by_me`（FR-009、FR-017）
+- [X] T011 在 `apps/equipment-loan/frontend/src/api/client.ts` 依合約加入或擴充 TypeScript 型別：`RescheduleRequestStatus`、`RescheduleExpireReason`、`RescheduleRequest`、`PendingRescheduleSummary`、`MyRescheduleSlotRef`、`AdminRescheduleRequestItem`、`AdminRescheduleRequestPage`、`CreateRescheduleRequestResponse`；`Reservation` 新增 `canReschedule`、`pendingRescheduleRequest`、`rescheduleRequests`，`AdminReservationItem` 新增 `pendingRescheduleRequest`，`EquipmentSlotAvailability` 新增 `myRescheduleRequest` 與 `SlotStatus` 的 `MY_RESCHEDULE_PENDING`、`availabilityStatus` 的 `reschedule_pending_by_me`（FR-009、FR-017）
   - **Must Read**
     - `contracts/openapi.yaml` → `RescheduleRequest`、`PendingRescheduleSummary`、`MyRescheduleSlotRef`、`CreateRescheduleRequestResponse` — Why：改期申請相關型別的欄位與可為 null 的欄位
     - `contracts/openapi.yaml` → `Reservation`、`AdminReservationItem`、`EquipmentSlotAvailability` — Why：既有型別要新增的欄位

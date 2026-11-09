@@ -12,6 +12,21 @@ const timeFormatter = new Intl.DateTimeFormat("en-GB", {
   hour12: false,
 });
 
+const offsetFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Taipei",
+  timeZoneName: "longOffset",
+});
+
+function getTaipeiOffsetMinutes(at: Date): number {
+  const zoneName = offsetFormatter.formatToParts(at).find((p) => p.type === "timeZoneName")?.value;
+  const match = zoneName?.match(/^GMT([+-])(\d{2}):(\d{2})$/);
+  if (!match) {
+    return 0;
+  }
+  const minutes = Number(match[2]) * 60 + Number(match[3]);
+  return match[1] === "-" ? -minutes : minutes;
+}
+
 export function getTaipeiNow(now: Date = new Date()): { dateStr: string; timeStr: string } {
   const dateStr = dateFormatter.format(now);
   const timeStr = timeFormatter.format(now);
@@ -42,6 +57,7 @@ export function addDaysToDateStr(dateStr: string, days: number): string {
   return formatUtcDateToDateStr(dt);
 }
 
+/** 判斷日期是否在當日起算 7 天內（今日至今日 + 6 天，依 Asia/Taipei）；新預約與改期的新日期共用。 */
 export function isWithinOpenDateWindow(dateStr: string, now: Date = new Date()): boolean {
   if (!isValidDateString(dateStr)) {
     return false;
@@ -51,6 +67,19 @@ export function isWithinOpenDateWindow(dateStr: string, now: Date = new Date()):
   return dateStr >= todayStr && dateStr <= maxDateStr;
 }
 
+/**
+ * 依預約日期（YYYY-MM-DD，Asia/Taipei）與 time_slots.start_time（HH:mm）算出時段開始的 UTC 時間點；
+ * 供改期申請的可改期檢查、核准檢查與自動失效寫入 expired_at 共用（FR-001、FR-006、FR-011、FR-012）。
+ */
+export function getSlotStartUtc(reservationDateStr: string, slotStartTime: string): Date {
+  const [y, m, d] = reservationDateStr.split("-").map(Number);
+  const [hh, mm] = slotStartTime.split(":").map(Number);
+  const wallClockAsUtc = Date.UTC(y, m - 1, d, hh, mm);
+  const offsetMinutes = getTaipeiOffsetMinutes(new Date(wallClockAsUtc));
+  return new Date(wallClockAsUtc - offsetMinutes * 60_000);
+}
+
+/** 判斷時段在指定時間（預設現在）是否已開始，依 Asia/Taipei 解讀；改期的原時段與新時段檢查也使用本函式。 */
 export function hasSlotStarted(
   reservationDateStr: string,
   slotStartTime: string,

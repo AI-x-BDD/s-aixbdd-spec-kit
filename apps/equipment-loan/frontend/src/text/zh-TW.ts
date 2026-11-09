@@ -51,6 +51,26 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   RESERVATION_ALREADY_CANCELLED: "無法取消預約：該筆申請已經處於「已取消」狀態，無須重複取消。",
 };
 
+export type RescheduleErrorCode =
+  | "RESCHEDULE_NOT_ALLOWED"
+  | "RESCHEDULE_TARGET_INVALID"
+  | "RESCHEDULE_SLOT_CONFLICT"
+  | "RESCHEDULE_ALREADY_PENDING"
+  | "INVALID_RESCHEDULE_STATUS";
+
+/** 迭代 4 改期錯誤碼說明；與 ERROR_MESSAGES 分開，保留前三次迭代的 19 個錯誤碼清單不變（NFR-001、SC-006）。 */
+export const RESCHEDULE_ERROR_MESSAGES: Record<RescheduleErrorCode, string> = {
+  RESCHEDULE_NOT_ALLOWED:
+    "無法申請改期：只有「已核准／有效」且原時段尚未開始的預約可以改期，這筆預約目前不符合條件。",
+  RESCHEDULE_TARGET_INVALID:
+    "無法改到所選時段：新時段不可與原時段相同、不可已開始、須在今日起 7 天內，且您在該時段不可已有其他未結束的預約。",
+  RESCHEDULE_SLOT_CONFLICT: "改期失敗：新時段已被占用，原預約維持不變，請改選其他時段。",
+  RESCHEDULE_ALREADY_PENDING:
+    "無法再次申請改期：這筆預約已有一筆「改期審核中」的申請，請先撤回後再重新申請。",
+  INVALID_RESCHEDULE_STATUS:
+    "無法執行此操作：這筆改期申請已非「改期審核中」（已改期成功、被駁回、已撤回或已失效）。",
+};
+
 export const UI_TEXT = {
   brandTitle: "精密實驗設備借用中心",
   nav: {
@@ -86,6 +106,7 @@ export const UI_TEXT = {
     MY_CHECKED_OUT: "本人借用中",
     MY_RETURNED: "本人已歸還",
     OCCUPIED: "已被預約",
+    MY_RESCHEDULE_PENDING: "本人改期審核中",
   },
   reservationStatus: {
     pending_approval: "待審核",
@@ -94,6 +115,24 @@ export const UI_TEXT = {
     returned: "已歸還",
     rejected: "已駁回",
     cancelled: "已取消",
+  },
+  rescheduleStatus: {
+    pending_approval: "改期審核中",
+    approved: "改期成功",
+    rejected: "改期被駁回",
+    withdrawn: "改期已撤回",
+    expired: "改期已失效",
+  },
+  rescheduleExpireReason: {
+    original_slot_started: "原時段開始",
+    new_slot_started: "新時段開始",
+    reservation_cancelled: "原預約已取消",
+    reservation_checked_out: "原預約已登記領取",
+  },
+  reschedule: {
+    requestReschedule: "申請改期",
+    withdraw: "撤回",
+    rescheduleRequestTag: "改期申請",
   },
   actions: {
     pickup: "登記領取",
@@ -116,6 +155,9 @@ export function getErrorMessage(code?: string, fallbackMessage?: string): string
   }
   if (code && code in ERROR_MESSAGES) {
     return ERROR_MESSAGES[code as ErrorCode];
+  }
+  if (code && code in RESCHEDULE_ERROR_MESSAGES) {
+    return RESCHEDULE_ERROR_MESSAGES[code as RescheduleErrorCode];
   }
   return "操作失敗，請稍後再試。";
 }
