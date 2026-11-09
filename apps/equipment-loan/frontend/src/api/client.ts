@@ -339,8 +339,10 @@ export function createRescheduleRequest(
   );
 }
 
+/** 本人預約清單（GET /reservations/my，與 GET /reservations 行為一致）；hasPendingRescheduleRequest 供「改期審核中」篩選（FR-009）。 */
 export function listMyLoanReservations(params?: {
   status?: ReservationStatus;
+  hasPendingRescheduleRequest?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<ReservationPageDto> {
@@ -349,7 +351,17 @@ export function listMyLoanReservations(params?: {
     pageSize: String(params?.pageSize ?? 50),
   });
   if (params?.status) qs.set("status", params.status);
+  if (params?.hasPendingRescheduleRequest !== undefined) {
+    qs.set("hasPendingRescheduleRequest", String(params.hasPendingRescheduleRequest));
+  }
   return apiRequest<ReservationPageDto>(`/reservations/my?${qs.toString()}`);
+}
+
+/** 撤回本人改期審核中的申請（POST /reschedule-requests/:rescheduleRequestId/withdraw，FR-010）。 */
+export function withdrawRescheduleRequest(rescheduleRequestId: string): Promise<RescheduleRequest> {
+  return apiRequest<RescheduleRequest>(`/reschedule-requests/${rescheduleRequestId}/withdraw`, {
+    method: "POST",
+  });
 }
 
 export function fetchAdminEquipments(params?: {

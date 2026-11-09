@@ -3,6 +3,13 @@ import type { SlotAvailabilityStatus, SlotStatus } from "../api/client";
 
 export type { SlotAvailabilityStatus, SlotStatus };
 
+// 「本人改期審核中」：琥珀色虛線框，與實線框的「本人待審核」區分（ui/plan.md §2、FR-017）
+const reschedulePendingStyle: React.CSSProperties = {
+  background: "var(--surface)",
+  color: "var(--pending)",
+  border: "1px dashed var(--pending)",
+};
+
 interface SlotStatusBadgeProps {
   status: SlotAvailabilityStatus;
   slotStatus?: SlotStatus;
@@ -22,6 +29,13 @@ export function SlotStatusBadge({
   }
   if (status === "booked_by_me" || slotStatus === "MY_CONFIRMED") {
     return <span className="badge badge-mine">本人已預約</span>;
+  }
+  if (status === "reschedule_pending_by_me" || slotStatus === "MY_RESCHEDULE_PENDING") {
+    return (
+      <span className="badge badge-reschedule" style={reschedulePendingStyle}>
+        本人改期審核中
+      </span>
+    );
   }
   if (status === "pending_by_me" || slotStatus === "MY_PENDING") {
     return <span className="badge badge-pending">本人待審核</span>;

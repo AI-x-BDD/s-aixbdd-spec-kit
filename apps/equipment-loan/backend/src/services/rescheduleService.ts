@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError, rescheduleError } from "../middleware/errorHandler.js";
 import {
@@ -82,6 +83,42 @@ export function generateRescheduleRequestNo(now: Date = new Date()): string {
   const compactDate = dateStr.replace(/-/g, "");
   const suffix = randomBytes(3).toString("hex").toUpperCase();
   return `RR-${compactDate}-${suffix}`;
+}
+
+/**
+ * 惰性失效（research §3，FR-011、FR-012、SC-004）：以一條 UPDATE 把原時段或新時段開始時間已到的
+ * pending_approval 申請改為 expired；expire_reason 依先到的時段寫入 original_slot_started 或 new_slot_started，
+ * expired_at 寫入該時段的開始時間（依 Asia/Taipei 換算），updated_by 為 null。
+ * 由各操作在交易開頭呼叫，回傳本次失效的筆數。
+ */
+export async function expireDueRescheduleRequests(
+  tx: Prisma.TransactionClient,
+  now: Date = new Date(),
+): Promise<number> {
+  return tx.$executeRaw`
+    UPDATE reschedule_requests AS rr
+    SET status = 'expired'::reschedule_request_status,
+        expire_reason = CASE
+          WHEN due.from_start <= due.to_start THEN 'original_slot_started'::reschedule_expire_reason
+          ELSE 'new_slot_started'::reschedule_expire_reason
+        END,
+        expired_at = LEAST(due.from_start, due.to_start),
+        updated_at = ${now},
+        updated_by = NULL
+    FROM (
+      SELECT r.id,
+             (r.from_reservation_date + fs.start_time::time) AT TIME ZONE 'Asia/Taipei' AS from_start,
+             (r.to_reservation_date + ts.start_time::time) AT TIME ZONE 'Asia/Taipei' AS to_start
+      FROM reschedule_requests AS r
+      JOIN time_slots AS fs ON fs.id = r.from_slot_id
+      JOIN time_slots AS ts ON ts.id = r.to_slot_id
+      WHERE r.status = 'pending_approval' AND r.deleted_at IS NULL
+    ) AS due
+    WHERE rr.id = due.id
+      AND rr.status = 'pending_approval'
+      AND rr.deleted_at IS NULL
+      AND (due.from_start <= ${now} OR due.to_start <= ${now})
+  `;
 }
 
 function toTimeSlotSummaryDto(slot: SlotRow): TimeSlotSummaryDto {
@@ -201,6 +238,10 @@ export async function createRescheduleRequest(params: {
 
   try {
     return await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      // 先讓到期的改期審核中申請失效，避免已到期的申請擋住單一審核中檢查（research §3）
+      await expireDueRescheduleRequests(tx, now);
+
       const reservation = await tx.reservations.findFirst({
         where: { id: params.reservationId, deleted_at: null },
         include: { equipment: true, slot: true },
@@ -237,7 +278,6 @@ export async function createRescheduleRequest(params: {
         throw alreadyPendingError(reservation.reservation_no, existingPending.request_no);
       }
 
-      const now = new Date();
       if (hasSlotStarted(fromDateStr, fromSlot.start_time, now)) {
         throw rescheduleError(
           "RESCHEDULE_NOT_ALLOWED",
@@ -529,39 +569,44 @@ export async function listRescheduleRequests(params: {
     ...(params.equipmentId ? { reservation: { equipment_id: params.equipmentId } } : {}),
   };
 
-  const totalItems = await prisma.reschedule_requests.count({ where: whereClause });
-  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+  return prisma.$transaction(async (tx) => {
+    // 查詢前先讓到期的改期審核中申請失效（research §3）
+    await expireDueRescheduleRequests(tx, new Date());
 
-  if (totalPages === 0 || params.page > totalPages) {
+    const totalItems = await tx.reschedule_requests.count({ where: whereClause });
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+
+    if (totalPages === 0 || params.page > totalPages) {
+      return {
+        items: [],
+        page: params.page,
+        pageSize: params.pageSize,
+        totalItems,
+        totalPages,
+      };
+    }
+
+    const rows = await tx.reschedule_requests.findMany({
+      where: whereClause,
+      include: adminRescheduleRequestInclude,
+      orderBy: [
+        { to_reservation_date: "asc" },
+        { to_slot: { sort_order: "asc" } },
+        { created_at: "asc" },
+        { id: "asc" },
+      ],
+      skip: (params.page - 1) * params.pageSize,
+      take: params.pageSize,
+    });
+
     return {
-      items: [],
+      items: rows.map((row) => toAdminRescheduleRequestDto(row)),
       page: params.page,
       pageSize: params.pageSize,
       totalItems,
       totalPages,
     };
-  }
-
-  const rows = await prisma.reschedule_requests.findMany({
-    where: whereClause,
-    include: adminRescheduleRequestInclude,
-    orderBy: [
-      { to_reservation_date: "asc" },
-      { to_slot: { sort_order: "asc" } },
-      { created_at: "asc" },
-      { id: "asc" },
-    ],
-    skip: (params.page - 1) * params.pageSize,
-    take: params.pageSize,
   });
-
-  return {
-    items: rows.map((row) => toAdminRescheduleRequestDto(row)),
-    page: params.page,
-    pageSize: params.pageSize,
-    totalItems,
-    totalPages,
-  };
 }
 
 const RESCHEDULE_STATUS_LABEL: Record<RescheduleRequestStatus, string> = {
@@ -612,6 +657,10 @@ export async function approveRescheduleRequest(params: {
 
   try {
     return await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      // 先讓到期的改期審核中申請失效；已失效的申請在下方狀態檢查回 409 INVALID_RESCHEDULE_STATUS（FR-011、FR-012、SC-004）
+      await expireDueRescheduleRequests(tx, now);
+
       const request = await tx.reschedule_requests.findFirst({
         where: { id: params.rescheduleRequestId, deleted_at: null },
         include: adminRescheduleRequestInclude,
@@ -637,7 +686,6 @@ export async function approveRescheduleRequest(params: {
         );
       }
 
-      const now = new Date();
       if (hasSlotStarted(fromDateStr, request.from_slot.start_time, now)) {
         throw rescheduleError(
           "INVALID_RESCHEDULE_STATUS",
@@ -763,6 +811,10 @@ export async function rejectRescheduleRequest(params: {
   const rejectReason = trimmedReason === "" ? null : trimmedReason;
 
   return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    // 先讓到期的改期審核中申請失效（research §3）
+    await expireDueRescheduleRequests(tx, now);
+
     const request = await tx.reschedule_requests.findFirst({
       where: { id: params.rescheduleRequestId, deleted_at: null },
     });
@@ -773,7 +825,6 @@ export async function rejectRescheduleRequest(params: {
       throw notPendingError("駁回", request.request_no, request.status);
     }
 
-    const now = new Date();
     // 只在申請仍為 pending_approval 時改為 rejected，避免與撤回或核准互相覆蓋
     const reviewed = await tx.reschedule_requests.updateMany({
       where: { id: request.id, status: "pending_approval", deleted_at: null },
@@ -798,5 +849,102 @@ export async function rejectRescheduleRequest(params: {
       include: adminRescheduleRequestInclude,
     });
     return toAdminRescheduleRequestDto(updated);
+  });
+}
+
+const EXPIRE_REASON_LABEL: Record<RescheduleExpireReason, string> = {
+  original_slot_started: "原時段開始",
+  new_slot_started: "新時段開始",
+  reservation_cancelled: "原預約已取消",
+  reservation_checked_out: "原預約已登記領取",
+};
+
+function formatTaipeiDateTime(at: Date): string {
+  const { dateStr, timeStr } = getTaipeiNow(at);
+  return `${dateStr} ${timeStr}`;
+}
+
+/** 撤回失敗時說明申請目前狀態與發生時間（tasks.md Notes 待確認 4：細節寫進 message）。 */
+function describeTerminalStatus(request: {
+  status: RescheduleRequestStatus;
+  created_at: Date;
+  reviewed_at: Date | null;
+  withdrawn_at: Date | null;
+  expired_at: Date | null;
+  expire_reason: RescheduleExpireReason | null;
+}): string {
+  switch (request.status) {
+    case "approved":
+      return request.reviewed_at
+        ? `已在 ${formatTaipeiDateTime(request.reviewed_at)} 被管理員核准`
+        : `已在 ${formatTaipeiDateTime(request.created_at)} 即時改期成功`;
+    case "rejected":
+      return `已在 ${formatTaipeiDateTime(request.reviewed_at ?? request.created_at)} 被管理員駁回`;
+    case "withdrawn":
+      return `已在 ${formatTaipeiDateTime(request.withdrawn_at ?? request.created_at)} 撤回`;
+    case "expired": {
+      const reason = request.expire_reason
+        ? `（失效原因：${EXPIRE_REASON_LABEL[request.expire_reason]}）`
+        : "";
+      return `已在 ${formatTaipeiDateTime(request.expired_at ?? request.created_at)} 失效${reason}`;
+    }
+    default:
+      return "已被處理";
+  }
+}
+
+/**
+ * 成員撤回本人改期審核中的申請（POST /api/reschedule-requests/:rescheduleRequestId/withdraw，FR-010）。
+ * 交易開頭先讓到期申請失效；只把 pending_approval 改為 withdrawn 並寫入 withdrawn_at 與 updated_by，原預約不寫入（SC-002）。
+ */
+export async function withdrawRescheduleRequest(params: {
+  userId: string;
+  rescheduleRequestId: string;
+}): Promise<RescheduleRequestDto> {
+  return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    await expireDueRescheduleRequests(tx, now);
+
+    const request = await tx.reschedule_requests.findFirst({
+      where: { id: params.rescheduleRequestId, deleted_at: null },
+    });
+    if (!request) {
+      throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的改期申請不存在。");
+    }
+    if (request.user_id !== params.userId) {
+      throw new AppError("FORBIDDEN", 403, "只能撤回本人的改期申請。");
+    }
+
+    const notWithdrawable = () =>
+      rescheduleError(
+        "INVALID_RESCHEDULE_STATUS",
+        `無法撤回：改期申請 ${request.request_no} ${describeTerminalStatus(request)}，目前為「${RESCHEDULE_STATUS_LABEL[request.status]}」。只有「改期審核中」的申請可以撤回。`,
+      );
+    if (request.status !== "pending_approval") {
+      throw notWithdrawable();
+    }
+
+    // 只在申請仍為 pending_approval 時改為 withdrawn，避免與管理員核准或駁回互相覆蓋
+    const withdrawn = await tx.reschedule_requests.updateMany({
+      where: { id: request.id, status: "pending_approval", deleted_at: null },
+      data: {
+        status: "withdrawn",
+        withdrawn_at: now,
+        updated_at: now,
+        updated_by: params.userId,
+      },
+    });
+    if (withdrawn.count !== 1) {
+      throw rescheduleError(
+        "INVALID_RESCHEDULE_STATUS",
+        `無法撤回：改期申請 ${request.request_no} 剛被處理，已不是「改期審核中」。請重新整理後查看最新狀態。`,
+      );
+    }
+
+    const updated = await tx.reschedule_requests.findUniqueOrThrow({
+      where: { id: request.id },
+      include: { from_slot: true, to_slot: true, reviewer: true },
+    });
+    return toRescheduleRequestDto(updated);
   });
 }

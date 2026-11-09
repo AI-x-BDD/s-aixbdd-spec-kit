@@ -83,6 +83,36 @@ const RESCHEDULE_BADGE_STYLE: React.CSSProperties = {
   border: "1px dashed var(--pending)",
 };
 
+/**
+ * 核准或駁回收到 INVALID_RESCHEDULE_STATUS 時，查回該申請的最新狀態，組出原時段已開始、新時段已開始或已撤回的提示
+ * （ui/plan.md §5；Notes 待確認 4：只用合約既有的 listRescheduleRequests 欄位）；查不到或其他狀態時沿用後端訊息。
+ */
+async function describeRescheduleNotPending(
+  item: AdminRescheduleRequestItem,
+  action: "核准" | "駁回",
+  fallbackMessage: string,
+): Promise<string> {
+  try {
+    const page = await listRescheduleRequests({ page: 1, pageSize: 100 });
+    const latest = page.items.find((rr) => rr.id === item.id);
+    if (!latest) return fallbackMessage;
+    const fromText = slotRangeText(latest.fromReservationDate, latest.fromSlot);
+    const toText = slotRangeText(latest.toReservationDate, latest.toSlot);
+    if (latest.status === "expired" && latest.expireReason === "original_slot_started") {
+      return `無法${action}：改期申請 ${latest.requestNumber} 的原時段 ${fromText} 已開始，申請已自動變成「改期已失效」並移出待審清單。${latest.userDisplayName}的預約 ${latest.reservationNumber} 維持原時段，可以照常登記領取。`;
+    }
+    if (latest.status === "expired" && latest.expireReason === "new_slot_started") {
+      return `無法${action}：改期申請 ${latest.requestNumber} 的新時段 ${toText} 已開始（早於原時段 ${fromText}），申請已自動變成「改期已失效」並移出待審清單。${latest.userDisplayName}的預約 ${latest.reservationNumber} 維持原時段。`;
+    }
+    if (latest.status === "withdrawn") {
+      return `無法審核：改期申請 ${latest.requestNumber} 已在 ${formatIsoToTaipeiDateTime(latest.withdrawnAt)} 被${latest.userDisplayName}撤回，目前為「改期已撤回」。只有「改期審核中」的申請可以核准或駁回。`;
+    }
+    return fallbackMessage;
+  } catch {
+    return fallbackMessage;
+  }
+}
+
 /** 從核准失敗訊息取出占用新時段的預約編號（Notes 待確認 4：細節由後端寫在 message） */
 function extractOccupantNumber(message: string): string | null {
   const match = message.match(/已被預約\s*(\S+?)\s*占用/);
@@ -247,7 +277,16 @@ export function AdminOverviewView({
       } else {
         setRescheduleConflict(null);
       }
-      setBanner({ tone: "danger", text: msg });
+      if (err instanceof ApiError && err.code === "INVALID_RESCHEDULE_STATUS") {
+        // FR-011、FR-012、SC-004：已失效或已撤回的申請移出清單，並說明原因
+        setRescheduleList((prev) => prev.filter((rr) => rr.id !== item.id));
+        setBanner({
+          tone: "danger",
+          text: await describeRescheduleNotPending(item, "核准", msg),
+        });
+      } else {
+        setBanner({ tone: "danger", text: msg });
+      }
       await loadAdminData();
     } finally {
       setApprovingRescheduleId(null);
@@ -284,8 +323,18 @@ export function AdminOverviewView({
       await loadAdminData();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "駁回改期申請失敗，請稍後再試。";
+      const target = rescheduleRejectTarget;
       setRescheduleRejectTarget(null);
-      setBanner({ tone: "danger", text: msg });
+      if (err instanceof ApiError && err.code === "INVALID_RESCHEDULE_STATUS") {
+        // 已失效或已撤回的申請移出清單，並說明原因
+        setRescheduleList((prev) => prev.filter((rr) => rr.id !== target.id));
+        setBanner({
+          tone: "danger",
+          text: await describeRescheduleNotPending(target, "駁回", msg),
+        });
+      } else {
+        setBanner({ tone: "danger", text: msg });
+      }
       await loadAdminData();
     } finally {
       setRejectingReschedule(false);
@@ -301,12 +350,19 @@ export function AdminOverviewView({
   const handlePickup = async (item: AdminReservationItem): Promise<void> => {
     setPickupProcessingId(item.id);
     setBanner(null);
+    // FR-016：登記領取前的改期審核中申請，領取成功後同時變成「改期已失效」
+    const pendingReschedule = item.pendingRescheduleRequest;
     try {
       const updated = await pickupReservationByAdmin(item.id);
       setBanner({
         tone: "success",
-        text: `已完成登記領取！預約編號 ${updated.reservationNumber}（${updated.userDisplayName}，${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}）狀態已更新為「借用中」，記錄領取時間 ${formatIsoToTaipeiDateTime(updated.checkedOutAt)} 與領取經手管理員${updated.checkedOutByName ?? "管理員"}${updated.checkedOutByUsername ? ` (${updated.checkedOutByUsername})` : ""}。`,
+        text: `已完成登記領取！預約編號 ${updated.reservationNumber}（${updated.userDisplayName}，${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}）狀態已更新為「借用中」，記錄領取時間 ${formatIsoToTaipeiDateTime(updated.checkedOutAt)} 與領取經手管理員${updated.checkedOutByName ?? "管理員"}${updated.checkedOutByUsername ? ` (${updated.checkedOutByUsername})` : ""}。${
+          pendingReschedule
+            ? `這筆預約的改期申請 ${pendingReschedule.requestNumber} 已同時變成「改期已失效」，並已移出待審清單。`
+            : ""
+        }`,
       });
+      // 重新載入預約與改期申請清單
       await loadAdminData();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "登記領取失敗，請稍後再試。";
@@ -1063,6 +1119,17 @@ export function AdminOverviewView({
                       >
                         {overdue ? "借用中（逾時未還）" : UI_TEXT.reservationStatus[r.status]}
                       </span>
+                      {r.pendingRescheduleRequest && (
+                        <div style={{ marginTop: "4px" }}>
+                          <span
+                            className="badge"
+                            style={RESCHEDULE_BADGE_STYLE}
+                            data-testid={`admin-reschedule-pending-${r.reservationNumber}`}
+                          >
+                            改期審核中 {r.pendingRescheduleRequest.requestNumber}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: "13px 16px", fontSize: "13px" }}>
                       {r.checkedOutAt ? (

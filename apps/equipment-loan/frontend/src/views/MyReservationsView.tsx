@@ -3,7 +3,10 @@ import {
   ApiError,
   apiRequest,
   listMyLoanReservations,
+  withdrawRescheduleRequest,
   type CreateRescheduleRequestResponse,
+  type RescheduleRequest,
+  type RescheduleRequestStatus,
   type ReservationDto,
   type ReservationPageDto,
   type ReservationStatus,
@@ -33,6 +36,48 @@ function formatIsoToTaipeiDateTime(iso: string | null): string {
   return `${datePart} ${timePart}`;
 }
 
+function formatSlotText(
+  date: string,
+  slot: { slotName: string; startTime: string; endTime: string },
+) {
+  return `${date} ${slot.slotName} ${slot.startTime}–${slot.endTime}`;
+}
+
+const RESCHEDULE_STATUS_BADGE: Record<RescheduleRequestStatus, string> = {
+  pending_approval: "badge-pending",
+  approved: "badge-available",
+  rejected: "badge-cancelled",
+  withdrawn: "badge-occupied",
+  expired: "badge-occupied",
+};
+
+/** 改期紀錄「說明」欄（ui/my-reservations.html historyNote；失效原因文字見 tasks.md Notes 待確認 2）。 */
+function rescheduleHistoryNote(rr: RescheduleRequest): string {
+  switch (rr.status) {
+    case "approved":
+      return rr.reviewedBy === null
+        ? "免審核設備，送出時立即改期"
+        : `審核管理員 ${rr.reviewedByDisplayName ?? "管理員"}`;
+    case "rejected":
+      return `駁回原因：${rr.rejectReason || "（未填寫）"}｜審核管理員 ${rr.reviewedByDisplayName ?? "管理員"}`;
+    case "withdrawn":
+      return `撤回時間 ${formatIsoToTaipeiDateTime(rr.withdrawnAt)}`;
+    case "expired":
+      return `失效原因：${rr.expireReason ? UI_TEXT.rescheduleExpireReason[rr.expireReason] : "—"}｜失效時間 ${formatIsoToTaipeiDateTime(rr.expiredAt)}`;
+    default:
+      return "等待管理員審核；核准前原預約照常有效";
+  }
+}
+
+/** 「改期審核中」標籤：琥珀色虛線框（ui/plan.md §2） */
+const RESCHEDULE_PENDING_TAG_STYLE: React.CSSProperties = {
+  background: "var(--surface)",
+  color: "var(--pending)",
+  border: "1px dashed var(--pending)",
+};
+
+type ReservationListFilter = "ALL" | "RESCHEDULE_PENDING" | ReservationStatus;
+
 interface MyReservationsViewProps {
   onGoToBooking: (targetDate?: string) => void;
 }
@@ -45,12 +90,19 @@ const PENDING_BANNER_STYLE: React.CSSProperties = {
 };
 
 export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): React.ReactElement {
-  const [statusFilter, setStatusFilter] = useState<"ALL" | ReservationStatus>("ALL");
+  const [statusFilter, setStatusFilter] = useState<ReservationListFilter>("ALL");
+  const [reschedulePendingCount, setReschedulePendingCount] = useState<number>(0);
   const [activeLoans, setActiveLoans] = useState<ReservationItem[]>([]);
   const [reservations, setReservations] = useState<ReservationItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingCancel, setPendingCancel] = useState<ReservationItem | null>(null);
   const [cancelling, setCancelling] = useState<boolean>(false);
+  // 撤回改期申請的確認對話框（FR-010）
+  const [pendingWithdraw, setPendingWithdraw] = useState<{
+    reservation: ReservationItem;
+    request: RescheduleRequest;
+  } | null>(null);
+  const [withdrawing, setWithdrawing] = useState<boolean>(false);
   const [banner, setBanner] = useState<{
     tone: "danger" | "success" | "info" | "pending";
     text: string;
@@ -67,15 +119,20 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
         page: "1",
         pageSize: "50",
       });
-      if (statusFilter !== "ALL") {
+      if (statusFilter === "RESCHEDULE_PENDING") {
+        params.set("hasPendingRescheduleRequest", "true");
+      } else if (statusFilter !== "ALL") {
         params.set("status", statusFilter);
       }
-      const [activeLoanData, listData] = await Promise.all([
+      const [activeLoanData, listData, reschedulePendingData] = await Promise.all([
         listMyLoanReservations({ status: "checked_out", page: 1, pageSize: 50 }),
         apiRequest<ReservationPage>(`/reservations?${params.toString()}`),
+        // 篩選列「改期審核中（n）」的筆數（FR-009）
+        listMyLoanReservations({ hasPendingRescheduleRequest: true, page: 1, pageSize: 1 }),
       ]);
       setActiveLoans(activeLoanData.items);
       setReservations(listData.items);
+      setReschedulePendingCount(reschedulePendingData.totalItems);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "載入個人預約與借用紀錄失敗。";
       setBanner({ tone: "danger", text: msg });
@@ -88,9 +145,34 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
     void loadReservations();
   }, [loadReservations]);
 
+  const handleConfirmWithdraw = async (): Promise<void> => {
+    if (!pendingWithdraw) return;
+    const { reservation, request } = pendingWithdraw;
+    setWithdrawing(true);
+    try {
+      const withdrawn = await withdrawRescheduleRequest(request.id);
+      setPendingWithdraw(null);
+      setBanner({
+        tone: "success",
+        text: `已撤回改期申請 ${withdrawn.requestNumber}。預約 ${reservation.reservationNumber} 仍為 ${reservation.reservationDate} ${reservation.slotName} ${reservation.slotStartTime}–${reservation.slotEndTime} 的「已核准／有效」。`,
+      });
+      await loadReservations();
+    } catch (err) {
+      // INVALID_RESCHEDULE_STATUS 等錯誤：頁頂紅色橫幅顯示後端訊息（含目前狀態與時間，Notes 待確認 4），並重新載入紀錄
+      const msg = err instanceof ApiError ? err.message : "撤回改期申請失敗，請稍後再試。";
+      setPendingWithdraw(null);
+      setBanner({ tone: "danger", text: msg });
+      await loadReservations();
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   const handleConfirmCancel = async (): Promise<void> => {
     if (!pendingCancel) return;
     const wasPending = pendingCancel.status === "pending_approval";
+    // FR-013：取消前的改期審核中申請，取消成功後同時變成「改期已失效」
+    const pendingReschedule = pendingCancel.pendingRescheduleRequest;
     setCancelling(true);
     try {
       const updated = await apiRequest<ReservationItem>(
@@ -110,7 +192,11 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
       } else {
         setBanner({
           tone: "success",
-          text: `已取消已核准／有效預約 ${updated.reservationNumber}（${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}），該時段已立即釋出恢復為可預約狀態。`,
+          text: `已取消已核准／有效預約 ${updated.reservationNumber}（${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}），該時段已立即釋出恢復為可預約狀態。${
+            pendingReschedule
+              ? `改期申請 ${pendingReschedule.requestNumber} 已同時變成「改期已失效」。`
+              : ""
+          }`,
           showRebookBtn: true,
           rebookDate: updated.reservationDate,
         });
@@ -345,6 +431,11 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
           {(
             [
               { value: "ALL", label: "全部紀錄" },
+              {
+                value: "RESCHEDULE_PENDING",
+                label: `改期審核中（${reschedulePendingCount}）`,
+                testId: "filter-tab-reschedule_pending",
+              },
               { value: "pending_approval", label: "待審核" },
               { value: "confirmed", label: "已核准／有效" },
               { value: "checked_out", label: "借用中" },
@@ -358,7 +449,7 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
               <button
                 key={tab.value}
                 type="button"
-                data-testid={`filter-tab-${tab.value}`}
+                data-testid={"testId" in tab ? tab.testId : `filter-tab-${tab.value}`}
                 onClick={() => setStatusFilter(tab.value)}
                 style={{
                   padding: "6px 14px",
@@ -383,14 +474,26 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
           正在載入目前借用中設備與 6 態借還歷史紀錄…
         </div>
       ) : reservations.length === 0 ? (
-        <div className="card" style={{ padding: "44px 24px", textAlign: "center" }}>
-          <h2>目前篩選條件下沒有符合的預約與借用紀錄</h2>
-          <p className="muted">
-            請切換其他狀態篩選頁籤，或前往預建設備清單選擇日期與固定時段建立新申請。
-          </p>
-          <button type="button" className="btn btn-primary" onClick={() => onGoToBooking()}>
-            前往設備預約
-          </button>
+        <div
+          className="card"
+          style={{ padding: "44px 24px", textAlign: "center" }}
+          data-testid="reservations-empty"
+        >
+          <h2>目前沒有符合篩選條件的預約</h2>
+          <p className="muted">切換其他篩選條件，或到設備預約建立新的預約。</p>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setStatusFilter("ALL")}
+              data-testid="empty-show-all-btn"
+            >
+              顯示全部預約
+            </button>
+            <button type="button" className="btn" onClick={() => onGoToBooking()}>
+              前往設備預約
+            </button>
+          </div>
         </div>
       ) : (
         <div style={{ display: "grid", gap: "14px" }}>
@@ -449,6 +552,15 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                     >
                       {UI_TEXT.reservationStatus[r.status]}
                     </span>
+                    {r.pendingRescheduleRequest && (
+                      <span
+                        className="badge"
+                        style={RESCHEDULE_PENDING_TAG_STYLE}
+                        data-testid={`reschedule-pending-badge-${r.reservationNumber}`}
+                      >
+                        {UI_TEXT.rescheduleStatus.pending_approval}
+                      </span>
+                    )}
                     <span
                       className="mono"
                       style={{
@@ -584,6 +696,23 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                       {r.rejectReason}
                     </div>
                   )}
+
+                  {r.pendingRescheduleRequest && (
+                    <div
+                      data-testid={`reschedule-pending-note-${r.reservationNumber}`}
+                      style={{
+                        marginTop: "4px",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        background: "var(--pending-soft)",
+                        border: "1px dashed var(--pending)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      改期申請 {r.pendingRescheduleRequest.requestNumber}{" "}
+                      審核中：要改到別的時段，請先撤回這筆申請再重新申請。
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -658,6 +787,123 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                     </button>
                   )}
                 </div>
+
+                {r.rescheduleRequests.length > 0 && (
+                  <details
+                    open
+                    data-testid={`reschedule-history-${r.reservationNumber}`}
+                    style={{
+                      flexBasis: "100%",
+                      borderTop: "1px solid var(--line)",
+                      paddingTop: "10px",
+                    }}
+                  >
+                    <summary
+                      style={{
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "var(--primary)",
+                      }}
+                    >
+                      改期紀錄（{r.rescheduleRequests.length} 筆）
+                    </summary>
+                    <div style={{ overflowX: "auto", marginTop: "8px" }}>
+                      <table
+                        style={{
+                          width: "100%",
+                          minWidth: "760px",
+                          borderCollapse: "collapse",
+                          fontSize: "12px",
+                        }}
+                      >
+                        <thead>
+                          <tr>
+                            {[
+                              "改期申請",
+                              "狀態",
+                              "原日期時段",
+                              "新日期時段",
+                              "申請時間",
+                              "審核時間",
+                              "說明",
+                            ].map((h) => (
+                              <th
+                                key={h}
+                                style={{
+                                  padding: "8px",
+                                  borderBottom: "1px solid var(--line)",
+                                  textAlign: "left",
+                                  color: "var(--muted)",
+                                  fontWeight: 600,
+                                  background: "var(--surface-muted)",
+                                }}
+                              >
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {r.rescheduleRequests.map((rr) => {
+                            const cell: React.CSSProperties = {
+                              padding: "8px",
+                              borderBottom: "1px solid var(--line)",
+                              textAlign: "left",
+                              verticalAlign: "top",
+                            };
+                            return (
+                              <tr key={rr.id} data-testid={`reschedule-row-${rr.requestNumber}`}>
+                                <td className="mono" style={cell}>
+                                  {rr.requestNumber}
+                                </td>
+                                <td style={cell}>
+                                  <span
+                                    className={`badge ${RESCHEDULE_STATUS_BADGE[rr.status]}`}
+                                    data-testid={`reschedule-status-${rr.requestNumber}`}
+                                  >
+                                    {UI_TEXT.rescheduleStatus[rr.status]}
+                                  </span>
+                                </td>
+                                <td className="mono" style={cell}>
+                                  {formatSlotText(rr.fromReservationDate, rr.fromSlot)}
+                                </td>
+                                <td className="mono" style={cell}>
+                                  {formatSlotText(rr.toReservationDate, rr.toSlot)}
+                                </td>
+                                <td className="mono" style={cell}>
+                                  {formatIsoToTaipeiDateTime(rr.createdAt)}
+                                </td>
+                                <td className="mono" style={cell}>
+                                  {formatIsoToTaipeiDateTime(rr.reviewedAt)}
+                                </td>
+                                <td
+                                  style={cell}
+                                  data-testid={`reschedule-note-${rr.requestNumber}`}
+                                >
+                                  {rescheduleHistoryNote(rr)}
+                                  {rr.status === "pending_approval" && rr.canWithdraw && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-danger"
+                                      style={{ marginLeft: "8px" }}
+                                      data-testid={`withdraw-btn-${rr.requestNumber}`}
+                                      onClick={() =>
+                                        setPendingWithdraw({ reservation: r, request: rr })
+                                      }
+                                    >
+                                      {UI_TEXT.reschedule.withdraw}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
               </article>
             );
           })}
@@ -735,6 +981,30 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
               </div>
             </div>
 
+            {pendingCancel.pendingRescheduleRequest && (
+              <div
+                role="note"
+                data-testid="cancel-reschedule-notice"
+                style={{
+                  margin: "0 0 16px",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  background: "var(--pending-soft)",
+                  border: "1px dashed var(--pending)",
+                  fontSize: "13px",
+                }}
+              >
+                這筆預約有一筆改期審核中的申請{" "}
+                {pendingCancel.pendingRescheduleRequest.requestNumber}
+                （改到{" "}
+                {formatSlotText(
+                  pendingCancel.pendingRescheduleRequest.toReservationDate,
+                  pendingCancel.pendingRescheduleRequest.toSlot,
+                )}
+                ）。取消預約後，這筆申請會同時變成「改期已失效」並移出管理員的待審清單。
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
               <button
                 type="button"
@@ -756,6 +1026,93 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                   : pendingCancel.status === "pending_approval"
                     ? "確認取消申請"
                     : "確認取消並釋出時段"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingWithdraw && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="withdraw-modal-title"
+          data-testid="withdraw-confirm-modal"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 30,
+            background: "rgba(15, 23, 42, 0.55)",
+            display: "grid",
+            placeItems: "center",
+            padding: "16px",
+          }}
+        >
+          <div className="card" style={{ width: "100%", maxWidth: "480px", padding: "24px" }}>
+            <h2 id="withdraw-modal-title">撤回改期申請</h2>
+            <div
+              style={{
+                margin: "14px 0 16px",
+                padding: "12px 16px",
+                borderRadius: "10px",
+                background: "var(--surface-muted)",
+                border: "1px solid var(--line)",
+                fontSize: "14px",
+                display: "grid",
+                gap: "6px",
+              }}
+            >
+              <div>
+                <strong>改期申請：</strong>
+                <span className="mono">{pendingWithdraw.request.requestNumber}</span>
+              </div>
+              <div>
+                <strong>預約：</strong>
+                <span className="mono">
+                  {pendingWithdraw.reservation.reservationNumber}｜
+                  {pendingWithdraw.reservation.equipmentCode}
+                </span>
+              </div>
+              <div>
+                <strong>原時段：</strong>
+                <span className="mono">
+                  {formatSlotText(
+                    pendingWithdraw.request.fromReservationDate,
+                    pendingWithdraw.request.fromSlot,
+                  )}
+                </span>
+              </div>
+              <div>
+                <strong>新時段：</strong>
+                <span className="mono">
+                  {formatSlotText(
+                    pendingWithdraw.request.toReservationDate,
+                    pendingWithdraw.request.toSlot,
+                  )}
+                </span>
+              </div>
+            </div>
+            <p className="muted" style={{ margin: "0 0 20px", fontSize: "13px" }}>
+              撤回後，這筆申請變成「改期已撤回」並移出管理員的待審清單；預約{" "}
+              {pendingWithdraw.reservation.reservationNumber} 維持原時段，不會變動。
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                className="btn"
+                disabled={withdrawing}
+                onClick={() => setPendingWithdraw(null)}
+              >
+                返回
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={withdrawing}
+                onClick={() => void handleConfirmWithdraw()}
+                data-testid="confirm-withdraw-submit-btn"
+              >
+                {withdrawing ? "撤回處理中…" : "確認撤回"}
               </button>
             </div>
           </div>

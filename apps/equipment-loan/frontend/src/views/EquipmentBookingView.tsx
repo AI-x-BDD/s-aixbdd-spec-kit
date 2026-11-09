@@ -73,6 +73,8 @@ export function EquipmentBookingView({
   } | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [panelError, setPanelError] = useState<string>("");
+  // 點選「本人改期審核中」時段時，右側面板的琥珀色說明（FR-017、ui/plan.md §5）
+  const [rescheduleNotice, setRescheduleNotice] = useState<string>("");
   const [banner, setBanner] = useState<{
     tone: "danger" | "success" | "info";
     text: string;
@@ -121,6 +123,21 @@ export function EquipmentBookingView({
   const handleSelectSlot = (eq: EquipmentAvailabilityItem, slot: EquipmentSlotItem): void => {
     setPanelError("");
     setBanner(null);
+    setRescheduleNotice("");
+
+    if (
+      slot.myRescheduleRequest &&
+      (slot.availabilityStatus === "reschedule_pending_by_me" ||
+        slot.slotStatus === "MY_RESCHEDULE_PENDING")
+    ) {
+      // 本人改期審核中的新時段不保留、不占用（FR-003），不選取、送出預約時也不會送出任何預約
+      const ref = slot.myRescheduleRequest;
+      setSelectedSlot(null);
+      setRescheduleNotice(
+        `${selectedDate} ${slot.slotName} ${slot.startTime}–${slot.endTime} 是您改期申請 ${ref.requestNumber} 的新時段（預約 ${ref.reservationNumber} 原為 ${ref.fromReservationDate} ${ref.fromSlot.slotName} ${ref.fromSlot.startTime}–${ref.fromSlot.endTime}）。管理員核准前，這個時段不會替您保留，原預約照常有效。`,
+      );
+      return;
+    }
 
     if (slot.availabilityStatus === "returned_by_me" || slot.slotStatus === "MY_RETURNED") {
       setBanner({
@@ -290,6 +307,7 @@ export function EquipmentBookingView({
                 setSelectedDate(e.target.value);
                 setSelectedSlot(null);
                 setPanelError("");
+                setRescheduleNotice("");
               }}
               style={{
                 height: "36px",
@@ -372,6 +390,7 @@ export function EquipmentBookingView({
                   setSelectedDate(d.date);
                   setSelectedSlot(null);
                   setPanelError("");
+                  setRescheduleNotice("");
                   setBanner(null);
                 }}
                 style={{
@@ -408,12 +427,17 @@ export function EquipmentBookingView({
             color: "var(--muted)",
           }}
         >
-          <span>固定時段 6 態說明：</span>
+          <span>固定時段狀態說明：</span>
           <span className="badge badge-available">可預約</span>
           <span className="badge badge-pending">本人待審核</span>
           <span className="badge badge-mine">本人已預約</span>
           <span className="badge badge-loan">本人借用中</span>
           <span className="badge badge-returned">本人已歸還</span>
+          <SlotStatusBadge
+            status="reschedule_pending_by_me"
+            slotStatus="MY_RESCHEDULE_PENDING"
+            isBookable={false}
+          />
           <span className="badge badge-occupied">已被預約（不揭露他人身分）</span>
         </div>
       </div>
@@ -510,6 +534,9 @@ export function EquipmentBookingView({
                       submitting ||
                       !isDateInRange ||
                       slot.availabilityStatus === "booked_by_others";
+                    const isMyReschedulePending =
+                      slot.availabilityStatus === "reschedule_pending_by_me" ||
+                      slot.slotStatus === "MY_RESCHEDULE_PENDING";
                     const isAlreadyMine =
                       slot.availabilityStatus === "pending_by_me" ||
                       slot.availabilityStatus === "booked_by_me" ||
@@ -517,19 +544,21 @@ export function EquipmentBookingView({
                       slot.availabilityStatus === "returned_by_me";
 
                     const subnote =
-                      slot.availabilityStatus === "checked_out_by_me"
-                        ? "已登記領取（不可取消）"
-                        : slot.availabilityStatus === "returned_by_me"
-                          ? "已歸還結案（不重開預約）"
-                          : slot.availabilityStatus === "booked_by_me"
-                            ? "已核准／有效（待領取）"
-                            : slot.availabilityStatus === "pending_by_me"
-                              ? "等待管理員核准"
-                              : slot.availabilityStatus === "booked_by_others"
-                                ? "已被占用（不揭露借用人身分）"
-                                : !slot.isBookable
-                                  ? "已逾申請截止時間"
-                                  : "";
+                      isMyReschedulePending && slot.myRescheduleRequest
+                        ? `改期申請 ${slot.myRescheduleRequest.requestNumber}`
+                        : slot.availabilityStatus === "checked_out_by_me"
+                          ? "已登記領取（不可取消）"
+                          : slot.availabilityStatus === "returned_by_me"
+                            ? "已歸還結案（不重開預約）"
+                            : slot.availabilityStatus === "booked_by_me"
+                              ? "已核准／有效（待領取）"
+                              : slot.availabilityStatus === "pending_by_me"
+                                ? "等待管理員核准"
+                                : slot.availabilityStatus === "booked_by_others"
+                                  ? "已被占用（不揭露借用人身分）"
+                                  : !slot.isBookable
+                                    ? "已逾申請截止時間"
+                                    : "";
 
                     return (
                       <button
@@ -544,18 +573,21 @@ export function EquipmentBookingView({
                           alignItems: "flex-start",
                           gap: "6px",
                           padding: "12px 14px",
-                          border: `1.5px solid ${
-                            isSelected
-                              ? "var(--primary)"
-                              : slot.availabilityStatus === "checked_out_by_me"
-                                ? "var(--loan)"
-                                : slot.availabilityStatus === "returned_by_me"
-                                  ? "var(--returned)"
-                                  : "var(--line)"
+                          border: `1.5px ${isMyReschedulePending ? "dashed" : "solid"} ${
+                            isMyReschedulePending
+                              ? "var(--pending)"
+                              : isSelected
+                                ? "var(--primary)"
+                                : slot.availabilityStatus === "checked_out_by_me"
+                                  ? "var(--loan)"
+                                  : slot.availabilityStatus === "returned_by_me"
+                                    ? "var(--returned)"
+                                    : "var(--line)"
                           }`,
                           borderRadius: "10px",
-                          background:
-                            slot.availabilityStatus === "checked_out_by_me"
+                          background: isMyReschedulePending
+                            ? "var(--surface)"
+                            : slot.availabilityStatus === "checked_out_by_me"
                               ? "var(--loan-soft)"
                               : slot.availabilityStatus === "returned_by_me"
                                 ? "var(--returned-soft)"
@@ -593,7 +625,17 @@ export function EquipmentBookingView({
                           {slot.startTime}–{slot.endTime}
                         </span>
                         {subnote && (
-                          <span style={{ fontSize: "11px", color: "var(--muted)" }}>{subnote}</span>
+                          <span
+                            className={isMyReschedulePending ? "mono" : undefined}
+                            style={{ fontSize: "11px", color: "var(--muted)" }}
+                            data-testid={
+                              isMyReschedulePending
+                                ? `slot-reschedule-${eq.equipmentCode}-${slot.slotCode}`
+                                : undefined
+                            }
+                          >
+                            {subnote}
+                          </span>
                         )}
                       </button>
                     );
@@ -699,6 +741,34 @@ export function EquipmentBookingView({
                 </span>
               </div>
             </div>
+
+            {rescheduleNotice && (
+              <div
+                role="status"
+                data-testid="panel-reschedule-notice"
+                style={{
+                  margin: "0 0 12px",
+                  padding: "12px 14px",
+                  borderRadius: "10px",
+                  background: "var(--pending-soft)",
+                  border: "1px dashed var(--pending)",
+                  color: "var(--ink)",
+                  fontSize: "13px",
+                  lineHeight: 1.6,
+                }}
+              >
+                <div>{rescheduleNotice}</div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-block"
+                  style={{ marginTop: "10px" }}
+                  onClick={onGoToMyReservations}
+                  data-testid="panel-go-my-reservations"
+                >
+                  查看我的預約
+                </button>
+              </div>
+            )}
 
             <button
               type="button"

@@ -16,6 +16,13 @@ const listMyReservationsQuerySchema = z.object({
   status: z
     .enum(["pending_approval", "confirmed", "checked_out", "returned", "rejected", "cancelled"])
     .optional(),
+  // 「改期審核中」篩選（FR-009）：查詢字串只接受 true 或 false
+  hasPendingRescheduleRequest: z
+    .enum(["true", "false"], {
+      error: "篩選條件 hasPendingRescheduleRequest 只能是 true 或 false。",
+    })
+    .transform((value) => value === "true")
+    .optional(),
 });
 
 const createReservationSchema = z.object({
@@ -41,11 +48,13 @@ reservationsRouter.get("/", requireAuth, async (req, res) => {
   const { page, pageSize } = parsePaginationParams(req.query);
   const query = listMyReservationsQuerySchema.parse({
     status: req.query.status,
+    hasPendingRescheduleRequest: req.query.hasPendingRescheduleRequest,
   });
 
   const result = await listMyReservations({
     userId: req.authUser!.id,
     status: query.status,
+    hasPendingRescheduleRequest: query.hasPendingRescheduleRequest,
     page,
     pageSize,
   });
@@ -57,11 +66,13 @@ reservationsRouter.get("/my", requireAuth, async (req, res) => {
   const { page, pageSize } = parsePaginationParams(req.query);
   const query = listMyReservationsQuerySchema.parse({
     status: req.query.status,
+    hasPendingRescheduleRequest: req.query.hasPendingRescheduleRequest,
   });
 
   const result = await listMyLoanReservations({
     userId: req.authUser!.id,
     status: query.status,
+    hasPendingRescheduleRequest: query.hasPendingRescheduleRequest,
     page,
     pageSize,
   });

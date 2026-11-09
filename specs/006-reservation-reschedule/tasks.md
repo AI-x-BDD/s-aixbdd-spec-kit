@@ -316,7 +316,7 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 資料庫（D2）
 
-- [ ] T038 [US3] 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充 demo seed 的 US3 範例：依執行當下的 `Asia/Taipei` 日期動態建立一筆 `withdrawn` 改期申請（寫入 `withdrawn_at`）、一筆因原時段開始而 `expired` 的申請（`expire_reason = 'original_slot_started'`、`expired_at` 為原時段開始時間）、一筆因原預約取消而 `expired` 的申請（`reservation_cancelled`），以及一筆原時段為當日晚間、可示範取消或登記領取時一併失效的 `pending_approval` 申請，改期申請編號見 Notes 待確認 1；執行 `npm run db:seed` 後確認 seed 涵蓋改期申請 5 態與 005 的預約 6 態（FR-015、US3 情境 1）
+- [X] T038 [US3] 在 `apps/equipment-loan/backend/prisma/seed.ts` 擴充 demo seed 的 US3 範例：依執行當下的 `Asia/Taipei` 日期動態建立一筆 `withdrawn` 改期申請（寫入 `withdrawn_at`）、一筆因原時段開始而 `expired` 的申請（`expire_reason = 'original_slot_started'`、`expired_at` 為原時段開始時間）、一筆因原預約取消而 `expired` 的申請（`reservation_cancelled`），以及一筆原時段為當日晚間、可示範取消或登記領取時一併失效的 `pending_approval` 申請，改期申請編號見 Notes 待確認 1；執行 `npm run db:seed` 後確認 seed 涵蓋改期申請 5 態與 005 的預約 6 態（FR-015、US3 情境 1）
   - **Must Read**
     - `spec.md` → FR-015 — Why：demo seed 必須包含「改期已撤回」與「改期已失效」範例
     - `data/data-model.dbml` → `Table reschedule_requests` 的 `expired_at`、`expire_reason`、`withdrawn_at` — Why：失效與撤回範例要填的欄位與失效時間的寫法
@@ -326,36 +326,36 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 後端（B2–B5）
 
-- [ ] T039 [US3] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作並匯出 `expireDueRescheduleRequests(tx, now)`：以一條 `UPDATE` 把 `status = 'pending_approval'`、`deleted_at IS NULL`，且原時段或新時段開始時間已到的申請改為 `expired`；`expire_reason` 依先到的時段寫入 `original_slot_started` 或 `new_slot_started`，`expired_at` 寫入該時段的開始時間，`updated_by` 為 null；在 `createRescheduleRequest`、`listRescheduleRequests`、`approveRescheduleRequest`、`rejectRescheduleRequest` 的交易開頭先呼叫，已失效的申請核准時回 `409 INVALID_RESCHEDULE_STATUS`（見 Notes 待確認 3）（FR-011、FR-012、SC-004、US3 情境 4、5、Edge Cases 審核中原時段開始、新時段比原時段早）
+- [X] T039 [US3] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作並匯出 `expireDueRescheduleRequests(tx, now)`：以一條 `UPDATE` 把 `status = 'pending_approval'`、`deleted_at IS NULL`，且原時段或新時段開始時間已到的申請改為 `expired`；`expire_reason` 依先到的時段寫入 `original_slot_started` 或 `new_slot_started`，`expired_at` 寫入該時段的開始時間，`updated_by` 為 null；在 `createRescheduleRequest`、`listRescheduleRequests`、`approveRescheduleRequest`、`rejectRescheduleRequest` 的交易開頭先呼叫，已失效的申請核准時回 `409 INVALID_RESCHEDULE_STATUS`（見 Notes 待確認 3）（FR-011、FR-012、SC-004、US3 情境 4、5、Edge Cases 審核中原時段開始、新時段比原時段早）
   - **Must Read**
     - `research.md` → §3 — Why：惰性失效的 `UPDATE` 條件、`expired_at` 的寫法與要先呼叫的操作清單
     - `contracts/openapi.yaml` → `approveRescheduleRequest` — Why：原時段或新時段開始後核准回 `INVALID_RESCHEDULE_STATUS`
     - `data/data-model.dbml` → `Enum reschedule_expire_reason`、`Table reschedule_requests` 的 `idx_reschedule_requests_status_to_slot` — Why：失效原因的值與掃描到期申請使用的索引
     - `spec.md` → FR-011、FR-012 — Why：兩種時段開始情況下申請與原預約各自的結果
-- [ ] T040 [US3] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `withdrawRescheduleRequest({ userId, rescheduleRequestId })`（`POST /api/reschedule-requests/:rescheduleRequestId/withdraw`）：交易開頭先呼叫 `expireDueRescheduleRequests`；申請不存在回 `404 RESOURCE_NOT_FOUND`，非本人回 `403 FORBIDDEN`；不是 `pending_approval` 時回 `409 INVALID_RESCHEDULE_STATUS`，訊息寫出目前狀態與時間（見 Notes 待確認 4）；通過時改為 `withdrawn`，寫入 `withdrawn_at` 與 `updated_by`，原預約不變；回傳 `RescheduleRequest`（FR-010、SC-002、US3 情境 2、3）
+- [X] T040 [US3] 在 `apps/equipment-loan/backend/src/services/rescheduleService.ts` 實作 `withdrawRescheduleRequest({ userId, rescheduleRequestId })`（`POST /api/reschedule-requests/:rescheduleRequestId/withdraw`）：交易開頭先呼叫 `expireDueRescheduleRequests`；申請不存在回 `404 RESOURCE_NOT_FOUND`，非本人回 `403 FORBIDDEN`；不是 `pending_approval` 時回 `409 INVALID_RESCHEDULE_STATUS`，訊息寫出目前狀態與時間（見 Notes 待確認 4）；通過時改為 `withdrawn`，寫入 `withdrawn_at` 與 `updated_by`，原預約不變；回傳 `RescheduleRequest`（FR-010、SC-002、US3 情境 2、3）
   - **Must Read**
     - `contracts/openapi.yaml` → `withdrawRescheduleRequest`（含 `RescheduleStatusConflict`） — Why：撤回條件、錯誤碼與回應
     - `spec.md` → FR-010 — Why：撤回後移出待審清單、原預約不變，非審核中時拒絕
   - **Optional**
     - `ui/plan.md` → §5 `my-reservations.html` 的「撤回失敗」 — Why：需要對照錯誤訊息的寫法時
-- [ ] T041 [US3] 新增 `apps/equipment-loan/backend/src/routes/rescheduleRequestsRouter.ts`，掛上 `POST /api/reschedule-requests/:rescheduleRequestId/withdraw`（`withdrawRescheduleRequest`）：套用 `requireAuth`，以 zod 驗證路徑參數 uuid（不符回 `400 VALIDATION_FAILED`），成功回 `200`；並在 `apps/equipment-loan/backend/src/app.ts` 以 `/api/reschedule-requests` 掛載此 router（FR-010）
+- [X] T041 [US3] 新增 `apps/equipment-loan/backend/src/routes/rescheduleRequestsRouter.ts`，掛上 `POST /api/reschedule-requests/:rescheduleRequestId/withdraw`（`withdrawRescheduleRequest`）：套用 `requireAuth`，以 zod 驗證路徑參數 uuid（不符回 `400 VALIDATION_FAILED`），成功回 `200`；並在 `apps/equipment-loan/backend/src/app.ts` 以 `/api/reschedule-requests` 掛載此 router（FR-010）
   - **Must Read**
     - `contracts/openapi.yaml` → `withdrawRescheduleRequest` — Why：路徑、狀態碼與回應
     - `plan.md` → Source Code (repository root) — Why：`rescheduleRequestsRouter.ts` 的職責與 `app.ts` 的路由掛載
-- [ ] T042 [US3] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 擴充取消與登記領取：B3 `cancelReservation`（`POST /api/reservations/:reservationId/cancel`）在同一交易內把該預約 `pending_approval` 的改期申請改為 `expired`（`expire_reason = 'reservation_cancelled'`、`expired_at` 為取消時間），回應的 `pendingRescheduleRequest` 為 null；B5 `pickupReservationByAdmin`（`POST /api/admin/reservations/:reservationId/pickup`）交易開頭先呼叫 `expireDueRescheduleRequests`，登記領取成功時在同一交易內把該預約 `pending_approval` 的申請改為 `expired`（`reservation_checked_out`），原時段開始後仍可依 005 規則登記領取（見 Notes 待確認 3）（FR-013、FR-016、FR-011、SC-004、US3 情境 4、6、7、Edge Cases 審核中取消原預約、審核中提前登記領取原預約）
+- [X] T042 [US3] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 擴充取消與登記領取：B3 `cancelReservation`（`POST /api/reservations/:reservationId/cancel`）在同一交易內把該預約 `pending_approval` 的改期申請改為 `expired`（`expire_reason = 'reservation_cancelled'`、`expired_at` 為取消時間），回應的 `pendingRescheduleRequest` 為 null；B5 `pickupReservationByAdmin`（`POST /api/admin/reservations/:reservationId/pickup`）交易開頭先呼叫 `expireDueRescheduleRequests`，登記領取成功時在同一交易內把該預約 `pending_approval` 的申請改為 `expired`（`reservation_checked_out`），原時段開始後仍可依 005 規則登記領取（見 Notes 待確認 3）（FR-013、FR-016、FR-011、SC-004、US3 情境 4、6、7、Edge Cases 審核中取消原預約、審核中提前登記領取原預約）
   - **Must Read**
     - `contracts/openapi.yaml` → `cancelReservation` — Why：取消時申請同時失效與回應內容
     - `contracts/openapi.yaml` → `pickupReservationByAdmin` — Why：登記領取前先惰性失效、領取時申請同時失效
     - `research.md` → §2 — Why：取消與登記領取在同一交易內使申請失效
     - `spec.md` → FR-013、FR-016 — Why：取消與登記領取時申請失效並移出待審清單
-- [ ] T043 [US3] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 擴充查詢：`listMyReservations`、`listMyLoanReservations` 與 B4 `listAllReservations`（`GET /api/admin/reservations`）在查詢前先呼叫 `expireDueRescheduleRequests`；`listMyReservations`、`listMyLoanReservations` 新增選填篩選 `hasPendingRescheduleRequest`；`listAllReservations` 每筆回傳 `pendingRescheduleRequest`（見 Notes 待確認 3）（FR-009、FR-016、US3 情境 1）
+- [X] T043 [US3] 在 `apps/equipment-loan/backend/src/services/reservationService.ts` 擴充查詢：`listMyReservations`、`listMyLoanReservations` 與 B4 `listAllReservations`（`GET /api/admin/reservations`）在查詢前先呼叫 `expireDueRescheduleRequests`；`listMyReservations`、`listMyLoanReservations` 新增選填篩選 `hasPendingRescheduleRequest`；`listAllReservations` 每筆回傳 `pendingRescheduleRequest`（見 Notes 待確認 3）（FR-009、FR-016、US3 情境 1）
   - **Must Read**
     - `contracts/openapi.yaml` → `listMyReservations`、`listAllReservations` — Why：查詢前惰性失效、`hasPendingRescheduleRequest` 篩選與 `pendingRescheduleRequest` 欄位
     - `contracts/openapi.yaml` → `AdminReservationItem` — Why：管理員清單新增的改期審核中摘要
-- [ ] T044 [US3] 在 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 為 `GET /api/reservations` 與 `GET /api/reservations/my` 加入選填查詢參數 `hasPendingRescheduleRequest`（zod boolean，不符回 `400 VALIDATION_FAILED`）（FR-009）
+- [X] T044 [US3] 在 `apps/equipment-loan/backend/src/routes/reservationsRouter.ts` 為 `GET /api/reservations` 與 `GET /api/reservations/my` 加入選填查詢參數 `hasPendingRescheduleRequest`（zod boolean，不符回 `400 VALIDATION_FAILED`）（FR-009）
   - **Must Read**
     - `contracts/openapi.yaml` → `listMyReservations`、`listMyLoanReservations` — Why：新增查詢參數的型別與意義
-- [ ] T045 [US3] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 擴充 B2 `listEquipments`：查詢前先呼叫 `expireDueRescheduleRequests`；某時段是目前登入成員本人 `pending_approval` 申請的新時段，且沒有被任何預約占用時，對本人回傳 `slotStatus = 'MY_RESCHEDULE_PENDING'`、`availabilityStatus = 'reschedule_pending_by_me'`、`isBookable = false`；只要是本人改期審核中申請的新時段，`myRescheduleRequest` 一律回傳 `MyRescheduleSlotRef`；其他成員仍依既有規則回傳 `AVAILABLE`，`myRescheduleRequest` 為 null，不揭露申請；`slotCode` 等欄位對應沿用 005（見 Notes 待確認 5）（FR-017、FR-003、US3 情境 8）
+- [X] T045 [US3] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 擴充 B2 `listEquipments`：查詢前先呼叫 `expireDueRescheduleRequests`；某時段是目前登入成員本人 `pending_approval` 申請的新時段，且沒有被任何預約占用時，對本人回傳 `slotStatus = 'MY_RESCHEDULE_PENDING'`、`availabilityStatus = 'reschedule_pending_by_me'`、`isBookable = false`；只要是本人改期審核中申請的新時段，`myRescheduleRequest` 一律回傳 `MyRescheduleSlotRef`；其他成員仍依既有規則回傳 `AVAILABLE`，`myRescheduleRequest` 為 null，不揭露申請；`slotCode` 等欄位對應沿用 005（見 Notes 待確認 5）（FR-017、FR-003、US3 情境 8）
   - **Must Read**
     - `contracts/openapi.yaml` → `listEquipments` — Why：`MY_RESCHEDULE_PENDING` 的判斷條件與不揭露他人申請的規則
     - `contracts/openapi.yaml` → `EquipmentSlotAvailability`、`MyRescheduleSlotRef` — Why：新增狀態值與申請摘要欄位
@@ -364,34 +364,34 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 ### 前端（F2–F4）
 
-- [ ] T046 [US3] 在 `apps/equipment-loan/frontend/src/api/client.ts` 新增 `withdrawRescheduleRequest(rescheduleRequestId)`，並讓 `listMyReservations` 接受選填的 `hasPendingRescheduleRequest`（FR-009、FR-010）
+- [X] T046 [US3] 在 `apps/equipment-loan/frontend/src/api/client.ts` 新增 `withdrawRescheduleRequest(rescheduleRequestId)`，並讓 `listMyReservations` 接受選填的 `hasPendingRescheduleRequest`（FR-009、FR-010）
   - **Must Read**
     - `contracts/openapi.yaml` → `withdrawRescheduleRequest`、`listMyReservations` — Why：呼叫的路徑、參數與錯誤碼
-- [ ] T047 [P] [US3] 在 `apps/equipment-loan/frontend/src/components/SlotStatusBadge.tsx` 加入 `MY_RESCHEDULE_PENDING`「本人改期審核中」標籤：琥珀色虛線框，與實線框的「本人待審核」區分（FR-017）
+- [X] T047 [P] [US3] 在 `apps/equipment-loan/frontend/src/components/SlotStatusBadge.tsx` 加入 `MY_RESCHEDULE_PENDING`「本人改期審核中」標籤：琥珀色虛線框，與實線框的「本人待審核」區分（FR-017）
   - **Must Read**
     - `ui/plan.md` → §2 — Why：「本人改期審核中」使用琥珀色虛線框的規則與配色
     - `ui/booking.html` → 雛形狀態「本人改期審核中時段（本人視角）」 — Why：標籤的實際樣子
-- [ ] T048 [US3] 在 `apps/equipment-loan/frontend/src/views/EquipmentBookingView.tsx` 顯示本人改期審核中時段：圖例加入「本人改期審核中」；該時段顯示改期申請編號；點選時右側面板以琥珀色說明「… 是您改期申請 … 的新時段（預約 … 原為 …）。管理員核准前，這個時段不會替您保留，原預約照常有效。」並顯示「查看我的預約」，「送出預約」不送出任何預約；其他成員檢視同一時段時顯示「可預約」（FR-017、FR-003、US3 情境 8）
+- [X] T048 [US3] 在 `apps/equipment-loan/frontend/src/views/EquipmentBookingView.tsx` 顯示本人改期審核中時段：圖例加入「本人改期審核中」；該時段顯示改期申請編號；點選時右側面板以琥珀色說明「… 是您改期申請 … 的新時段（預約 … 原為 …）。管理員核准前，這個時段不會替您保留，原預約照常有效。」並顯示「查看我的預約」，「送出預約」不送出任何預約；其他成員檢視同一時段時顯示「可預約」（FR-017、FR-003、US3 情境 8）
   - **Must Read**
     - `ui/plan.md` → §3.3 A4、A5、A6 — Why：查看時段狀態、切換成員比對與點選本人改期審核中時段的操作
     - `ui/plan.md` → §4 `booking.html` 的「本人改期審核中時段（本人視角）」「改期審核中時段（其他成員視角）」 — Why：本人與其他成員看到的呈現
     - `ui/plan.md` → §5 `booking.html` 的「點選本人改期審核中時段」 — Why：右側面板的說明文字
     - `ui/booking.html` → 雛形狀態「本人改期審核中時段（本人視角）」「改期審核中時段（其他成員視角）」 — Why：時段格子與面板的實際樣子
     - `contracts/openapi.yaml` → `MyRescheduleSlotRef` — Why：面板說明要用的申請編號、預約編號與原時段
-- [ ] T049 [US3] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 顯示改期紀錄：每筆有改期紀錄的預約下方顯示可收合的「改期紀錄（n 筆）」表格，欄位為改期申請、狀態、原日期時段、新日期時段、申請時間、審核時間與說明；說明依狀態顯示「免審核設備，送出時立即改期」、「審核管理員 …」、「駁回原因：…｜審核管理員 …」、「撤回時間 …」、「失效原因：…｜失效時間 …」（失效原因文字見 Notes 待確認 2）或「等待管理員審核；核准前原預約照常有效」；有改期審核中申請的預約加上「改期審核中」標籤與提示「改期申請 … 審核中：要改到別的時段，請先撤回這筆申請再重新申請。」；篩選列加入「改期審核中（n）」；沒有符合篩選的預約時顯示「目前沒有符合篩選條件的預約」、「顯示全部預約」與「前往設備預約」（FR-009、US3 情境 1）
+- [X] T049 [US3] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 顯示改期紀錄：每筆有改期紀錄的預約下方顯示可收合的「改期紀錄（n 筆）」表格，欄位為改期申請、狀態、原日期時段、新日期時段、申請時間、審核時間與說明；說明依狀態顯示「免審核設備，送出時立即改期」、「審核管理員 …」、「駁回原因：…｜審核管理員 …」、「撤回時間 …」、「失效原因：…｜失效時間 …」（失效原因文字見 Notes 待確認 2）或「等待管理員審核；核准前原預約照常有效」；有改期審核中申請的預約加上「改期審核中」標籤與提示「改期申請 … 審核中：要改到別的時段，請先撤回這筆申請再重新申請。」；篩選列加入「改期審核中（n）」；沒有符合篩選的預約時顯示「目前沒有符合篩選條件的預約」、「顯示全部預約」與「前往設備預約」（FR-009、US3 情境 1）
   - **Must Read**
     - `ui/plan.md` → §3.3 A8、A9 — Why：篩選與展開改期紀錄的操作
     - `ui/plan.md` → §4 `my-reservations.html` 的「預約清單與改期紀錄」「尚無符合篩選的預約」 — Why：改期紀錄表格、標籤與空狀態的呈現
     - `ui/my-reservations.html` → 雛形狀態「預約清單與改期紀錄」「尚無符合篩選的預約」 — Why：表格欄位與說明文字的實際樣子
     - `contracts/openapi.yaml` → `RescheduleRequest` — Why：每個欄位的來源與可為 null 的情況
-- [ ] T050 [US3] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 加入撤回與含改期審核中申請的取消：改期紀錄中審核中申請的「撤回」開啟確認對話框（改期申請、預約、原時段、新時段與撤回後的說明），處理中按鈕改為「撤回處理中…」，成功後頁頂綠色橫幅「已撤回改期申請 …。預約 … 仍為 … 的「已核准／有效」。」；`INVALID_RESCHEDULE_STATUS` 時頁頂紅色橫幅並重新載入紀錄（見 Notes 待確認 4）；有改期審核中申請的預約按「取消預約」時，對話框以琥珀色提示申請會同時變成「改期已失效」，處理中改為「取消處理中…」，成功後橫幅說明申請已失效（FR-010、FR-013、NFR-002、US3 情境 2、3、6）
+- [X] T050 [US3] 在 `apps/equipment-loan/frontend/src/views/MyReservationsView.tsx` 加入撤回與含改期審核中申請的取消：改期紀錄中審核中申請的「撤回」開啟確認對話框（改期申請、預約、原時段、新時段與撤回後的說明），處理中按鈕改為「撤回處理中…」，成功後頁頂綠色橫幅「已撤回改期申請 …。預約 … 仍為 … 的「已核准／有效」。」；`INVALID_RESCHEDULE_STATUS` 時頁頂紅色橫幅並重新載入紀錄（見 Notes 待確認 4）；有改期審核中申請的預約按「取消預約」時，對話框以琥珀色提示申請會同時變成「改期已失效」，處理中改為「取消處理中…」，成功後橫幅說明申請已失效（FR-010、FR-013、NFR-002、US3 情境 2、3、6）
   - **Must Read**
     - `ui/plan.md` → §3.3 A12、A13 — Why：撤回與取消預約的操作
     - `ui/plan.md` → §4 `my-reservations.html` 的「確認撤回改期申請」「撤回處理中」「改期申請已撤回」「確認取消預約（含改期審核中申請）」「取消處理中」「已取消預約且改期申請失效」 — Why：兩個對話框、處理中與成功的呈現
     - `ui/plan.md` → §5 `my-reservations.html` 的「撤回失敗」「取消有改期審核中申請的預約」 — Why：撤回失敗與取消時的提示
     - `ui/my-reservations.html` → 雛形狀態「確認撤回改期申請」「改期申請已撤回」「確認取消預約（含改期審核中申請）」「已取消預約且改期申請失效」「撤回失敗」 — Why：對話框與橫幅的實際樣子
     - `contracts/openapi.yaml` → `withdrawRescheduleRequest`、`cancelReservation` — Why：兩個操作的回應與錯誤碼
-- [ ] T051 [US3] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 處理改期申請失效：借用管理表格對 `pendingRescheduleRequest` 不為 null 的預約標示「改期審核中 …」；「登記領取」處理中改為「登記領取中…」，成功後頁頂綠色橫幅說明預約變成「借用中」且改期申請已同時變成「改期已失效」並移出待審清單，同時重新載入改期申請清單；核准或駁回收到 `INVALID_RESCHEDULE_STATUS` 時，依訊息顯示原時段已開始、新時段已開始或申請已撤回的頁頂紅色橫幅，並把該筆移出清單（見 Notes 待確認 4）（FR-011、FR-012、FR-016、SC-004、US3 情境 4、5、7）
+- [X] T051 [US3] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 處理改期申請失效：借用管理表格對 `pendingRescheduleRequest` 不為 null 的預約標示「改期審核中 …」；「登記領取」處理中改為「登記領取中…」，成功後頁頂綠色橫幅說明預約變成「借用中」且改期申請已同時變成「改期已失效」並移出待審清單，同時重新載入改期申請清單；核准或駁回收到 `INVALID_RESCHEDULE_STATUS` 時，依訊息顯示原時段已開始、新時段已開始或申請已撤回的頁頂紅色橫幅，並把該筆移出清單（見 Notes 待確認 4）（FR-011、FR-012、FR-016、SC-004、US3 情境 4、5、7）
   - **Must Read**
     - `ui/plan.md` → §3.3 A18 — Why：登記領取有改期審核中申請的預約的操作
     - `ui/plan.md` → §4 `admin.html` 的「登記領取處理中」「登記領取完成（改期申請已失效）」 — Why：處理中與成功的呈現

@@ -12,6 +12,7 @@ import {
   parseDateOnlyToUtc,
 } from "../utils/taipeiTime.js";
 import {
+  expireDueRescheduleRequests,
   toRescheduleRequestDto,
   type RescheduleExpireReason,
   type RescheduleRequestDto,
@@ -380,53 +381,70 @@ export async function createReservation(params: {
 export async function listMyReservations(params: {
   userId: string;
   status?: ReservationStatus;
+  hasPendingRescheduleRequest?: boolean;
   page: number;
   pageSize: number;
 }): Promise<MemberReservationPageDto> {
+  const pendingRescheduleFilter = {
+    status: "pending_approval" as const,
+    deleted_at: null as Date | null,
+  };
   const whereClause = {
     user_id: params.userId,
     deleted_at: null as Date | null,
     ...(params.status ? { status: params.status } : {}),
+    // 「改期審核中」篩選（FR-009）：true 只取有改期審核中申請的預約，false 只取沒有的
+    ...(params.hasPendingRescheduleRequest === undefined
+      ? {}
+      : params.hasPendingRescheduleRequest
+        ? { reschedule_requests: { some: pendingRescheduleFilter } }
+        : { reschedule_requests: { none: pendingRescheduleFilter } }),
   };
 
-  const totalItems = await prisma.reservations.count({
-    where: whereClause,
-  });
+  return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    // 查詢前先讓到期的改期審核中申請失效（research §3、FR-011、FR-012）
+    await expireDueRescheduleRequests(tx, now);
 
-  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+    const totalItems = await tx.reservations.count({
+      where: whereClause,
+    });
 
-  if (totalPages === 0 || params.page > totalPages) {
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+
+    if (totalPages === 0 || params.page > totalPages) {
+      return {
+        items: [],
+        page: params.page,
+        pageSize: params.pageSize,
+        totalItems,
+        totalPages,
+      };
+    }
+
+    const skip = (params.page - 1) * params.pageSize;
+
+    const rows = await tx.reservations.findMany({
+      where: whereClause,
+      include: memberReservationInclude,
+      orderBy: [
+        { reservation_date: "desc" },
+        { slot: { sort_order: "asc" } },
+        { created_at: "desc" },
+        { id: "asc" },
+      ],
+      skip,
+      take: params.pageSize,
+    });
+
     return {
-      items: [],
+      items: rows.map((row) => toMemberReservationDto(row, now)),
       page: params.page,
       pageSize: params.pageSize,
       totalItems,
       totalPages,
     };
-  }
-
-  const skip = (params.page - 1) * params.pageSize;
-
-  const rows = await prisma.reservations.findMany({
-    where: whereClause,
-    include: memberReservationInclude,
-    orderBy: [
-      { reservation_date: "desc" },
-      { slot: { sort_order: "asc" } },
-      { created_at: "desc" },
-      { id: "asc" },
-    ],
-    skip,
-    take: params.pageSize,
   });
-
-  return {
-    items: rows.map((row) => toMemberReservationDto(row)),
-    page: params.page,
-    pageSize: params.pageSize,
-    totalItems,
-    totalPages,
-  };
 }
 
 export const listMyLoanReservations = listMyReservations;
@@ -688,6 +706,18 @@ export async function cancelReservation(params: {
     }
 
     const now = new Date();
+    // FR-013：同一交易內讓這筆預約改期審核中的申請失效（移出待審清單），回應的 pendingRescheduleRequest 因此為 null
+    await tx.reschedule_requests.updateMany({
+      where: { reservation_id: existing.id, status: "pending_approval", deleted_at: null },
+      data: {
+        status: "expired",
+        expire_reason: "reservation_cancelled",
+        expired_at: now,
+        updated_at: now,
+        updated_by: params.userId,
+      },
+    });
+
     const updated = await tx.reservations.update({
       where: { id: existing.id },
       data: {
@@ -711,6 +741,7 @@ export interface AdminReservationItemDto extends ReservationDto {
   returnedByUsername: string | null;
   canPickup: boolean;
   canReturn: boolean;
+  pendingRescheduleRequest: PendingRescheduleSummaryDto | null;
 }
 
 export interface AdminReservationPageDto {
@@ -767,10 +798,20 @@ export function toAdminReservationDto(
       username: string;
       display_name: string;
     } | null;
+    // 只載入 pending_approval 的改期申請；未載入時（待審預約、核准、領取、歸還回應）視為沒有改期審核中申請
+    reschedule_requests?: Array<{
+      id: string;
+      request_no: string;
+      status: RescheduleRequestStatus;
+      to_reservation_date: Date;
+      created_at: Date;
+      to_slot: RescheduleSlotRow;
+    }>;
   },
   now: Date = new Date(),
 ): AdminReservationItemDto {
   const baseDto = toReservationDto(row, now);
+  const pending = row.reschedule_requests?.find((rr) => rr.status === "pending_approval");
   return {
     ...baseDto,
     username: row.user.username,
@@ -782,6 +823,21 @@ export function toAdminReservationDto(
       row.status === "confirmed" &&
       canPickupInWindow(baseDto.reservationDate, row.slot.end_time, now),
     canReturn: row.status === "checked_out",
+    pendingRescheduleRequest: pending
+      ? {
+          id: pending.id,
+          requestNumber: pending.request_no,
+          toReservationDate: formatUtcDateToDateStr(pending.to_reservation_date),
+          toSlot: {
+            slotId: pending.to_slot.id,
+            slotName: pending.to_slot.name,
+            startTime: pending.to_slot.start_time,
+            endTime: pending.to_slot.end_time,
+            sortOrder: pending.to_slot.sort_order,
+          },
+          createdAt: pending.created_at.toISOString(),
+        }
+      : null,
   };
 }
 
@@ -792,6 +848,9 @@ export async function pickupReservationByAdmin(params: {
 }): Promise<AdminReservationItemDto> {
   const now = params.now ?? new Date();
   return prisma.$transaction(async (tx) => {
+    // FR-011：先讓到期的改期審核中申請失效；原時段開始後原預約維持 confirmed，照 005 規則登記領取（research §3）
+    await expireDueRescheduleRequests(tx, now);
+
     const existing = await tx.reservations.findFirst({
       where: {
         id: params.reservationId,
@@ -859,6 +918,18 @@ export async function pickupReservationByAdmin(params: {
         reviewer: true,
         checkout_admin: true,
         return_admin: true,
+      },
+    });
+
+    // FR-016：同一交易內讓這筆預約改期審核中的申請失效（移出待審清單）
+    await tx.reschedule_requests.updateMany({
+      where: { reservation_id: existing.id, status: "pending_approval", deleted_at: null },
+      data: {
+        status: "expired",
+        expire_reason: "reservation_checked_out",
+        expired_at: now,
+        updated_at: now,
+        updated_by: params.adminUserId,
       },
     });
 
@@ -997,49 +1068,60 @@ export async function listAllReservations(params: {
     ...(params.equipmentId ? { equipment_id: params.equipmentId } : {}),
   };
 
-  const totalItems = await prisma.reservations.count({
-    where: whereClause,
-  });
+  return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    // 查詢前先讓到期的改期審核中申請失效（tasks.md Notes 待確認 3、FR-011、FR-012）
+    await expireDueRescheduleRequests(tx, now);
 
-  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+    const totalItems = await tx.reservations.count({
+      where: whereClause,
+    });
 
-  if (totalPages === 0 || params.page > totalPages) {
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
+
+    if (totalPages === 0 || params.page > totalPages) {
+      return {
+        items: [],
+        page: params.page,
+        pageSize: params.pageSize,
+        totalItems,
+        totalPages,
+      };
+    }
+
+    const skip = (params.page - 1) * params.pageSize;
+
+    const rows = await tx.reservations.findMany({
+      where: whereClause,
+      include: {
+        user: true,
+        equipment: true,
+        slot: true,
+        reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
+        // FR-016：借用管理表格標示「改期審核中」
+        reschedule_requests: {
+          where: { status: "pending_approval", deleted_at: null },
+          include: { to_slot: true },
+        },
+      },
+      orderBy: [
+        { reservation_date: "desc" },
+        { slot: { sort_order: "asc" } },
+        { created_at: "desc" },
+        { id: "asc" },
+      ],
+      skip,
+      take: params.pageSize,
+    });
+
     return {
-      items: [],
+      items: rows.map((row) => toAdminReservationDto(row, now)),
       page: params.page,
       pageSize: params.pageSize,
       totalItems,
       totalPages,
     };
-  }
-
-  const skip = (params.page - 1) * params.pageSize;
-
-  const rows = await prisma.reservations.findMany({
-    where: whereClause,
-    include: {
-      user: true,
-      equipment: true,
-      slot: true,
-      reviewer: true,
-      checkout_admin: true,
-      return_admin: true,
-    },
-    orderBy: [
-      { reservation_date: "desc" },
-      { slot: { sort_order: "asc" } },
-      { created_at: "desc" },
-      { id: "asc" },
-    ],
-    skip,
-    take: params.pageSize,
   });
-
-  return {
-    items: rows.map((row) => toAdminReservationDto(row)),
-    page: params.page,
-    pageSize: params.pageSize,
-    totalItems,
-    totalPages,
-  };
 }

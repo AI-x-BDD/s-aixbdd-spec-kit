@@ -3,6 +3,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { adminRouter } from "./routes/adminRouter.js";
 import { authRouter } from "./routes/authRouter.js";
 import { equipmentsRouter } from "./routes/equipmentsRouter.js";
+import { rescheduleRequestsRouter } from "./routes/rescheduleRequestsRouter.js";
 import { reservationsRouter } from "./routes/reservationsRouter.js";
 
 export const app = express();
@@ -13,6 +14,7 @@ export const apiRouter = express.Router();
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/equipments", equipmentsRouter);
 apiRouter.use("/reservations", reservationsRouter);
+apiRouter.use("/reschedule-requests", rescheduleRequestsRouter);
 apiRouter.use("/admin", adminRouter);
 app.use("/api", apiRouter);
 

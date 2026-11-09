@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { prisma, pool } from "../src/db/prisma.js";
 import { hashPassword } from "../src/utils/password.js";
+import { getSlotStartUtc } from "../src/utils/taipeiTime.js";
 
 function getTaipeiDateOffset(daysOffset: number): Date {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -468,6 +469,87 @@ export async function seedDatabase(): Promise<void> {
         created_at: rejectedAppliedAt,
         updated_at: rejectedReviewedAt,
         updated_by: wuChenghan.id,
+      },
+    ],
+  });
+
+  // 006 US3：改期已撤回、改期已失效與可示範一併失效的改期申請範例（FR-015、US3 情境 1）
+  // 改期已撤回：林雅婷 RV-20261109-12（EQ-102 三天後下午）申請改到四天後晚間，之後由本人撤回
+  const withdrawnAppliedAt = new Date("2026-11-09T03:05:00Z");
+  const withdrawnAt = new Date("2026-11-09T03:20:00Z");
+  // 改期已失效（原時段開始）：林雅婷 RV-20261108-03（EQ-101 今天下午，已登記領取）申請改到後天下午，原時段開始時自動失效
+  const originalStartedAppliedAt = new Date("2026-11-08T12:10:00Z");
+  const originalSlotStartedAt = getSlotStartUtc(
+    today.toISOString().slice(0, 10),
+    slotAfternoon.start_time,
+  );
+  // 改期已失效（原預約取消）：林雅婷 RV-20261107-06（EQ-103 明天上午）申請改到三天後晚間，原預約取消時一併失效
+  const cancelledAppliedAt = new Date("2026-11-08T10:40:00Z");
+  const reservationCancelledAt = new Date("2026-11-08T11:30:00Z");
+  // 改期審核中：林雅婷 RV-20261108-06（EQ-103 今天晚間）申請改到明天晚間，可示範取消或登記領取原預約時一併失效
+  const eveningPendingAppliedAt = new Date("2026-11-09T00:40:00Z");
+  await prisma.reschedule_requests.createMany({
+    data: [
+      {
+        id: "55555555-5555-4555-8555-555555555005",
+        request_no: generateRescheduleRequestNo(withdrawnAppliedAt),
+        reservation_id: "44444444-4444-4444-8444-444444444016",
+        user_id: linYating.id,
+        from_reservation_date: threeDaysLater,
+        from_slot_id: slotAfternoon.id,
+        to_reservation_date: fourDaysLater,
+        to_slot_id: slotEvening.id,
+        status: "withdrawn",
+        withdrawn_at: withdrawnAt,
+        created_at: withdrawnAppliedAt,
+        updated_at: withdrawnAt,
+        updated_by: linYating.id,
+      },
+      {
+        id: "55555555-5555-4555-8555-555555555006",
+        request_no: generateRescheduleRequestNo(originalStartedAppliedAt),
+        reservation_id: "44444444-4444-4444-8444-444444444003",
+        user_id: linYating.id,
+        from_reservation_date: today,
+        from_slot_id: slotAfternoon.id,
+        to_reservation_date: dayAfterTomorrow,
+        to_slot_id: slotAfternoon.id,
+        status: "expired",
+        expired_at: originalSlotStartedAt,
+        expire_reason: "original_slot_started",
+        created_at: originalStartedAppliedAt,
+        updated_at: originalSlotStartedAt,
+        updated_by: null,
+      },
+      {
+        id: "55555555-5555-4555-8555-555555555007",
+        request_no: generateRescheduleRequestNo(cancelledAppliedAt),
+        reservation_id: "44444444-4444-4444-8444-444444444013",
+        user_id: linYating.id,
+        from_reservation_date: tomorrow,
+        from_slot_id: slotMorning.id,
+        to_reservation_date: threeDaysLater,
+        to_slot_id: slotEvening.id,
+        status: "expired",
+        expired_at: reservationCancelledAt,
+        expire_reason: "reservation_cancelled",
+        created_at: cancelledAppliedAt,
+        updated_at: reservationCancelledAt,
+        updated_by: linYating.id,
+      },
+      {
+        id: "55555555-5555-4555-8555-555555555008",
+        request_no: generateRescheduleRequestNo(eveningPendingAppliedAt),
+        reservation_id: "44444444-4444-4444-8444-444444444006",
+        user_id: linYating.id,
+        from_reservation_date: today,
+        from_slot_id: slotEvening.id,
+        to_reservation_date: tomorrow,
+        to_slot_id: slotEvening.id,
+        status: "pending_approval",
+        created_at: eveningPendingAppliedAt,
+        updated_at: eveningPendingAppliedAt,
+        updated_by: linYating.id,
       },
     ],
   });
