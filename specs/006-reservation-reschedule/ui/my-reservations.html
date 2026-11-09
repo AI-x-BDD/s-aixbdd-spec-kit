@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的預約、申請改期與改期紀錄｜精密實驗設備借用中心</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-muted: #F1F5F9;
+    --ink: #0F172A;
+    --muted: #475569;
+    --line: #E2E8F0;
+    --primary: #2563EB;
+    --primary-soft: #DBEAFE;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+    --pending: #D97706;
+    --pending-soft: #FEF3C7;
+    --success: #16A34A;
+    --success-soft: #DCFCE7;
+    --occupied: #64748B;
+    --occupied-soft: #F1F5F9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+    --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-muted: #162032;
+    --ink: #F8FAFC;
+    --muted: #94A3B8;
+    --line: #334155;
+    --primary: #3B82F6;
+    --primary-soft: #1E3A8A;
+    --danger: #EF4444;
+    --danger-soft: #7F1D1D;
+    --pending: #F59E0B;
+    --pending-soft: #78350F;
+    --success: #22C55E;
+    --success-soft: #14532D;
+    --occupied: #94A3B8;
+    --occupied-soft: #334155;
+    --shadow: 0 1px 3px rgba(15, 23, 42, .35), 0 6px 20px rgba(15, 23, 42, .35);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); transition: background-color .15s, color .15s; }
+  a { color: inherit; }
+  code, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .04em; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .brand-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #FFFFFF; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .site-nav a { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .user-pill { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .btn-theme, .btn-logout { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-theme:hover, .btn-logout:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 720px) { .user-pill { display: none; } .site-header .inner { padding: 8px 12px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  h3 { margin: 0 0 8px; font-size: 15px; }
+  .page-lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .section-card { margin-bottom: 20px; padding: 20px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .section-head h2 { margin: 0; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, background-color .15s; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--primary); }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFFFFF; }
+  .btn-pending { background: var(--pending); border-color: var(--pending); color: #FFFFFF; }
+  .btn-success { background: var(--success); border-color: var(--success); color: #FFFFFF; }
+  .btn-outline-danger { color: var(--danger); border-color: var(--danger); }
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .banner-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .banner-pending { background: var(--pending-soft); color: var(--pending); border-color: var(--pending); }
+  .banner-info { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+  [data-theme="dark"] .banner { color: var(--ink); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+  .badge-available { background: var(--success-soft); color: var(--success); }
+  .badge-mine { background: var(--primary-soft); color: var(--primary); }
+  .badge-loan { background: var(--primary); color: #FFFFFF; }
+  .badge-returned { background: var(--success-soft); color: var(--success); }
+  .badge-pending { background: var(--pending-soft); color: var(--pending); }
+  .badge-occupied { background: var(--occupied-soft); color: var(--occupied); }
+  .badge-rejected { background: var(--danger-soft); color: var(--danger); }
+  .badge-reschedule { background: var(--surface); color: var(--pending); border: 1px dashed var(--pending); }
+  [data-theme="dark"] .badge-available, [data-theme="dark"] .badge-mine, [data-theme="dark"] .badge-returned, [data-theme="dark"] .badge-pending, [data-theme="dark"] .badge-rejected { color: var(--ink); }
+
+  .spinner { width: 20px; height: 20px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { background: var(--surface-muted); border-radius: 8px; min-height: 20px; border: 1px dashed var(--line); }
+  .loading-line { display: flex; align-items: center; gap: 10px; color: var(--muted); margin-bottom: 14px; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+  .field .req { margin-left: 2px; color: var(--danger); }
+  .field input, .field textarea, .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+  .field input { height: 42px; }
+  .field textarea { min-height: 96px; resize: vertical; }
+  .field input:focus, .field textarea:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field input:disabled { background: var(--surface-muted); color: var(--muted); }
+  .field.has-error input, .field.has-error textarea { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
+  .field .error { margin-top: 4px; color: var(--danger); font-size: 13px; font-weight: 500; }
+
+  .dialog-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(15, 23, 42, .45); display: grid; place-items: center; padding: 16px; }
+  .dialog { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px; }
+  .dialog-wide { width: min(880px, 100%); }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .dialog-error { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); font-size: 13px; font-weight: 500; }
+  [data-theme="dark"] .dialog-error { color: var(--ink); }
+  .notice { margin: 12px 0; padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); background: var(--surface-muted); }
+  .notice-pending { background: var(--pending-soft); border-color: var(--pending); }
+  .notice-success { background: var(--success-soft); border-color: var(--success); }
+  @media (max-width: 640px) { .dialog-backdrop { padding: 0; } .dialog { width: 100%; min-height: 100vh; max-height: 100vh; border-radius: 0; } }
+  .detail-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
+  .detail-list dt { color: var(--muted); }
+  .detail-list dd { margin: 0; font-weight: 600; }
+  .empty-state { padding: 36px 20px; text-align: center; }
+
+  /* 固定時段格子（設備預約與申請改期共用） */
+  .slot { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  .slot:hover { border-color: var(--primary); }
+  .slot .slot-name { font-weight: 700; font-size: 14px; }
+  .slot .slot-time { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .slot .slot-state { font-weight: 600; font-size: 12px; }
+  .slot-available { border-color: var(--success); }
+  .slot-available .slot-state { color: var(--success); }
+  .slot-mine { background: var(--primary-soft); border-color: var(--primary); }
+  .slot-mine .slot-state { color: var(--primary); }
+  .slot-my-loan { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .slot-my-loan .slot-time, .slot-my-loan .slot-state { color: #FFFFFF; }
+  .slot-my-returned { background: var(--success-soft); border-color: var(--success); }
+  .slot-my-returned .slot-state { color: var(--success); }
+  .slot-my-pending { background: var(--pending-soft); border-color: var(--pending); }
+  .slot-my-pending .slot-state { color: var(--pending); }
+  .slot-my-reschedule { background: var(--surface); border: 1.5px dashed var(--pending); }
+  .slot-my-reschedule .slot-state { color: var(--pending); }
+  .slot-occupied, .slot-closed { background: var(--occupied-soft); border-color: var(--line); color: var(--muted); }
+  .slot-occupied .slot-state, .slot-closed .slot-state { color: var(--occupied); }
+  .slot-original { background: var(--surface-muted); border: 1.5px solid var(--primary); }
+  .slot-original .slot-state { color: var(--primary); }
+  .slot.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .slot.selected .slot-state { color: var(--primary); }
+  [data-theme="dark"] .slot-mine .slot-state, [data-theme="dark"] .slot-my-returned .slot-state, [data-theme="dark"] .slot-my-pending .slot-state, [data-theme="dark"] .slot.selected .slot-state { color: var(--ink); }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 我的預約頁 */
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filter-chip { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+  .filter-chip[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #FFFFFF; font-weight: 600; }
+  .res-list { display: grid; gap: 14px; }
+  .res-card { padding: 16px 18px; }
+  .res-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .res-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .res-id { font-weight: 700; }
+  .res-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .res-main { margin-top: 6px; font-weight: 600; }
+  .res-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .res-note { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .history { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .history summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--primary); }
+  .table-wrap { overflow-x: auto; margin-top: 8px; }
+  .history-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 760px; }
+  .history-table th, .history-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .history-table th { color: var(--muted); font-weight: 600; background: var(--surface-muted); }
+  .skeleton-card { padding: 18px; display: grid; gap: 10px; }
+  /* 申請改期對話框 */
+  .grid-wrap { overflow-x: auto; margin-top: 12px; }
+  .resched-grid { display: grid; grid-template-columns: 72px repeat(8, minmax(84px, 1fr)); gap: 6px; min-width: 820px; }
+  .resched-grid .col-head { font-size: 12px; font-weight: 600; text-align: center; font-family: var(--font-mono); }
+  .resched-grid .row-head { font-size: 12px; font-weight: 600; display: flex; flex-direction: column; justify-content: center; }
+  .resched-grid .slot { padding: 8px; min-height: 58px; }
+  .resched-grid .slot .slot-state { font-size: 11px; }
+  .chosen { margin-top: 12px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="brand-mark">EL</span>精密實驗設備借用中心</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">登入</a>
+      <a href="booking.html">設備預約</a>
+      <a href="my-reservations.html" aria-current="page">我的預約</a>
+      <a href="admin.html">審核與借用管理</a>
+    </nav>
+    <div class="header-actions">
+      <span id="header-user" class="user-pill">尚未登入</span>
+      <button id="theme-toggle" class="btn-theme" type="button" aria-label="切換深淺色主題">深色模式</button>
+      <a id="header-logout" class="btn-logout" href="index.html?state=logged-out">登出</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>我的預約</h1>
+  <p class="page-lead">查看本人所有預約與改期紀錄。原時段尚未開始的「已核准／有效」預約可以申請改期到同一台設備的另一個時段，改期成功前原預約照常有效。</p>
+
+  <div id="page-banner" class="banner" role="alert" hidden>
+    <span id="page-banner-text"></span>
+    <a id="page-banner-link" class="btn btn-sm" href="booking.html" hidden></a>
+  </div>
+
+  <section id="view-loading" hidden>
+    <div class="loading-line"><span class="spinner" aria-hidden="true"></span><span>正在載入預約與改期紀錄…</span></div>
+    <div class="res-list">
+      <div class="card skeleton-card"><div class="skeleton" style="height:22px;width:40%;"></div><div class="skeleton" style="height:44px;"></div></div>
+      <div class="card skeleton-card"><div class="skeleton" style="height:22px;width:55%;"></div><div class="skeleton" style="height:44px;"></div></div>
+      <div class="card skeleton-card"><div class="skeleton" style="height:22px;width:35%;"></div><div class="skeleton" style="height:44px;"></div></div>
+    </div>
+  </section>
+
+  <section id="view-main">
+    <div id="filter-bar" class="filter-bar" role="group" aria-label="依狀態篩選"></div>
+    <div id="res-list" class="res-list"></div>
+    <div id="view-empty" class="card empty-state" hidden>
+      <h2>目前沒有符合篩選條件的預約</h2>
+      <p class="muted">切換其他篩選條件，或到設備預約建立新的預約。</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button id="show-all-btn" class="btn btn-primary" type="button">顯示全部預約</button>
+        <a class="btn" href="booking.html">前往設備預約</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="reschedule-dialog" class="dialog-backdrop" hidden>
+  <section class="card dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="rd-title">
+    <h2 id="rd-title">申請改期</h2>
+    <dl class="detail-list">
+      <dt>預約編號</dt><dd id="rd-id" class="mono"></dd>
+      <dt>設備</dt><dd id="rd-eq"></dd>
+      <dt>原時段</dt><dd id="rd-from" class="mono"></dd>
+    </dl>
+    <div id="rd-notice" class="notice"></div>
+    <strong style="font-size:14px;">選擇同一台設備的新時段</strong>
+    <div class="grid-wrap"><div id="rd-grid" class="resched-grid"></div></div>
+    <div class="chosen">新時段：<span id="rd-to" class="mono">尚未選擇</span></div>
+    <div id="rd-error" class="dialog-error" role="alert" hidden></div>
+    <div class="dialog-actions">
+      <button id="rd-close" class="btn" type="button">取消</button>
+      <button id="rd-submit" class="btn btn-primary" type="button">送出改期申請</button>
+    </div>
+  </section>
+</div>
+
+<div id="confirm-dialog" class="dialog-backdrop" hidden>
+  <section class="card dialog" role="dialog" aria-modal="true" aria-labelledby="cd-title">
+    <h2 id="cd-title"></h2>
+    <dl id="cd-detail" class="detail-list"></dl>
+    <div id="cd-notice" class="notice"></div>
+    <div class="dialog-actions">
+      <button id="cd-close" class="btn" type="button">返回</button>
+      <button id="cd-confirm" class="btn btn-danger" type="button"></button>
+    </div>
+  </section>
+</div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：登入成員林雅婷；與 booking.html、admin.html 共用同一批設備、預約與改期申請；目前時間 2026-11-09 14:30
+  const MOCK = {
+    today: '2026-11-09',
+    nowHour: 14.5,
+    now: '2026-11-09 14:33',
+    me: 'lin.yating',
+    dates: ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15'],
+    closedDate: '2026-11-16',
+    slots: [
+      { id: 'AM', name: '上午', time: '09:00–12:00', start: 9 },
+      { id: 'PM', name: '下午', time: '13:00–17:00', start: 13 },
+      { id: 'EV', name: '晚間', time: '18:00–21:00', start: 18 }
+    ],
+    equipments: [
+      { id: 'EQ-101', name: '高解析度光學顯微鏡 Olympus BX53', requiresApproval: true },
+      { id: 'EQ-102', name: '四通道數位示波器 Keysight DSOX3024T', requiresApproval: true },
+      { id: 'EQ-103', name: '高精度工業熱像儀 FLIR E86', requiresApproval: false },
+      { id: 'EQ-104', name: '微量分光光度計 Thermo NanoDrop One', requiresApproval: false }
+    ],
+    reservations: [
+      { id: 'RV-20261107-04', eq: 'EQ-101', date: '2026-11-13', slot: 'AM', status: 'confirmed', createdAt: '2026-11-07 15:10', reviewedAt: '2026-11-07 16:00', history: [
+        { id: 'RR-20261109-01', status: 'withdrawn', fromDate: '2026-11-13', fromSlot: 'AM', toDate: '2026-11-14', toSlot: 'AM', appliedAt: '2026-11-09 09:02', withdrawnAt: '2026-11-09 09:30' },
+        { id: 'RR-20261108-02', status: 'rejected', fromDate: '2026-11-13', fromSlot: 'AM', toDate: '2026-11-13', toSlot: 'PM', appliedAt: '2026-11-08 14:10', reviewedAt: '2026-11-08 17:05', reviewer: '吳承翰', rejectReason: '11/13 下午顯微鏡已排定年度校正，請改選其他時段。' }
+      ] },
+      { id: 'RV-20261109-12', eq: 'EQ-102', date: '2026-11-12', slot: 'PM', status: 'confirmed', createdAt: '2026-11-09 11:20', reviewedAt: '2026-11-09 11:45', history: [] },
+      { id: 'RV-20261108-07', eq: 'EQ-103', date: '2026-11-12', slot: 'PM', status: 'confirmed', createdAt: '2026-11-08 10:20', history: [
+        { id: 'RR-20261108-01', status: 'approved', fromDate: '2026-11-12', fromSlot: 'AM', toDate: '2026-11-12', toSlot: 'PM', appliedAt: '2026-11-08 16:20', instant: true }
+      ] },
+      { id: 'RV-20261108-04', eq: 'EQ-101', date: '2026-11-11', slot: 'AM', status: 'confirmed', createdAt: '2026-11-08 09:12', reviewedAt: '2026-11-08 11:00', history: [
+        { id: 'RR-20261109-02', status: 'pending', fromDate: '2026-11-11', fromSlot: 'AM', toDate: '2026-11-11', toSlot: 'EV', appliedAt: '2026-11-09 09:15' }
+      ] },
+      { id: 'RV-20261108-05', eq: 'EQ-104', date: '2026-11-10', slot: 'AM', status: 'confirmed', createdAt: '2026-11-08 09:40', history: [] },
+      { id: 'RV-20261109-07', eq: 'EQ-102', date: '2026-11-10', slot: 'AM', status: 'rejected', createdAt: '2026-11-09 08:30', reviewedAt: '2026-11-09 10:10', rejectReason: '11/10 上午示波器已安排教學課程使用。', history: [] },
+      { id: 'RV-20261107-06', eq: 'EQ-101', date: '2026-11-10', slot: 'AM', status: 'cancelled', createdAt: '2026-11-07 11:05', reviewedAt: '2026-11-07 13:20', cancelledAt: '2026-11-08 19:30', history: [
+        { id: 'RR-20261108-05', status: 'expired', fromDate: '2026-11-10', fromSlot: 'AM', toDate: '2026-11-12', toSlot: 'EV', appliedAt: '2026-11-08 18:40', expiredAt: '2026-11-08 19:30', expireReason: '原預約已取消' }
+      ] },
+      { id: 'RV-20261108-06', eq: 'EQ-102', date: '2026-11-09', slot: 'EV', status: 'confirmed', createdAt: '2026-11-08 13:30', reviewedAt: '2026-11-08 15:00', history: [
+        { id: 'RR-20261109-04', status: 'pending', fromDate: '2026-11-09', fromSlot: 'EV', toDate: '2026-11-10', toSlot: 'EV', appliedAt: '2026-11-09 08:40' }
+      ] },
+      { id: 'RV-20261109-08', eq: 'EQ-101', date: '2026-11-09', slot: 'EV', status: 'pending_approval', createdAt: '2026-11-09 09:20', history: [] },
+      { id: 'RV-20261108-03', eq: 'EQ-101', date: '2026-11-09', slot: 'PM', status: 'checked_out', createdAt: '2026-11-08 09:00', reviewedAt: '2026-11-08 10:30', checkedOutAt: '2026-11-09 13:05', history: [
+        { id: 'RR-20261108-04', status: 'expired', fromDate: '2026-11-09', fromSlot: 'PM', toDate: '2026-11-10', toSlot: 'PM', appliedAt: '2026-11-08 20:10', expiredAt: '2026-11-09 13:00', expireReason: '原時段開始' }
+      ] },
+      { id: 'RV-20261107-03', eq: 'EQ-104', date: '2026-11-09', slot: 'PM', status: 'confirmed', createdAt: '2026-11-07 10:00', history: [] },
+      { id: 'RV-20261108-01', eq: 'EQ-102', date: '2026-11-09', slot: 'AM', status: 'returned', createdAt: '2026-11-07 09:30', reviewedAt: '2026-11-07 10:00', checkedOutAt: '2026-11-09 09:05', returnedAt: '2026-11-09 11:40', history: [] }
+    ],
+    occupancy: [
+      { id: 'RV-20261108-10', user: 'chen.guanting', eq: 'EQ-104', date: '2026-11-09', slot: 'EV', status: 'confirmed' },
+      { id: 'RV-20261109-09', user: 'chen.guanting', eq: 'EQ-101', date: '2026-11-09', slot: 'EV', status: 'pending_approval' },
+      { id: 'RV-20261109-13', user: 'chen.guanting', eq: 'EQ-104', date: '2026-11-10', slot: 'EV', status: 'confirmed' },
+      { id: 'RV-20261108-11', user: 'chen.guanting', eq: 'EQ-102', date: '2026-11-13', slot: 'AM', status: 'confirmed' }
+    ]
+  };
+
+  const RES_STATUS = {
+    pending_approval: { text: '待審核', cls: 'badge-pending' },
+    confirmed: { text: '已核准／有效', cls: 'badge-mine' },
+    checked_out: { text: '借用中', cls: 'badge-loan' },
+    returned: { text: '已歸還', cls: 'badge-returned' },
+    rejected: { text: '已駁回', cls: 'badge-rejected' },
+    cancelled: { text: '已取消', cls: 'badge-occupied' }
+  };
+  const RR_STATUS = {
+    pending: { text: '改期審核中', cls: 'badge-pending' },
+    approved: { text: '改期成功', cls: 'badge-available' },
+    rejected: { text: '改期被駁回', cls: 'badge-rejected' },
+    withdrawn: { text: '改期已撤回', cls: 'badge-occupied' },
+    expired: { text: '改期已失效', cls: 'badge-occupied' }
+  };
+  const FILTERS = [
+    { key: 'all', text: '全部' },
+    { key: 'rr-pending', text: '改期審核中' },
+    { key: 'pending_approval', text: '待審核' },
+    { key: 'confirmed', text: '已核准／有效' },
+    { key: 'checked_out', text: '借用中' },
+    { key: 'returned', text: '已歸還' },
+    { key: 'rejected', text: '已駁回' },
+    { key: 'cancelled', text: '已取消' }
+  ];
+  const WEEKDAY = { '2026-11-09': '一', '2026-11-10': '二', '2026-11-11': '三', '2026-11-12': '四', '2026-11-13': '五', '2026-11-14': '六', '2026-11-15': '日', '2026-11-16': '一' };
+
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  function initTheme() {
+    let saved = 'light';
+    try { saved = localStorage.getItem('el-theme') || 'light'; } catch (err) { saved = 'light'; }
+    applyTheme(saved);
+    $('#theme-toggle').addEventListener('click', () => {
+      applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      $('#theme-toggle').textContent = '淺色模式';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      $('#theme-toggle').textContent = '深色模式';
+    }
+    try { localStorage.setItem('el-theme', theme); } catch (err) { /* 瀏覽器不允許儲存時只切換本次畫面 */ }
+  }
+
+  function showBanner(tone, text, linkText, linkHref) {
+    const banner = $('#page-banner');
+    banner.className = `banner banner-${tone}`;
+    $('#page-banner-text').textContent = text;
+    const link = $('#page-banner-link');
+    if (linkText) {
+      link.textContent = linkText;
+      link.setAttribute('href', linkHref);
+      link.hidden = false;
+    } else {
+      link.hidden = true;
+    }
+    banner.hidden = false;
+  }
+
+  function hideBanner() {
+    $('#page-banner').hidden = true;
+  }
+
+  function setUser(text) {
+    $('#header-user').textContent = text;
+  }
+  let data = [];
+  let filter = 'all';
+  let dialogRes = null;
+  let chosen = null;
+  let confirmAction = null;
+  let extraOccupancy = [];
+
+  const eqOf = id => MOCK.equipments.find(e => e.id === id);
+  const slotOf = id => MOCK.slots.find(s => s.id === id);
+  const slotText = (date, slotId) => `${date} ${slotOf(slotId).name} ${slotOf(slotId).time}`;
+  const resOf = id => data.find(r => r.id === id);
+  const pendingOf = r => r.history.find(h => h.status === 'pending');
+  const started = (date, slotId) => date < MOCK.today || (date === MOCK.today && slotOf(slotId).start <= MOCK.nowHour);
+  const canReschedule = r => r.status === 'confirmed' && !started(r.date, r.slot) && !pendingOf(r);
+  const canCancel = r => (r.status === 'pending_approval' || r.status === 'confirmed') && !started(r.date, r.slot);
+
+  function resetData() {
+    data = JSON.parse(JSON.stringify(MOCK.reservations));
+  }
+
+  function historyNote(h) {
+    if (h.status === 'approved' && h.instant) return '免審核設備，送出時立即改期';
+    if (h.status === 'approved') return `審核管理員 ${h.reviewer}`;
+    if (h.status === 'rejected') return `駁回原因：${h.rejectReason || '（未填寫）'}｜審核管理員 ${h.reviewer}`;
+    if (h.status === 'withdrawn') return `撤回時間 ${h.withdrawnAt}`;
+    if (h.status === 'expired') return `失效原因：${h.expireReason}｜失效時間 ${h.expiredAt}`;
+    return '等待管理員審核；核准前原預約照常有效';
+  }
+
+  function renderHistory(r) {
+    if (!r.history.length) return '';
+    const rows = r.history.map(h => `
+      <tr>
+        <td class="mono">${h.id}</td>
+        <td><span class="badge ${RR_STATUS[h.status].cls}">${RR_STATUS[h.status].text}</span></td>
+        <td class="mono">${slotText(h.fromDate, h.fromSlot)}</td>
+        <td class="mono">${slotText(h.toDate, h.toSlot)}</td>
+        <td class="mono">${h.appliedAt}</td>
+        <td class="mono">${h.reviewedAt || '—'}</td>
+        <td>${historyNote(h)}${h.status === 'pending' ? ` <button class="btn btn-sm btn-outline-danger" type="button" data-withdraw="${h.id}" data-res="${r.id}">撤回</button>` : ''}</td>
+      </tr>`).join('');
+    return `
+      <details class="history" open>
+        <summary>改期紀錄（${r.history.length} 筆）</summary>
+        <div class="table-wrap">
+          <table class="history-table">
+            <thead><tr><th>改期申請</th><th>狀態</th><th>原日期時段</th><th>新日期時段</th><th>申請時間</th><th>審核時間</th><th>說明</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </details>`;
+  }
+
+  function renderCard(r) {
+    const eq = eqOf(r.eq);
+    const pending = pendingOf(r);
+    const meta = [`建立 ${r.createdAt}`];
+    if (r.reviewedAt) meta.push(`審核 ${r.reviewedAt}`);
+    if (r.checkedOutAt) meta.push(`領取 ${r.checkedOutAt}`);
+    if (r.returnedAt) meta.push(`歸還 ${r.returnedAt}`);
+    if (r.cancelledAt) meta.push(`取消 ${r.cancelledAt}`);
+    if (r.rejectReason) meta.push(`駁回原因：${r.rejectReason}`);
+    const actions = [];
+    if (canReschedule(r)) actions.push(`<button class="btn btn-sm btn-primary" type="button" data-reschedule="${r.id}">申請改期</button>`);
+    if (canCancel(r)) actions.push(`<button class="btn btn-sm btn-outline-danger" type="button" data-cancel="${r.id}">${r.status === 'pending_approval' ? '取消待審申請' : '取消預約'}</button>`);
+    let note = '';
+    if (r.status === 'confirmed' && started(r.date, r.slot)) note = '原時段已開始，不能申請改期或取消；請在時段結束前到現場由管理員登記領取。';
+    if (pending) note = `改期申請 ${pending.id} 審核中：要改到別的時段，請先撤回這筆申請再重新申請。`;
+    return `
+      <article class="card res-card">
+        <div class="res-head">
+          <div>
+            <div class="res-title">
+              <span class="mono res-id">${r.id}</span>
+              <span class="badge ${RES_STATUS[r.status].cls}">${RES_STATUS[r.status].text}</span>
+              ${pending ? '<span class="badge badge-reschedule">改期審核中</span>' : ''}
+            </div>
+            <div class="res-main"><span class="mono">${eq.id}</span> ${eq.name}</div>
+            <div class="mono" style="font-size:14px;">${slotText(r.date, r.slot)}（${WEEKDAY[r.date]}）</div>
+          </div>
+          <div class="res-actions">${actions.join('')}</div>
+        </div>
+        <div class="res-meta mono">${meta.map(m => `<span>${m}</span>`).join('')}</div>
+        ${note ? `<div class="res-note">${note}</div>` : ''}
+        ${renderHistory(r)}
+      </article>`;
+  }
+
+  function matches(r) {
+    if (filter === 'all') return true;
+    if (filter === 'rr-pending') return Boolean(pendingOf(r));
+    return r.status === filter;
+  }
+
+  function render() {
+    $('#view-loading').hidden = true;
+    $('#view-main').hidden = false;
+    setUser('林雅婷（一般成員）');
+    $('#filter-bar').innerHTML = FILTERS.map(f => {
+      const count = data.filter(r => f.key === 'all' || (f.key === 'rr-pending' ? Boolean(pendingOf(r)) : r.status === f.key)).length;
+      return `<button class="filter-chip" type="button" data-filter="${f.key}" aria-pressed="${f.key === filter}">${f.text}（${count}）</button>`;
+    }).join('');
+    const list = data.filter(matches);
+    $('#res-list').innerHTML = list.map(renderCard).join('');
+    $('#view-empty').hidden = list.length > 0;
+  }
+
+  function cellStatus(r, date, slotId) {
+    if (date === MOCK.closedDate) return 'closed-range';
+    if (date === r.date && slotId === r.slot) return 'original';
+    if (started(date, slotId)) return 'started';
+    const mine = data.find(x => x.id !== r.id && x.eq === r.eq && x.date === date && x.slot === slotId && ['pending_approval', 'confirmed', 'checked_out'].includes(x.status));
+    if (mine) return 'own';
+    const taken = data.concat(MOCK.occupancy, extraOccupancy).find(x => x.eq === r.eq && x.date === date && x.slot === slotId && ['confirmed', 'checked_out', 'returned'].includes(x.status));
+    if (taken) return 'occupied';
+    return 'available';
+  }
+
+  const CELL_META = {
+    available: { cls: 'slot-available', text: '可改期' },
+    original: { cls: 'slot-original', text: '原時段' },
+    started: { cls: 'slot-closed', text: '已開始' },
+    own: { cls: 'slot-mine', text: '本人已有預約' },
+    occupied: { cls: 'slot-occupied', text: '已被預約' },
+    'closed-range': { cls: 'slot-closed', text: '未開放' }
+  };
+
+  function cellError(r, date, slotId, status) {
+    const text = slotText(date, slotId);
+    if (status === 'original') return `新時段不能與原時段相同（${text}），請選擇其他時段。`;
+    if (status === 'started') return `${text} 已開始，請選擇尚未開始的時段。`;
+    if (status === 'closed-range') return '只能改到 2026-11-09 至 2026-11-15（當日起算 7 天）內的時段。';
+    if (status === 'own') {
+      const mine = data.find(x => x.id !== r.id && x.eq === r.eq && x.date === date && x.slot === slotId);
+      return `您在 ${text} 已有這台設備的預約 ${mine.id}，不能改到同一時段。`;
+    }
+    return `${text} 已被預約，請選擇標示「可改期」的時段。`;
+  }
+
+  function renderGrid() {
+    const r = dialogRes;
+    const dates = MOCK.dates.concat([MOCK.closedDate]);
+    let html = '<div></div>' + dates.map(d => `<div class="col-head">${d.slice(5).replace('-', '/')}（${WEEKDAY[d]}）</div>`).join('');
+    MOCK.slots.forEach(slot => {
+      html += `<div class="row-head">${slot.name}<span class="mono muted" style="font-weight:400;">${slot.time}</span></div>`;
+      dates.forEach(date => {
+        const status = cellStatus(r, date, slot.id);
+        const isChosen = chosen && chosen.date === date && chosen.slot === slot.id;
+        html += `<button class="slot ${CELL_META[status].cls}${isChosen ? ' selected' : ''}" type="button" data-date="${date}" data-slot="${slot.id}" aria-label="${date} ${slot.name}">
+          <span class="slot-state">${isChosen ? '已選取' : CELL_META[status].text}</span></button>`;
+      });
+    });
+    $('#rd-grid').innerHTML = html;
+    $('#rd-to').textContent = chosen ? slotText(chosen.date, chosen.slot) : '尚未選擇';
+  }
+
+  function showDialogError(text) {
+    $('#rd-error').textContent = text;
+    $('#rd-error').hidden = !text;
+  }
+
+  function openReschedule(resId, pick) {
+    dialogRes = resOf(resId);
+    chosen = pick || null;
+    const eq = eqOf(dialogRes.eq);
+    $('#rd-id').textContent = dialogRes.id;
+    $('#rd-eq').textContent = `${eq.id} ${eq.name}（${eq.requiresApproval ? '需人工審核' : '免審核'}）`;
+    $('#rd-from').textContent = slotText(dialogRes.date, dialogRes.slot);
+    const notice = $('#rd-notice');
+    if (eq.requiresApproval) {
+      notice.className = 'notice notice-pending';
+      notice.textContent = '這台設備需人工審核：送出後建立「改期審核中」的申請。管理員核准前，原預約照常有效並繼續占用原時段，新時段不會替您保留。';
+    } else {
+      notice.className = 'notice notice-success';
+      notice.textContent = '這台設備免審核：送出時新時段仍未被占用，就立即改期，預約編號與「已核准／有效」狀態不變，原時段立即釋出。新時段已被占用時改期失敗，原預約不變。';
+    }
+    showDialogError('');
+    setDialogSubmitting(false);
+    renderGrid();
+    $('#reschedule-dialog').hidden = false;
+  }
+
+  function closeDialogs() {
+    $('#reschedule-dialog').hidden = true;
+    $('#confirm-dialog').hidden = true;
+  }
+
+  function setDialogSubmitting(on) {
+    $('#rd-submit').disabled = on;
+    $('#rd-submit').textContent = on ? '送出改期中…' : '送出改期申請';
+    $('#rd-close').disabled = on;
+    $$('#rd-grid .slot').forEach(el => { el.disabled = on; });
+  }
+
+  function finishReschedule() {
+    const r = dialogRes;
+    const eq = eqOf(r.eq);
+    const from = { date: r.date, slot: r.slot };
+    closeDialogs();
+    if (!eq.requiresApproval) {
+      r.history.unshift({ id: 'RR-20261109-05', status: 'approved', fromDate: from.date, fromSlot: from.slot, toDate: chosen.date, toSlot: chosen.slot, appliedAt: MOCK.now, instant: true });
+      r.date = chosen.date;
+      r.slot = chosen.slot;
+      render();
+      showBanner('success', `改期成功：預約 ${r.id}（${eq.id} ${eq.name}）已改到 ${slotText(chosen.date, chosen.slot)}，預約編號與「已核准／有效」狀態不變；原時段 ${slotText(from.date, from.slot)} 已釋出。`, '到設備預約查看時段', 'booking.html');
+      return 'instant-success';
+    }
+    r.history.unshift({ id: 'RR-20261109-06', status: 'pending', fromDate: from.date, fromSlot: from.slot, toDate: chosen.date, toSlot: chosen.slot, appliedAt: MOCK.now });
+    render();
+    showBanner('pending', `改期申請 RR-20261109-06 已送出，目前為「改期審核中」。管理員核准前，預約 ${r.id} 仍為 ${slotText(from.date, from.slot)} 的「已核准／有效」；新時段 ${slotText(chosen.date, chosen.slot)} 不會替您保留。`);
+    return 'request-submitted';
+  }
+
+  function openWithdraw(resId) {
+    const r = resOf(resId);
+    const h = pendingOf(r);
+    $('#cd-title').textContent = '撤回改期申請';
+    $('#cd-detail').innerHTML = `
+      <dt>改期申請</dt><dd class="mono">${h.id}</dd>
+      <dt>預約</dt><dd class="mono">${r.id}｜${r.eq}</dd>
+      <dt>原時段</dt><dd class="mono">${slotText(h.fromDate, h.fromSlot)}</dd>
+      <dt>新時段</dt><dd class="mono">${slotText(h.toDate, h.toSlot)}</dd>`;
+    $('#cd-notice').className = 'notice';
+    $('#cd-notice').textContent = `撤回後，這筆申請變成「改期已撤回」並移出管理員的待審清單；預約 ${r.id} 維持原時段，不會變動。`;
+    $('#cd-confirm').textContent = '確認撤回';
+    $('#cd-confirm').disabled = false;
+    $('#cd-close').disabled = false;
+    confirmAction = { type: 'withdraw', resId };
+    $('#confirm-dialog').hidden = false;
+  }
+
+  function openCancel(resId) {
+    const r = resOf(resId);
+    const h = pendingOf(r);
+    const eq = eqOf(r.eq);
+    $('#cd-title').textContent = r.status === 'pending_approval' ? '取消待審申請' : '取消預約';
+    $('#cd-detail').innerHTML = `
+      <dt>預約編號</dt><dd class="mono">${r.id}</dd>
+      <dt>設備</dt><dd>${eq.id} ${eq.name}</dd>
+      <dt>時段</dt><dd class="mono">${slotText(r.date, r.slot)}</dd>`;
+    const notice = $('#cd-notice');
+    if (h) {
+      notice.className = 'notice notice-pending';
+      notice.textContent = `這筆預約有一筆改期審核中的申請 ${h.id}（改到 ${slotText(h.toDate, h.toSlot)}）。取消預約後，這筆申請會同時變成「改期已失效」並移出管理員的待審清單。`;
+    } else {
+      notice.className = 'notice';
+      notice.textContent = '取消後時段立即釋出，這筆紀錄保留為「已取消」。';
+    }
+    $('#cd-confirm').textContent = '確認取消';
+    $('#cd-confirm').disabled = false;
+    $('#cd-close').disabled = false;
+    confirmAction = { type: 'cancel', resId };
+    $('#confirm-dialog').hidden = false;
+  }
+
+  function setConfirmBusy(text) {
+    $('#cd-confirm').disabled = true;
+    $('#cd-confirm').textContent = text;
+    $('#cd-close').disabled = true;
+  }
+
+  function finishWithdraw(resId) {
+    const r = resOf(resId);
+    const h = pendingOf(r);
+    h.status = 'withdrawn';
+    h.withdrawnAt = MOCK.now;
+    closeDialogs();
+    render();
+    showBanner('success', `已撤回改期申請 ${h.id}。預約 ${r.id} 仍為 ${slotText(r.date, r.slot)} 的「已核准／有效」。`);
+  }
+
+  function finishCancel(resId) {
+    const r = resOf(resId);
+    const h = pendingOf(r);
+    const eq = eqOf(r.eq);
+    r.status = 'cancelled';
+    r.cancelledAt = MOCK.now;
+    if (h) {
+      h.status = 'expired';
+      h.expiredAt = MOCK.now;
+      h.expireReason = '原預約已取消';
+    }
+    closeDialogs();
+    render();
+    showBanner('success', `已取消預約 ${r.id}（${eq.id} ${eq.name}，${slotText(r.date, r.slot)}），時段已釋出。${h ? `改期申請 ${h.id} 已同時變成「改期已失效」。` : ''}`);
+  }
+
+  function baseView() {
+    hideBanner();
+    closeDialogs();
+    resetData();
+    extraOccupancy = [];
+    filter = 'all';
+    render();
+  }
+  let timers = [];
+  $('#filter-bar').addEventListener('click', event => {
+    const chip = event.target.closest('[data-filter]');
+    if (!chip) return;
+    filter = chip.dataset.filter;
+    render();
+  });
+
+  $('#show-all-btn').addEventListener('click', () => { filter = 'all'; render(); });
+
+  $('#res-list').addEventListener('click', event => {
+    const re = event.target.closest('[data-reschedule]');
+    if (re) {
+      hideBanner();
+      openReschedule(re.dataset.reschedule);
+      markState(eqOf(resOf(re.dataset.reschedule).eq).requiresApproval ? 'dialog-review' : 'dialog-direct');
+      return;
+    }
+    const wd = event.target.closest('[data-withdraw]');
+    if (wd) { hideBanner(); openWithdraw(wd.dataset.res); markState('withdraw-confirm'); return; }
+    const cc = event.target.closest('[data-cancel]');
+    if (cc) { hideBanner(); openCancel(cc.dataset.cancel); markState('cancel-confirm'); }
+  });
+
+  $('#rd-grid').addEventListener('click', event => {
+    const cell = event.target.closest('.slot');
+    if (!cell) return;
+    const status = cellStatus(dialogRes, cell.dataset.date, cell.dataset.slot);
+    if (status === 'available') {
+      chosen = { date: cell.dataset.date, slot: cell.dataset.slot };
+      showDialogError('');
+    } else {
+      showDialogError(cellError(dialogRes, cell.dataset.date, cell.dataset.slot, status));
+    }
+    renderGrid();
+  });
+
+  $('#rd-close').addEventListener('click', () => { closeDialogs(); markState('list'); });
+
+  $('#rd-submit').addEventListener('click', () => {
+    if (!chosen) {
+      showDialogError('請先選擇一個標示「可改期」的新時段。');
+      markState('no-new-slot');
+      return;
+    }
+    showDialogError('');
+    setDialogSubmitting(true);
+    markState('submitting');
+    timers.push(setTimeout(() => { markState(finishReschedule()); }, 900));
+  });
+
+  $('#cd-close').addEventListener('click', () => { closeDialogs(); markState('list'); });
+
+  $('#cd-confirm').addEventListener('click', () => {
+    const action = confirmAction;
+    if (action.type === 'withdraw') {
+      setConfirmBusy('撤回處理中…');
+      markState('withdrawing');
+      timers.push(setTimeout(() => { finishWithdraw(action.resId); markState('withdrawn'); }, 800));
+    } else {
+      setConfirmBusy('取消處理中…');
+      markState('cancelling');
+      timers.push(setTimeout(() => { finishCancel(action.resId); markState('cancelled'); }, 800));
+    }
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'loading', label: '載入中', apply: () => {
+      hideBanner(); closeDialogs(); $('#view-loading').hidden = false; $('#view-main').hidden = true; setUser('林雅婷（一般成員）');
+    } },
+    { key: 'list', label: '預約清單與改期紀錄', apply: () => baseView() },
+    { key: 'dialog-direct', label: '申請改期（免審核設備）', apply: () => {
+      baseView(); openReschedule('RV-20261108-05', { date: '2026-11-10', slot: 'PM' });
+    } },
+    { key: 'dialog-review', label: '申請改期（需人工審核設備）', apply: () => {
+      baseView(); openReschedule('RV-20261107-04', { date: '2026-11-14', slot: 'PM' });
+    } },
+    { key: 'submitting', label: '送出改期中', apply: () => {
+      baseView(); openReschedule('RV-20261108-05', { date: '2026-11-10', slot: 'PM' }); setDialogSubmitting(true);
+    } },
+    { key: 'instant-success', label: '即時改期成功', apply: () => {
+      baseView(); openReschedule('RV-20261108-05', { date: '2026-11-10', slot: 'PM' }); finishReschedule();
+    } },
+    { key: 'request-submitted', label: '改期申請已送出', apply: () => {
+      baseView(); openReschedule('RV-20261107-04', { date: '2026-11-14', slot: 'PM' }); finishReschedule();
+    } },
+    { key: 'withdraw-confirm', label: '確認撤回改期申請', apply: () => { baseView(); openWithdraw('RV-20261108-04'); } },
+    { key: 'withdrawing', label: '撤回處理中', apply: () => { baseView(); openWithdraw('RV-20261108-04'); setConfirmBusy('撤回處理中…'); } },
+    { key: 'withdrawn', label: '改期申請已撤回', apply: () => { baseView(); finishWithdraw('RV-20261108-04'); } },
+    { key: 'cancel-confirm', label: '確認取消預約（含改期審核中申請）', apply: () => { baseView(); openCancel('RV-20261108-06'); } },
+    { key: 'cancelling', label: '取消處理中', apply: () => { baseView(); openCancel('RV-20261108-06'); setConfirmBusy('取消處理中…'); } },
+    { key: 'cancelled', label: '已取消預約且改期申請失效', apply: () => { baseView(); finishCancel('RV-20261108-06'); } },
+    { key: 'empty', label: '尚無符合篩選的預約', apply: () => {
+      baseView();
+      resOf('RV-20261108-04').history[0].status = 'withdrawn';
+      resOf('RV-20261108-04').history[0].withdrawnAt = '2026-11-09 14:31';
+      resOf('RV-20261108-06').history[0].status = 'expired';
+      resOf('RV-20261108-06').history[0].expiredAt = '2026-11-09 14:20';
+      resOf('RV-20261108-06').history[0].expireReason = '原預約已登記領取';
+      resOf('RV-20261108-06').status = 'checked_out';
+      resOf('RV-20261108-06').checkedOutAt = '2026-11-09 14:20';
+      filter = 'rr-pending';
+      render();
+    } },
+    { key: 'no-new-slot', label: '未選擇新時段', apply: () => {
+      baseView(); openReschedule('RV-20261108-05'); showDialogError('請先選擇一個標示「可改期」的新時段。');
+    } },
+    { key: 'slot-taken', label: '新時段已被占用', apply: () => {
+      baseView();
+      extraOccupancy = [{ id: 'RV-20261109-16', user: 'chen.guanting', eq: 'EQ-104', date: '2026-11-11', slot: 'AM', status: 'confirmed' }];
+      openReschedule('RV-20261108-05');
+      showDialogError('改期失敗：2026-11-11 上午 09:00–12:00 剛被其他預約占用。您的預約 RV-20261108-05 仍為 2026-11-10 上午 09:00–12:00，沒有任何變更。');
+    } },
+    { key: 'not-allowed', label: '預約已不可改期', apply: () => {
+      baseView();
+      showBanner('danger', '無法改期：預約 RV-20261107-03 的原時段 2026-11-09 下午 13:00–17:00 已開始。只有原時段尚未開始的「已核准／有效」預約可以改期。');
+    } },
+    { key: 'already-pending', label: '已有改期審核中申請', apply: () => {
+      baseView();
+      showBanner('danger', '無法送出：預約 RV-20261108-04 已有一筆改期審核中的申請 RR-20261109-02，請先撤回這筆申請，再重新申請改期。');
+    } },
+    { key: 'withdraw-failed', label: '撤回失敗', apply: () => {
+      baseView();
+      const h = resOf('RV-20261108-04').history[0];
+      h.status = 'rejected';
+      h.reviewedAt = '2026-11-09 14:28';
+      h.reviewer = '吳承翰';
+      h.rejectReason = '11/11 晚間顯微鏡需保留給校外合作計畫。';
+      render();
+      showBanner('danger', '無法撤回：改期申請 RR-20261109-02 已在 2026-11-09 14:28 被管理員駁回，目前為「改期被駁回」。只有「改期審核中」的申請可以撤回。');
+    } }
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  initTheme();
+  applyState('list');
+</script>
+</body>
+</html>

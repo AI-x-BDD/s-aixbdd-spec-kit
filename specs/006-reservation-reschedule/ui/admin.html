@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>審核設定、待審清單與借用管理｜精密實驗設備借用中心</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-muted: #F1F5F9;
+    --ink: #0F172A;
+    --muted: #475569;
+    --line: #E2E8F0;
+    --primary: #2563EB;
+    --primary-soft: #DBEAFE;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+    --pending: #D97706;
+    --pending-soft: #FEF3C7;
+    --success: #16A34A;
+    --success-soft: #DCFCE7;
+    --occupied: #64748B;
+    --occupied-soft: #F1F5F9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+    --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-muted: #162032;
+    --ink: #F8FAFC;
+    --muted: #94A3B8;
+    --line: #334155;
+    --primary: #3B82F6;
+    --primary-soft: #1E3A8A;
+    --danger: #EF4444;
+    --danger-soft: #7F1D1D;
+    --pending: #F59E0B;
+    --pending-soft: #78350F;
+    --success: #22C55E;
+    --success-soft: #14532D;
+    --occupied: #94A3B8;
+    --occupied-soft: #334155;
+    --shadow: 0 1px 3px rgba(15, 23, 42, .35), 0 6px 20px rgba(15, 23, 42, .35);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); transition: background-color .15s, color .15s; }
+  a { color: inherit; }
+  code, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .04em; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .brand-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #FFFFFF; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .site-nav a { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .user-pill { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .btn-theme, .btn-logout { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-theme:hover, .btn-logout:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 720px) { .user-pill { display: none; } .site-header .inner { padding: 8px 12px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  h3 { margin: 0 0 8px; font-size: 15px; }
+  .page-lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .section-card { margin-bottom: 20px; padding: 20px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .section-head h2 { margin: 0; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, background-color .15s; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--primary); }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFFFFF; }
+  .btn-pending { background: var(--pending); border-color: var(--pending); color: #FFFFFF; }
+  .btn-success { background: var(--success); border-color: var(--success); color: #FFFFFF; }
+  .btn-outline-danger { color: var(--danger); border-color: var(--danger); }
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .banner-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .banner-pending { background: var(--pending-soft); color: var(--pending); border-color: var(--pending); }
+  .banner-info { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+  [data-theme="dark"] .banner { color: var(--ink); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+  .badge-available { background: var(--success-soft); color: var(--success); }
+  .badge-mine { background: var(--primary-soft); color: var(--primary); }
+  .badge-loan { background: var(--primary); color: #FFFFFF; }
+  .badge-returned { background: var(--success-soft); color: var(--success); }
+  .badge-pending { background: var(--pending-soft); color: var(--pending); }
+  .badge-occupied { background: var(--occupied-soft); color: var(--occupied); }
+  .badge-rejected { background: var(--danger-soft); color: var(--danger); }
+  .badge-reschedule { background: var(--surface); color: var(--pending); border: 1px dashed var(--pending); }
+  [data-theme="dark"] .badge-available, [data-theme="dark"] .badge-mine, [data-theme="dark"] .badge-returned, [data-theme="dark"] .badge-pending, [data-theme="dark"] .badge-rejected { color: var(--ink); }
+
+  .spinner { width: 20px; height: 20px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { background: var(--surface-muted); border-radius: 8px; min-height: 20px; border: 1px dashed var(--line); }
+  .loading-line { display: flex; align-items: center; gap: 10px; color: var(--muted); margin-bottom: 14px; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+  .field .req { margin-left: 2px; color: var(--danger); }
+  .field input, .field textarea, .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+  .field input { height: 42px; }
+  .field textarea { min-height: 96px; resize: vertical; }
+  .field input:focus, .field textarea:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field input:disabled { background: var(--surface-muted); color: var(--muted); }
+  .field.has-error input, .field.has-error textarea { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
+  .field .error { margin-top: 4px; color: var(--danger); font-size: 13px; font-weight: 500; }
+
+  .dialog-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(15, 23, 42, .45); display: grid; place-items: center; padding: 16px; }
+  .dialog { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px; }
+  .dialog-wide { width: min(880px, 100%); }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .dialog-error { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); font-size: 13px; font-weight: 500; }
+  [data-theme="dark"] .dialog-error { color: var(--ink); }
+  .notice { margin: 12px 0; padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); background: var(--surface-muted); }
+  .notice-pending { background: var(--pending-soft); border-color: var(--pending); }
+  .notice-success { background: var(--success-soft); border-color: var(--success); }
+  @media (max-width: 640px) { .dialog-backdrop { padding: 0; } .dialog { width: 100%; min-height: 100vh; max-height: 100vh; border-radius: 0; } }
+  .detail-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
+  .detail-list dt { color: var(--muted); }
+  .detail-list dd { margin: 0; font-weight: 600; }
+  .empty-state { padding: 36px 20px; text-align: center; }
+
+  /* 固定時段格子（設備預約與申請改期共用） */
+  .slot { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  .slot:hover { border-color: var(--primary); }
+  .slot .slot-name { font-weight: 700; font-size: 14px; }
+  .slot .slot-time { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .slot .slot-state { font-weight: 600; font-size: 12px; }
+  .slot-available { border-color: var(--success); }
+  .slot-available .slot-state { color: var(--success); }
+  .slot-mine { background: var(--primary-soft); border-color: var(--primary); }
+  .slot-mine .slot-state { color: var(--primary); }
+  .slot-my-loan { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .slot-my-loan .slot-time, .slot-my-loan .slot-state { color: #FFFFFF; }
+  .slot-my-returned { background: var(--success-soft); border-color: var(--success); }
+  .slot-my-returned .slot-state { color: var(--success); }
+  .slot-my-pending { background: var(--pending-soft); border-color: var(--pending); }
+  .slot-my-pending .slot-state { color: var(--pending); }
+  .slot-my-reschedule { background: var(--surface); border: 1.5px dashed var(--pending); }
+  .slot-my-reschedule .slot-state { color: var(--pending); }
+  .slot-occupied, .slot-closed { background: var(--occupied-soft); border-color: var(--line); color: var(--muted); }
+  .slot-occupied .slot-state, .slot-closed .slot-state { color: var(--occupied); }
+  .slot-original { background: var(--surface-muted); border: 1.5px solid var(--primary); }
+  .slot-original .slot-state { color: var(--primary); }
+  .slot.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .slot.selected .slot-state { color: var(--primary); }
+  [data-theme="dark"] .slot-mine .slot-state, [data-theme="dark"] .slot-my-returned .slot-state, [data-theme="dark"] .slot-my-pending .slot-state, [data-theme="dark"] .slot.selected .slot-state { color: var(--ink); }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 審核與借用管理頁 */
+  .eq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .eq-item { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-muted); display: grid; gap: 8px; }
+  .eq-item .name { font-weight: 600; font-size: 14px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tab { height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+  .tab[aria-selected="true"] { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); font-weight: 700; }
+  [data-theme="dark"] .tab[aria-selected="true"] { color: var(--ink); }
+  .review-list { display: grid; gap: 10px; }
+  .review-item { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .review-item.conflict { border-color: var(--danger); background: var(--danger-soft); }
+  .review-main { display: grid; gap: 4px; font-size: 14px; }
+  .review-move { font-family: var(--font-mono); font-size: 13px; }
+  .review-meta { font-size: 12px; color: var(--muted); }
+  .review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .table-wrap { overflow-x: auto; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 860px; }
+  .data-table th, .data-table td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .data-table th { color: var(--muted); font-weight: 600; background: var(--surface-muted); }
+  .cell-note { font-size: 12px; color: var(--muted); }
+  .forbidden-card { max-width: 620px; margin: 24px auto; padding: 28px; text-align: center; border-color: var(--danger); }
+  .counter { font-size: 12px; color: var(--muted); text-align: right; margin-top: 4px; }
+  .skeleton-card { padding: 18px; display: grid; gap: 10px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="brand-mark">EL</span>精密實驗設備借用中心</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">登入</a>
+      <a href="booking.html">設備預約</a>
+      <a href="my-reservations.html">我的預約</a>
+      <a href="admin.html" aria-current="page">審核與借用管理</a>
+    </nav>
+    <div class="header-actions">
+      <span id="header-user" class="user-pill">尚未登入</span>
+      <button id="theme-toggle" class="btn-theme" type="button" aria-label="切換深淺色主題">深色模式</button>
+      <a id="header-logout" class="btn-logout" href="index.html?state=logged-out">登出</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>審核與借用管理</h1>
+  <p class="page-lead">設定設備審核方式、處理待審的預約申請與改期申請，並在現場登記領取與歸還。目前時間 <span id="now-label" class="mono">2026-11-09 14:30</span>（台灣時間）。</p>
+
+  <div id="page-banner" class="banner" role="alert" hidden>
+    <span id="page-banner-text"></span>
+    <a id="page-banner-link" class="btn btn-sm" href="booking.html" hidden></a>
+  </div>
+
+  <section id="view-loading" hidden>
+    <div class="loading-line"><span class="spinner" aria-hidden="true"></span><span>正在載入設備審核設定、待審清單與借用管理紀錄…</span></div>
+    <div class="card skeleton-card"><div class="skeleton" style="height:22px;width:30%;"></div><div class="skeleton" style="height:70px;"></div></div>
+    <div class="card skeleton-card"><div class="skeleton" style="height:22px;width:40%;"></div><div class="skeleton" style="height:110px;"></div></div>
+  </section>
+
+  <section id="forbidden-card" class="card forbidden-card" hidden>
+    <h2 style="color:var(--danger);">權限不足</h2>
+    <p>核准或駁回改期申請、審核預約與登記領取歸還，只限管理員操作。您目前登入的身分是一般成員（林雅婷）。</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <a class="btn btn-primary" href="booking.html">返回設備預約</a>
+      <a class="btn" href="index.html">切換管理員帳號登入</a>
+    </div>
+  </section>
+
+  <section id="admin-content">
+    <section class="card section-card">
+      <div class="section-head"><h2>設備審核設定</h2><span class="muted" style="font-size:13px;">切換只影響之後新送出的預約與改期</span></div>
+      <div id="eq-grid" class="eq-grid"></div>
+    </section>
+
+    <section class="card section-card">
+      <div class="section-head"><h2>待審清單</h2></div>
+      <div class="tabs" role="tablist">
+        <button id="tab-reschedule" class="tab" type="button" role="tab" data-tab="reschedule">改期申請</button>
+        <button id="tab-reservation" class="tab" type="button" role="tab" data-tab="reservation">預約申請</button>
+      </div>
+      <div id="review-list" class="review-list"></div>
+      <div id="review-empty" class="empty-state" hidden>
+        <h3>目前沒有待審的改期申請</h3>
+        <p class="muted" style="margin:0;">成員對需人工審核設備送出改期後，申請會出現在這裡。</p>
+      </div>
+    </section>
+
+    <section class="card section-card">
+      <div class="section-head"><h2>全體預約與借用管理</h2><span class="muted" style="font-size:13px;">只對今日且時段尚未結束的「已核准／有效」預約開放登記領取</span></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>預約編號</th><th>成員</th><th>設備</th><th>日期與時段</th><th>狀態</th><th>領取／歸還</th><th>操作</th></tr></thead>
+          <tbody id="loan-rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</main>
+
+<div id="reject-dialog" class="dialog-backdrop" hidden>
+  <section class="card dialog" role="dialog" aria-modal="true" aria-labelledby="rj-title">
+    <h2 id="rj-title">駁回改期申請</h2>
+    <dl id="rj-detail" class="detail-list"></dl>
+    <div class="notice">駁回後，成員的原預約不會變動。</div>
+    <div id="rj-field" class="field">
+      <label for="rj-reason">駁回原因（選填，最多 200 字）</label>
+      <textarea id="rj-reason"></textarea>
+      <div id="rj-counter" class="counter">0 / 200</div>
+      <div id="rj-error" class="error" hidden></div>
+    </div>
+    <div class="dialog-actions">
+      <button id="rj-close" class="btn" type="button">返回</button>
+      <button id="rj-confirm" class="btn btn-danger" type="button">確認駁回</button>
+    </div>
+  </section>
+</div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：管理員吳承翰；與 booking.html、my-reservations.html 共用同一批設備、預約與改期申請；目前時間 2026-11-09 14:30
+  const MOCK = {
+    today: '2026-11-09',
+    nowHour: 14.5,
+    now: '2026-11-09 14:32',
+    admin: '吳承翰',
+    slots: [
+      { id: 'AM', name: '上午', time: '09:00–12:00', order: 1, end: 12 },
+      { id: 'PM', name: '下午', time: '13:00–17:00', order: 2, end: 17 },
+      { id: 'EV', name: '晚間', time: '18:00–21:00', order: 3, end: 21 }
+    ],
+    equipments: [
+      { id: 'EQ-101', name: '高解析度光學顯微鏡 Olympus BX53', requiresApproval: true },
+      { id: 'EQ-102', name: '四通道數位示波器 Keysight DSOX3024T', requiresApproval: true },
+      { id: 'EQ-103', name: '高精度工業熱像儀 FLIR E86', requiresApproval: false },
+      { id: 'EQ-104', name: '微量分光光度計 Thermo NanoDrop One', requiresApproval: false }
+    ],
+    rescheduleRequests: [
+      { id: 'RR-20261109-02', member: '林雅婷', reservationId: 'RV-20261108-04', eq: 'EQ-101', fromDate: '2026-11-11', fromSlot: 'AM', toDate: '2026-11-11', toSlot: 'EV', appliedAt: '2026-11-09 09:15', takenBy: null },
+      { id: 'RR-20261109-04', member: '林雅婷', reservationId: 'RV-20261108-06', eq: 'EQ-102', fromDate: '2026-11-09', fromSlot: 'EV', toDate: '2026-11-10', toSlot: 'EV', appliedAt: '2026-11-09 08:40', takenBy: null },
+      { id: 'RR-20261109-03', member: '陳冠廷', reservationId: 'RV-20261108-11', eq: 'EQ-102', fromDate: '2026-11-13', fromSlot: 'AM', toDate: '2026-11-12', toSlot: 'PM', appliedAt: '2026-11-09 09:50', takenBy: 'RV-20261109-12' }
+    ],
+    reservationRequests: [
+      { id: 'RV-20261109-08', member: '林雅婷', eq: 'EQ-101', date: '2026-11-09', slot: 'EV', createdAt: '2026-11-09 09:20' },
+      { id: 'RV-20261109-09', member: '陳冠廷', eq: 'EQ-101', date: '2026-11-09', slot: 'EV', createdAt: '2026-11-09 10:02' }
+    ],
+    loans: [
+      { id: 'RV-20261108-01', member: '林雅婷', eq: 'EQ-102', date: '2026-11-09', slot: 'AM', status: 'returned', checkedOutAt: '2026-11-09 09:05', returnedAt: '2026-11-09 11:40' },
+      { id: 'RV-20261108-03', member: '林雅婷', eq: 'EQ-101', date: '2026-11-09', slot: 'PM', status: 'checked_out', checkedOutAt: '2026-11-09 13:05' },
+      { id: 'RV-20261107-03', member: '林雅婷', eq: 'EQ-104', date: '2026-11-09', slot: 'PM', status: 'confirmed' },
+      { id: 'RV-20261108-06', member: '林雅婷', eq: 'EQ-102', date: '2026-11-09', slot: 'EV', status: 'confirmed' },
+      { id: 'RV-20261108-10', member: '陳冠廷', eq: 'EQ-104', date: '2026-11-09', slot: 'EV', status: 'confirmed' },
+      { id: 'RV-20261107-05', member: '陳冠廷', eq: 'EQ-103', date: '2026-11-08', slot: 'EV', status: 'checked_out', checkedOutAt: '2026-11-08 18:02' },
+      { id: 'RV-20261108-05', member: '林雅婷', eq: 'EQ-104', date: '2026-11-10', slot: 'AM', status: 'confirmed' },
+      { id: 'RV-20261109-13', member: '陳冠廷', eq: 'EQ-104', date: '2026-11-10', slot: 'EV', status: 'confirmed' },
+      { id: 'RV-20261108-04', member: '林雅婷', eq: 'EQ-101', date: '2026-11-11', slot: 'AM', status: 'confirmed' },
+      { id: 'RV-20261109-12', member: '林雅婷', eq: 'EQ-102', date: '2026-11-12', slot: 'PM', status: 'confirmed' },
+      { id: 'RV-20261108-07', member: '林雅婷', eq: 'EQ-103', date: '2026-11-12', slot: 'PM', status: 'confirmed' },
+      { id: 'RV-20261108-11', member: '陳冠廷', eq: 'EQ-102', date: '2026-11-13', slot: 'AM', status: 'confirmed' },
+      { id: 'RV-20261107-04', member: '林雅婷', eq: 'EQ-101', date: '2026-11-13', slot: 'AM', status: 'confirmed' }
+    ]
+  };
+
+  const LOAN_STATUS = {
+    confirmed: { text: '已核准／有效', cls: 'badge-mine' },
+    checked_out: { text: '借用中', cls: 'badge-loan' },
+    returned: { text: '已歸還', cls: 'badge-returned' }
+  };
+  const REJECT_PRESET = {
+    'RR-20261109-03': '新時段 2026-11-12 下午已被其他成員預約，請改選其他時段後重新申請。',
+    'RR-20261109-02': '11/11 晚間顯微鏡需保留給校外合作計畫。',
+    'RR-20261109-04': '11/10 晚間示波器已安排設備保養。'
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  function initTheme() {
+    let saved = 'light';
+    try { saved = localStorage.getItem('el-theme') || 'light'; } catch (err) { saved = 'light'; }
+    applyTheme(saved);
+    $('#theme-toggle').addEventListener('click', () => {
+      applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      $('#theme-toggle').textContent = '淺色模式';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      $('#theme-toggle').textContent = '深色模式';
+    }
+    try { localStorage.setItem('el-theme', theme); } catch (err) { /* 瀏覽器不允許儲存時只切換本次畫面 */ }
+  }
+
+  function showBanner(tone, text, linkText, linkHref) {
+    const banner = $('#page-banner');
+    banner.className = `banner banner-${tone}`;
+    $('#page-banner-text').textContent = text;
+    const link = $('#page-banner-link');
+    if (linkText) {
+      link.textContent = linkText;
+      link.setAttribute('href', linkHref);
+      link.hidden = false;
+    } else {
+      link.hidden = true;
+    }
+    banner.hidden = false;
+  }
+
+  function hideBanner() {
+    $('#page-banner').hidden = true;
+  }
+
+  function setUser(text) {
+    $('#header-user').textContent = text;
+  }
+  let st = null;
+  let tab = 'reschedule';
+  let rejectTarget = null;
+
+  const eqOf = id => MOCK.equipments.find(e => e.id === id);
+  const slotOf = id => MOCK.slots.find(s => s.id === id);
+  const slotText = (date, slotId) => `${date} ${slotOf(slotId).name} ${slotOf(slotId).time}`;
+  const rrOf = id => st.rr.find(r => r.id === id);
+  const loanOf = id => st.loans.find(l => l.id === id);
+  const pendingFor = resId => st.rr.find(r => r.reservationId === resId);
+
+  function resetData() {
+    st = {
+      eqs: JSON.parse(JSON.stringify(MOCK.equipments)),
+      rr: JSON.parse(JSON.stringify(MOCK.rescheduleRequests)),
+      reqs: JSON.parse(JSON.stringify(MOCK.reservationRequests)),
+      loans: JSON.parse(JSON.stringify(MOCK.loans)),
+      conflictId: null
+    };
+  }
+
+  function sortedRequests() {
+    return st.rr.slice().sort((a, b) =>
+      a.toDate.localeCompare(b.toDate) || slotOf(a.toSlot).order - slotOf(b.toSlot).order || a.appliedAt.localeCompare(b.appliedAt));
+  }
+
+  function renderEquipments() {
+    $('#eq-grid').innerHTML = st.eqs.map(eq => `
+      <div class="eq-item">
+        <div class="name"><span class="mono">${eq.id}</span> ${eq.name}</div>
+        <div><span class="badge ${eq.requiresApproval ? 'badge-pending' : 'badge-available'}">${eq.requiresApproval ? '需人工審核' : '免審核'}</span></div>
+        <button class="btn btn-sm" type="button" data-toggle="${eq.id}">${eq.requiresApproval ? '切換為免審核' : '切換為需人工審核'}</button>
+      </div>`).join('');
+  }
+
+  function renderReviews() {
+    $('#tab-reschedule').textContent = `改期申請（${st.rr.length}）`;
+    $('#tab-reservation').textContent = `預約申請（${st.reqs.length}）`;
+    $('#tab-reschedule').setAttribute('aria-selected', String(tab === 'reschedule'));
+    $('#tab-reservation').setAttribute('aria-selected', String(tab === 'reservation'));
+    if (tab === 'reschedule') {
+      $('#review-list').innerHTML = sortedRequests().map(r => {
+        const eq = eqOf(r.eq);
+        const conflict = st.conflictId === r.id;
+        return `
+        <div class="review-item${conflict ? ' conflict' : ''}">
+          <div class="review-main">
+            <div><span class="badge badge-reschedule">改期申請</span> <span class="mono">${r.id}</span>｜${r.member}｜預約 <span class="mono">${r.reservationId}</span></div>
+            <div><span class="mono">${eq.id}</span> ${eq.name}</div>
+            <div class="review-move">原 ${slotText(r.fromDate, r.fromSlot)} → 新 ${slotText(r.toDate, r.toSlot)}</div>
+            <div class="review-meta mono">申請時間 ${r.appliedAt}${conflict ? `｜新時段已被預約 ${r.takenBy} 占用` : ''}</div>
+          </div>
+          <div class="review-actions">
+            <button class="btn btn-sm btn-success" type="button" data-approve="${r.id}">核准改期</button>
+            <button class="btn btn-sm btn-outline-danger" type="button" data-reject="${r.id}">駁回</button>
+          </div>
+        </div>`;
+      }).join('');
+      $('#review-empty').hidden = st.rr.length > 0;
+    } else {
+      $('#review-list').innerHTML = st.reqs.map(q => {
+        const eq = eqOf(q.eq);
+        return `
+        <div class="review-item">
+          <div class="review-main">
+            <div><span class="badge badge-pending">預約申請</span> <span class="mono">${q.id}</span>｜${q.member}</div>
+            <div><span class="mono">${eq.id}</span> ${eq.name}</div>
+            <div class="review-move">${slotText(q.date, q.slot)}</div>
+            <div class="review-meta mono">申請時間 ${q.createdAt}</div>
+          </div>
+          <div class="review-actions">
+            <button class="btn btn-sm btn-success" type="button" data-approve-res="${q.id}">核准申請</button>
+            <button class="btn btn-sm btn-outline-danger" type="button" data-reject-res="${q.id}">駁回申請</button>
+          </div>
+        </div>`;
+      }).join('');
+      $('#review-empty').hidden = true;
+    }
+  }
+
+  function pickupInfo(l) {
+    if (l.status !== 'confirmed') return null;
+    if (l.date > MOCK.today) return { ok: false, note: '非當日預約（限當日領取）' };
+    if (l.date < MOCK.today || slotOf(l.slot).end <= MOCK.nowHour) return { ok: false, note: '時段已結束，不能補登領取' };
+    return { ok: true, note: '' };
+  }
+
+  function renderLoans() {
+    const rows = st.loans.slice().sort((a, b) => a.date.localeCompare(b.date) || slotOf(a.slot).order - slotOf(b.slot).order);
+    $('#loan-rows').innerHTML = rows.map(l => {
+      const eq = eqOf(l.eq);
+      const rr = pendingFor(l.id);
+      const pick = pickupInfo(l);
+      let action = '—';
+      if (pick && pick.ok) action = `<button class="btn btn-sm btn-primary" type="button" data-pickup="${l.id}">登記領取</button>`;
+      if (pick && !pick.ok) action = `<span class="cell-note">${pick.note}</span>`;
+      if (l.status === 'checked_out') action = `<button class="btn btn-sm btn-success" type="button" data-return="${l.id}">登記歸還</button>`;
+      const times = [];
+      if (l.checkedOutAt) times.push(`領取 ${l.checkedOutAt}（吳承翰）`);
+      if (l.returnedAt) times.push(`歸還 ${l.returnedAt}（吳承翰）`);
+      if (l.status === 'checked_out' && (l.date < MOCK.today)) times.push('已超過時段結束時間');
+      return `
+        <tr>
+          <td class="mono">${l.id}</td>
+          <td>${l.member}</td>
+          <td><span class="mono">${eq.id}</span> ${eq.name}</td>
+          <td class="mono">${slotText(l.date, l.slot)}</td>
+          <td><span class="badge ${LOAN_STATUS[l.status].cls}">${LOAN_STATUS[l.status].text}</span>${rr ? `<div style="margin-top:4px;"><span class="badge badge-reschedule">改期審核中 ${rr.id}</span></div>` : ''}</td>
+          <td class="mono cell-note">${times.join('<br>') || '—'}</td>
+          <td>${action}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  function render() {
+    $('#view-loading').hidden = true;
+    $('#forbidden-card').hidden = true;
+    $('#admin-content').hidden = false;
+    setUser('吳承翰（管理員）');
+    renderEquipments();
+    renderReviews();
+    renderLoans();
+  }
+
+  function baseView(opts) {
+    hideBanner();
+    $('#reject-dialog').hidden = true;
+    $('#now-label').textContent = (opts && opts.now) || '2026-11-09 14:30';
+    resetData();
+    tab = (opts && opts.tab) || 'reschedule';
+    render();
+  }
+
+  function setButtonBusy(selector, text) {
+    const btn = $(selector);
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = text;
+  }
+
+  function approveSuccess(id) {
+    const r = rrOf(id);
+    const eq = eqOf(r.eq);
+    const loan = loanOf(r.reservationId);
+    loan.date = r.toDate;
+    loan.slot = r.toSlot;
+    st.rr = st.rr.filter(x => x.id !== id);
+    st.conflictId = null;
+    render();
+    showBanner('success', `已核准改期申請 ${r.id}：${r.member}的預約 ${r.reservationId}（${eq.id} ${eq.name}）已改到 ${slotText(r.toDate, r.toSlot)}，狀態仍為「已核准／有效」；原時段 ${slotText(r.fromDate, r.fromSlot)} 已釋出。審核管理員吳承翰，審核時間 ${MOCK.now}。`);
+  }
+
+  function approveConflict(id) {
+    const r = rrOf(id);
+    st.conflictId = id;
+    render();
+    showBanner('danger', `無法核准改期申請 ${r.id}：新時段 ${slotText(r.toDate, r.toSlot)} 已被預約 ${r.takenBy} 占用。這筆申請維持「改期審核中」，${r.member}的預約 ${r.reservationId} 仍為 ${slotText(r.fromDate, r.fromSlot)}。您可以改為駁回。`);
+  }
+
+  function openReject(id, reason) {
+    const r = rrOf(id);
+    const eq = eqOf(r.eq);
+    rejectTarget = id;
+    $('#rj-detail').innerHTML = `
+      <dt>改期申請</dt><dd class="mono">${r.id}</dd>
+      <dt>成員</dt><dd>${r.member}</dd>
+      <dt>設備</dt><dd>${eq.id} ${eq.name}</dd>
+      <dt>原時段</dt><dd class="mono">${slotText(r.fromDate, r.fromSlot)}</dd>
+      <dt>新時段</dt><dd class="mono">${slotText(r.toDate, r.toSlot)}</dd>`;
+    $('#rj-reason').value = reason === undefined ? (REJECT_PRESET[id] || '') : reason;
+    $('#rj-field').classList.remove('has-error');
+    $('#rj-error').hidden = true;
+    $('#rj-confirm').disabled = false;
+    $('#rj-confirm').textContent = '確認駁回';
+    $('#rj-close').disabled = false;
+    updateCounter();
+    $('#reject-dialog').hidden = false;
+  }
+
+  function updateCounter() {
+    $('#rj-counter').textContent = `${Array.from($('#rj-reason').value).length} / 200`;
+  }
+
+  function validateReason() {
+    const len = Array.from($('#rj-reason').value).length;
+    const bad = len > 200;
+    $('#rj-field').classList.toggle('has-error', bad);
+    $('#rj-error').textContent = bad ? `駁回原因最多 200 字，目前 ${len} 字。` : '';
+    $('#rj-error').hidden = !bad;
+    return !bad;
+  }
+
+  function rejectDone(id) {
+    const r = rrOf(id);
+    st.rr = st.rr.filter(x => x.id !== id);
+    st.conflictId = null;
+    $('#reject-dialog').hidden = true;
+    render();
+    showBanner('success', `已駁回改期申請 ${r.id}，狀態變成「改期被駁回」。${r.member}的預約 ${r.reservationId} 維持 ${slotText(r.fromDate, r.fromSlot)}，不會變動；成員可在「我的預約」查看駁回原因。`);
+  }
+
+  function toggleEquipment(eqId) {
+    const eq = st.eqs.find(e => e.id === eqId);
+    eq.requiresApproval = !eq.requiresApproval;
+    const kept = st.rr.filter(r => r.eq === eqId).map(r => r.id);
+    render();
+    const mode = eq.requiresApproval ? '需人工審核' : '免審核';
+    const extra = kept.length
+      ? `切換前送出的 ${kept.length} 筆改期審核中申請（${kept.join('、')}）仍留在待審清單，請繼續核准或駁回；之後新送出的改期依新設定處理。`
+      : '之後新送出的預約與改期依新設定處理。';
+    showBanner('info', `${eq.id} ${eq.name} 已切換為「${mode}」。${extra}`);
+  }
+
+  function pickupDone(resId) {
+    const l = loanOf(resId);
+    const eq = eqOf(l.eq);
+    const rr = pendingFor(resId);
+    l.status = 'checked_out';
+    l.checkedOutAt = MOCK.now;
+    if (rr) st.rr = st.rr.filter(x => x.id !== rr.id);
+    render();
+    showBanner('success', `已完成登記領取：預約 ${l.id}（${l.member}，${eq.id} ${eq.name}，${slotText(l.date, l.slot)}）已變成「借用中」，領取時間 ${MOCK.now}，經手管理員吳承翰。${rr ? `這筆預約的改期申請 ${rr.id} 已同時變成「改期已失效」，並已移出待審清單。` : ''}`);
+  }
+
+  function returnDone(resId) {
+    const l = loanOf(resId);
+    const eq = eqOf(l.eq);
+    l.status = 'returned';
+    l.returnedAt = MOCK.now;
+    render();
+    showBanner('success', `已完成登記歸還：預約 ${l.id}（${l.member}，${eq.id} ${eq.name}，${slotText(l.date, l.slot)}）已變成「已歸還」，歸還時間 ${MOCK.now}，經手管理員吳承翰。`);
+  }
+  let timers = [];
+  $('.tabs').addEventListener('click', event => {
+    const t = event.target.closest('[data-tab]');
+    if (!t) return;
+    tab = t.dataset.tab;
+    hideBanner();
+    renderReviews();
+    markState(tab === 'reschedule' ? 'overview' : 'reservation-tab');
+  });
+
+  $('#eq-grid').addEventListener('click', event => {
+    const btn = event.target.closest('[data-toggle]');
+    if (!btn) return;
+    toggleEquipment(btn.dataset.toggle);
+    markState('toggled');
+  });
+
+  $('#review-list').addEventListener('click', event => {
+    const ap = event.target.closest('[data-approve]');
+    if (ap) {
+      const id = ap.dataset.approve;
+      hideBanner();
+      setButtonBusy(`[data-approve="${id}"]`, '核准中…');
+      markState('approving');
+      timers.push(setTimeout(() => {
+        if (rrOf(id).takenBy) { approveConflict(id); markState('approve-conflict'); }
+        else { approveSuccess(id); markState('approved'); }
+      }, 800));
+      return;
+    }
+    const rj = event.target.closest('[data-reject]');
+    if (rj) { hideBanner(); openReject(rj.dataset.reject); markState('reject-dialog'); return; }
+    const apRes = event.target.closest('[data-approve-res]');
+    const rjRes = event.target.closest('[data-reject-res]');
+    const target = apRes || rjRes;
+    if (target) {
+      const id = target.dataset.approveRes || target.dataset.rejectRes;
+      const q = st.reqs.find(x => x.id === id);
+      const eq = eqOf(q.eq);
+      st.reqs = st.reqs.filter(x => x.id !== id);
+      renderReviews();
+      showBanner(apRes ? 'success' : 'info', apRes
+        ? `已核准預約申請 ${q.id}（${q.member}，${eq.id} ${eq.name}，${slotText(q.date, q.slot)}），狀態變成「已核准／有效」。`
+        : `已駁回預約申請 ${q.id}（${q.member}，${eq.id} ${eq.name}，${slotText(q.date, q.slot)}），狀態變成「已駁回」。`);
+    }
+  });
+
+  $('#rj-reason').addEventListener('input', () => { updateCounter(); });
+  $('#rj-close').addEventListener('click', () => { $('#reject-dialog').hidden = true; markState('overview'); });
+  $('#rj-confirm').addEventListener('click', () => {
+    if (!validateReason()) { markState('reason-too-long'); return; }
+    const id = rejectTarget;
+    $('#rj-confirm').disabled = true;
+    $('#rj-confirm').textContent = '駁回中…';
+    $('#rj-close').disabled = true;
+    markState('rejecting');
+    timers.push(setTimeout(() => { rejectDone(id); markState('rejected'); }, 800));
+  });
+
+  $('#loan-rows').addEventListener('click', event => {
+    const pk = event.target.closest('[data-pickup]');
+    if (pk) {
+      const id = pk.dataset.pickup;
+      hideBanner();
+      setButtonBusy(`[data-pickup="${id}"]`, '登記領取中…');
+      markState('picking-up');
+      timers.push(setTimeout(() => { pickupDone(id); markState('picked-up'); }, 800));
+      return;
+    }
+    const rt = event.target.closest('[data-return]');
+    if (rt) { hideBanner(); returnDone(rt.dataset.return); markState('return-done'); }
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'loading', label: '載入中', apply: () => {
+      hideBanner(); $('#reject-dialog').hidden = true; $('#view-loading').hidden = false; $('#admin-content').hidden = true; $('#forbidden-card').hidden = true; setUser('吳承翰（管理員）');
+    } },
+    { key: 'overview', label: '審核設定、待審清單與借用管理總覽', apply: () => baseView() },
+    { key: 'reservation-tab', label: '待審預約申請分頁', apply: () => baseView({ tab: 'reservation' }) },
+    { key: 'approving', label: '核准改期處理中', apply: () => { baseView(); setButtonBusy('[data-approve="RR-20261109-02"]', '核准中…'); } },
+    { key: 'approved', label: '改期核准成功', apply: () => { baseView(); approveSuccess('RR-20261109-02'); } },
+    { key: 'reject-dialog', label: '填寫改期駁回原因', apply: () => { baseView(); openReject('RR-20261109-03'); } },
+    { key: 'rejecting', label: '駁回改期處理中', apply: () => {
+      baseView(); openReject('RR-20261109-03');
+      $('#rj-confirm').disabled = true; $('#rj-confirm').textContent = '駁回中…'; $('#rj-close').disabled = true;
+    } },
+    { key: 'rejected', label: '改期已駁回', apply: () => { baseView(); rejectDone('RR-20261109-03'); } },
+    { key: 'toggled', label: '已切換設備審核設定', apply: () => { baseView(); toggleEquipment('EQ-102'); } },
+    { key: 'picking-up', label: '登記領取處理中', apply: () => { baseView(); setButtonBusy('[data-pickup="RV-20261108-06"]', '登記領取中…'); } },
+    { key: 'picked-up', label: '登記領取完成（改期申請已失效）', apply: () => { baseView(); pickupDone('RV-20261108-06'); } },
+    { key: 'return-done', label: '登記歸還完成', apply: () => { baseView(); returnDone('RV-20261107-05'); } },
+    { key: 'empty', label: '待審清單沒有改期申請', apply: () => { baseView(); st.rr = []; render(); } },
+    { key: 'approve-conflict', label: '核准時新時段已被占用', apply: () => { baseView(); approveConflict('RR-20261109-03'); } },
+    { key: 'original-started', label: '核准時原時段已開始', apply: () => {
+      baseView({ now: '2026-11-09 18:02' });
+      st.rr = st.rr.filter(r => r.id !== 'RR-20261109-04');
+      render();
+      showBanner('danger', '無法核准：改期申請 RR-20261109-04 的原時段 2026-11-09 晚間 18:00–21:00 已開始，申請已自動變成「改期已失效」並移出待審清單。林雅婷的預約 RV-20261108-06 維持原時段，可以照常登記領取。');
+    } },
+    { key: 'new-started', label: '核准時新時段已開始', apply: () => {
+      baseView({ now: '2026-11-12 13:05' });
+      st.rr = st.rr.filter(r => r.id !== 'RR-20261109-03');
+      render();
+      showBanner('danger', '無法核准：改期申請 RR-20261109-03 的新時段 2026-11-12 下午 13:00–17:00 已開始（早於原時段 2026-11-13 上午 09:00–12:00），申請已自動變成「改期已失效」並移出待審清單。陳冠廷的預約 RV-20261108-11 維持原時段。');
+    } },
+    { key: 'not-pending', label: '審核時申請已撤回', apply: () => {
+      baseView();
+      st.rr = st.rr.filter(r => r.id !== 'RR-20261109-02');
+      render();
+      showBanner('danger', '無法審核：改期申請 RR-20261109-02 已在 2026-11-09 14:31 被林雅婷撤回，目前為「改期已撤回」。只有「改期審核中」的申請可以核准或駁回。');
+    } },
+    { key: 'reason-too-long', label: '駁回原因超過 200 字', apply: () => {
+      baseView();
+      const longReason = '新時段 2026-11-12 下午已被其他成員預約。' + '示波器在本週下午時段已排滿量測課程與專題實驗，請於下週一後再改選其他時段，並先與研發設備管理組確認探棒與校正片的借用安排。'.repeat(3);
+      openReject('RR-20261109-03', longReason);
+      validateReason();
+    } },
+    { key: 'forbidden', label: '一般成員越權操作', apply: () => {
+      hideBanner(); $('#reject-dialog').hidden = true;
+      $('#view-loading').hidden = true; $('#admin-content').hidden = true; $('#forbidden-card').hidden = false;
+      setUser('林雅婷（一般成員）');
+    } }
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  initTheme();
+  applyState('overview');
+</script>
+</body>
+</html>

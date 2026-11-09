@@ -1,0 +1,229 @@
+// Data Model: 成員預約改期申請與改期成功前保留原預約 (Reservation Reschedule Request)
+// Spec: specs/006-reservation-reschedule/spec.md
+// Date: 2026-11-09
+
+Project "reservation-reschedule" {
+  database_type: 'PostgreSQL'
+  Note: '涵蓋 D1 帳號、驗證碼挑戰與工作階段資料存取與 D2 預約借還紀錄與改期申請持久化。延續 005-equipment-pickup-return 的 users、captcha_challenges、sessions、equipments、time_slots、reservations 結構，欄位、Enum 與索引皆不變；本次以一支增量遷移新增 reschedule_requests 資料表與 reschedule_request_status、reschedule_expire_reason 兩個 Enum，不改寫既有資料列，達成無損遷移（FR-015）。每張持久化資料表皆具備生命週期欄位並採用軟刪除（設定 deleted_at），查詢有效資料時皆排除 deleted_at 不為 null 的資料列。'
+}
+
+// ---------- Enums ----------
+
+Enum user_role {
+  member [note: '一般成員：可預約設備、在「我的預約」查看預約與改期紀錄、對本人原時段尚未開始的 confirmed 預約申請改期，並撤回本人改期審核中的申請；呼叫核准或駁回改期申請時被拒絕（FR-001、FR-005、FR-009、FR-010、SC-006）']
+  admin [note: '管理員：唯一可核准或駁回改期申請的角色，並保留審核預約、切換設備審核設定、登記領取與登記歸還等前三次迭代的權限（FR-005、FR-006、FR-007、FR-015、SC-006）']
+}
+
+Enum equipment_status {
+  available [note: '可供預約借用（FR-015）']
+  unavailable [note: '暫停借用（預建設備皆為 available，設備送修與停用不在本次範圍）']
+}
+
+Enum reservation_status {
+  pending_approval [note: '待審核：需人工審核設備的預約申請，不占用時段，不可申請改期，由成員取消後重新申請（FR-001、FR-015）']
+  confirmed [note: '已核准／有效：占用該設備時段；只有此狀態且原時段尚未開始的預約可申請改期，改期成功與改期審核期間都維持此狀態（FR-001、FR-002、FR-003、FR-006、FR-011）']
+  checked_out [note: '借用中：管理員登記領取後的狀態，持續占用時段且不可改期；登記領取時使該預約改期審核中的申請失效（FR-001、FR-016）']
+  returned [note: '已歸還：登記歸還後的終態，仍占用該時段且不可改期（FR-001、FR-015）']
+  rejected [note: '已駁回：管理員駁回的預約申請，不占用時段且不可改期（FR-001、FR-015）']
+  cancelled [note: '已取消：成員於時段開始前取消，釋出時段且不可改期；取消時使該預約改期審核中的申請失效（FR-001、FR-013）']
+}
+
+Enum reschedule_request_status {
+  pending_approval [note: '改期審核中：需人工審核設備的改期申請，原預約維持 confirmed 並占用原時段，新時段不保留；同一筆預約同時最多一筆（FR-003、FR-004、FR-005）']
+  approved [note: '改期成功：免審核設備即時改期，或管理員核准後，原預約已改到新時段（FR-002、FR-006）']
+  rejected [note: '改期被駁回：管理員駁回，記錄審核管理員、審核時間與選填駁回原因，原預約不變（FR-007）']
+  withdrawn [note: '改期已撤回：成員撤回本人改期審核中的申請，原預約不變（FR-010）']
+  expired [note: '改期已失效：原時段或新時段開始、原預約被取消或被登記領取時，仍為改期審核中的申請自動失效，不可再核准（FR-011、FR-012、FR-013、FR-016、SC-004）']
+}
+
+Enum reschedule_expire_reason {
+  original_slot_started [note: '原時段的開始時間到達（FR-011）']
+  new_slot_started [note: '新時段早於原時段且開始時間先到達（FR-012）']
+  reservation_cancelled [note: '成員取消原預約（FR-013）']
+  reservation_checked_out [note: '管理員對原預約登記領取（FR-016）']
+}
+
+// ---------- Tables ----------
+
+// D1 帳號、驗證碼挑戰與工作階段資料存取
+Table users {
+  id uuid [pk, note: '使用者唯一識別碼']
+  username varchar(64) [not null, unique, note: '登入帳號（例如 lin.yating、chen.guanting、wu.chenghan，FR-015）']
+  password_hash varchar(255) [not null, note: '以 crypto.scrypt 雜湊後的密碼字串（FR-015）']
+  display_name varchar(100) [not null, note: '顯示名稱，供待審清單顯示申請成員與改期紀錄顯示審核管理員（FR-005、FR-006、FR-009）']
+  role user_role [not null, default: 'member', note: '使用者角色：一般成員 member 或管理員 admin；核准與駁回改期申請限 admin（FR-005、SC-006）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統預建或匿名操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (role, deleted_at) [name: 'idx_users_role_active', note: '依角色篩選未軟刪除的有效帳號並驗證管理員核准、駁回改期申請的權限（FR-005、SC-006）']
+  }
+
+  Note: 'D1：Key Entities 使用者帳號；FR-005 依角色限制只有管理員可核准或駁回改期申請、FR-006 與 FR-007 記錄審核管理員、FR-015 保留前三次迭代預建的一般成員與管理員帳號；SC-006 一般成員呼叫核准或駁回 100% 被拒絕。刪除帳號時設定 deleted_at，不物理刪除資料列；查詢有效帳號時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table captcha_challenges {
+  id uuid [pk, note: '驗證碼挑戰唯一識別碼']
+  captcha_code varchar(7) [not null, note: '同時含英文與阿拉伯數字的 7 位數驗證碼，比對時區分大小寫（FR-015）']
+  expires_at timestamptz [not null, note: '到期時間點（建立後 5 分鐘，FR-015）']
+  consumed_at timestamptz [note: '送出登入驗證或重整替換而失效的時間點；尚未使用時為 null（FR-015）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；未登入操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (expires_at, consumed_at) [name: 'idx_captcha_challenges_validity', note: '加速驗證挑戰是否仍在有效期限內且尚未被消耗（FR-015）']
+  }
+
+  Note: 'D1：登入驗證碼挑戰（支撐 Key Entities 使用者帳號的登入）；FR-015 完整保留前三次迭代的驗證碼登入；SC-006 前三次迭代既有功能回歸測試 100% 通過。刪除時設定 deleted_at，不物理刪除資料列；查詢有效挑戰時排除 deleted_at 不為 null、consumed_at 不為 null 或已超過 expires_at 的資料列。'
+}
+
+Table sessions {
+  id uuid [pk, note: '工作階段唯一識別碼']
+  token varchar(128) [not null, unique, note: '登入成功後簽發的不透明 Bearer session token（FR-015）']
+  user_id uuid [not null, note: '所屬使用者帳號 ID，用於判斷改期申請的本人與管理員角色（FR-001、FR-005、FR-010）']
+  expires_at timestamptz [not null, note: '工作階段到期時間點（FR-015）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統操作時為 null']
+  deleted_at timestamptz [note: '軟刪除時間（登出時設定 deleted_at 使工作階段立即失效）；未刪除時為 null']
+
+  indexes {
+    (user_id, deleted_at) [name: 'idx_sessions_user_active', note: '依使用者查詢未軟刪除的有效工作階段（FR-005、NFR-002）']
+    expires_at [name: 'idx_sessions_expires_at', note: '加速檢查工作階段有效期限（FR-015）']
+  }
+
+  Note: 'D1：登入工作階段（支撐 Key Entities 使用者帳號的身分與角色驗證）；FR-001 與 FR-010 只允許本人申請改期與撤回、FR-005 攔截一般成員呼叫核准或駁回改期申請、FR-015 保留前三次迭代的工作階段與登出；SC-006 越權呼叫 100% 被拒絕。登出時設定 deleted_at，不物理刪除資料列；查詢有效工作階段時排除 deleted_at 不為 null 或已超過 expires_at 的資料列。'
+}
+
+// D2 預約借還紀錄與改期申請持久化
+Table equipments {
+  id uuid [pk, note: '設備唯一識別碼']
+  equipment_code varchar(32) [not null, unique, note: '唯一設備編號（例如 EQ-101～EQ-104），顯示於待審清單與改期紀錄（FR-005、FR-009）']
+  name varchar(120) [not null, note: '單件設備名稱（FR-005、FR-009）']
+  category varchar(64) [not null, note: '設備分類（FR-015）']
+  status equipment_status [not null, default: 'available', note: '設備目前可用狀態（FR-015）']
+  requires_approval boolean [not null, default: false, note: '是否需要管理員人工審核：false 時改期送出當下即時改期，true 時建立改期審核中申請；依送出當下的設定判斷，切換設定不影響已送出的申請（FR-002、FR-003、FR-008）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；管理員切換審核設定時記錄管理員 ID，系統預建時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (category, status) [name: 'idx_equipments_category_status', note: '依分類與可用狀態查詢預建設備清單（FR-015、NFR-002）']
+    (requires_approval, status) [name: 'idx_equipments_approval_status', note: '依人工審核設定與可用狀態篩選設備（FR-008、NFR-002）']
+  }
+
+  Note: 'D2：Key Entities 設備；FR-002 與 FR-003 依送出當下的 requires_approval 決定即時改期或進入改期審核、FR-008 切換審核設定後已送出的改期審核中申請仍留在待審清單、FR-005 與 FR-009 顯示設備編號與名稱、FR-015 保留預建設備與審核設定。刪除設備時設定 deleted_at，不物理刪除資料列；查詢有效設備時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table time_slots {
+  id uuid [pk, note: '固定時段唯一識別碼']
+  slot_code varchar(32) [not null, unique, note: '固定時段代碼（morning、afternoon、evening，FR-015）']
+  name varchar(32) [not null, note: '時段名稱（上午、下午、晚間），顯示於改期紀錄與待審清單的原／新時段（FR-005、FR-009）']
+  start_time varchar(5) [not null, note: '單日時段開始時間 HH:mm（09:00、13:00、18:00，依 Asia/Taipei 解讀），用於判斷原時段與新時段是否已開始，以及改期申請自動失效的時間點（FR-001、FR-006、FR-011、FR-012）']
+  end_time varchar(5) [not null, note: '單日時段結束時間 HH:mm（12:00、17:00、21:00，依 Asia/Taipei 解讀），沿用 005 的登記領取時限（FR-015）']
+  sort_order integer [not null, unique, note: '時段排序順序（1=上午、2=下午、3=晚間），供待審清單依新日期與時段排序（FR-005）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；系統預建時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  Note: 'D2：Key Entities 固定時段定義；FR-001 只接受尚未開始的新時段、FR-006 核准時檢查原時段與新時段都尚未開始、FR-011 與 FR-012 依時段開始時間讓改期審核中的申請失效、FR-015 保留每日上午、下午、晚間 3 個固定時段。刪除時設定 deleted_at，不物理刪除資料列；查詢有效時段時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table reservations {
+  id uuid [pk, note: '預約與借用紀錄唯一識別碼']
+  reservation_no varchar(32) [not null, unique, note: '顯示用唯一預約編號（例如 RV-20261108-04）；改期成功時不變（FR-002、FR-006）']
+  user_id uuid [not null, note: '預約成員的使用者 ID；只有本人可申請改期（FR-001）']
+  equipment_id uuid [not null, note: '預約設備 ID；改期只改同一台設備的日期與時段（FR-001）']
+  reservation_date date [not null, note: '預約日期 YYYY-MM-DD（依 Asia/Taipei 解讀）；改期成功時更新為新日期，改期前的日期由 reschedule_requests.from_reservation_date 保存（FR-002、FR-006）']
+  slot_id uuid [not null, note: '預約固定時段 ID；改期成功時更新為新時段，改期前的時段由 reschedule_requests.from_slot_id 保存（FR-002、FR-006）']
+  status reservation_status [not null, default: 'confirmed', note: '預約 6 態狀態；改期成功與改期審核期間都維持 confirmed，取消時變成 cancelled、登記領取時變成 checked_out（FR-001、FR-002、FR-003、FR-013、FR-016）']
+  reviewed_by uuid [note: '核准或駁回此預約申請的管理員 ID（004 預約審核）；不記錄改期審核，改期審核記錄於 reschedule_requests.reviewed_by（FR-015）']
+  reviewed_at timestamptz [note: '核准或駁回此預約申請的時間點（UTC）；不因改期而變動（FR-015）']
+  reject_reason varchar(200) [note: '駁回此預約申請時選填的原因（上限 200 字）（FR-015）']
+  checked_out_by uuid [note: '執行登記領取的管理員 ID；尚未領取時為 null（FR-016）']
+  checked_out_at timestamptz [note: '登記領取時間點（UTC）；尚未領取時為 null（FR-016）']
+  returned_by uuid [note: '執行登記歸還的管理員 ID；尚未歸還時為 null（FR-015）']
+  returned_at timestamptz [note: '登記歸還時間點（UTC）；尚未歸還時為 null（FR-015）']
+  cancelled_at timestamptz [note: '取消時間點（UTC）；取消時填入並將 status 改為 cancelled，保留原資料列（FR-013）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間（預約送出時間點），改期時不變']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同；改期成功時更新']
+  updated_by uuid [note: '最後修改者的使用者 ID；改期成功時記錄送出即時改期的成員或核准改期的管理員 ID']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (equipment_id, reservation_date, slot_id) [unique, name: 'uq_reservations_active_slot', note: '僅在 status IN (confirmed, checked_out, returned) 且 deleted_at IS NULL 時生效（PostgreSQL partial unique index：WHERE status IN (\'confirmed\', \'checked_out\', \'returned\') AND deleted_at IS NULL）；即時改期與核准改期以 UPDATE 改寫 reservation_date、slot_id 時同樣受此索引保護，新預約、即時改期、核准改期與核准待審預約同時占用同一時段時只有一筆成功（FR-001、FR-002、FR-006、FR-014、SC-003）']
+    (user_id, equipment_id, reservation_date, slot_id) [unique, name: 'uq_reservations_user_active_request', note: '僅在 status IN (pending_approval, confirmed, checked_out) 且 deleted_at IS NULL 時生效（PostgreSQL partial unique index：WHERE status IN (\'pending_approval\', \'confirmed\', \'checked_out\') AND deleted_at IS NULL）；改期到新時段時，同一成員在同一設備、日期與時段不得已有其他未結束預約（FR-001）']
+    (status, reservation_date, slot_id, created_at) [name: 'idx_reservations_status_date_slot', note: '管理員依狀態篩選預約並依日期、時段與建立時間排序（FR-015、NFR-002）']
+    (user_id, status, reservation_date, created_at) [name: 'idx_reservations_user_date_created', note: '成員「我的預約」依狀態與日期查詢本人預約，並判斷可改期的 confirmed 預約（FR-001、FR-009、NFR-002）']
+    (reservation_date, slot_id, created_at) [name: 'idx_reservations_date_slot_created', note: '管理員查詢全體預約借還清單（FR-015、NFR-002）']
+    (reservation_date, equipment_id, status) [name: 'idx_reservations_date_equipment_status', note: '依日期查詢各設備固定時段的占用狀態，檢查新時段是否已被占用（FR-001、FR-014、FR-017、NFR-002）']
+  }
+
+  Note: 'D2：Key Entities 預約與借用紀錄；FR-001 只有本人原時段尚未開始的 confirmed 預約可改期、FR-002 與 FR-006 改期成功時在同一交易內更新 reservation_date 與 slot_id，id、reservation_no、status 與原有審核、建立時間不變、FR-003 改期審核期間不寫入此表、FR-013 取消時 status 改為 cancelled、FR-014 以 uq_reservations_active_slot 保證同一時段只有一筆成功占用、FR-015 欄位、Enum 與索引與 005 相同，既有資料列無損保留、FR-016 登記領取時 status 改為 checked_out；SC-001、SC-002 改期失敗時原預約變動率 0%、SC-003 時段重複占用 0%。取消、駁回、歸還時以 status 與對應時間欄位保留原資料列，不物理刪除；刪除資料時設定 deleted_at，查詢有效資料時排除 deleted_at 不為 null 的資料列。'
+}
+
+Table reschedule_requests {
+  id uuid [pk, note: '改期申請唯一識別碼']
+  request_no varchar(32) [not null, unique, note: '顯示用唯一改期申請編號（例如 RR-20261109-02），顯示於改期紀錄、待審清單與錯誤提示（FR-004、FR-005、FR-009）']
+  reservation_id uuid [not null, note: '所屬預約 ID；一筆預約可有多筆改期申請（FR-004、FR-009）']
+  user_id uuid [not null, note: '申請成員的使用者 ID，必須為所屬預約的本人；撤回時檢查本人（FR-001、FR-010、FR-017）']
+  from_reservation_date date [not null, note: '原預約日期 YYYY-MM-DD（依 Asia/Taipei 解讀），送出時從預約複製（FR-002、FR-009）']
+  from_slot_id uuid [not null, note: '原固定時段 ID，送出時從預約複製（FR-002、FR-009、FR-011）']
+  to_reservation_date date [not null, note: '新預約日期 YYYY-MM-DD（依 Asia/Taipei 解讀），必須在當日起算 7 天內（FR-001、FR-009）']
+  to_slot_id uuid [not null, note: '新固定時段 ID；與 to_reservation_date 的組合必須不同於原日期時段（FR-001、FR-009、FR-012）']
+  status reschedule_request_status [not null, default: 'pending_approval', note: '改期申請 5 態：pending_approval（改期審核中）、approved（改期成功）、rejected（改期被駁回）、withdrawn（改期已撤回）、expired（改期已失效）；只允許由 pending_approval 轉移到其他 4 種終態，免審核即時改期直接以 approved 建立（FR-002、FR-003、FR-006、FR-007、FR-010、FR-011）']
+  reviewed_by uuid [note: '核准或駁回的管理員 ID；免審核即時改期、撤回或失效時為 null（FR-006、FR-007）']
+  reviewed_at timestamptz [note: '管理員核准或駁回的時間點（UTC）；免審核即時改期、撤回或失效時為 null（FR-006、FR-007、FR-009）']
+  reject_reason varchar(200) [note: '駁回時選填的原因，上限 200 字；非 rejected 時為 null（FR-005、FR-007、FR-009）']
+  withdrawn_at timestamptz [note: '成員撤回的時間點（UTC）；非 withdrawn 時為 null（FR-010）']
+  expired_at timestamptz [note: '失效時間點（UTC）；因時段開始而失效時填入該時段的開始時間（依 Asia/Taipei 換算），因取消或登記領取而失效時填入該操作時間；非 expired 時為 null（FR-011、FR-012、FR-013、FR-016）']
+  expire_reason reschedule_expire_reason [note: '失效原因；非 expired 時為 null（FR-009、FR-011、FR-012、FR-013、FR-016）']
+  created_at timestamptz [not null, default: `now()`, note: '建立時間，即改期申請時間（FR-002、FR-005、FR-009）']
+  updated_at timestamptz [not null, default: `now()`, note: '最後修改時間；建立時與 created_at 相同']
+  updated_by uuid [note: '最後修改者的使用者 ID；建立、撤回時為申請成員，核准、駁回、登記領取時為管理員，因時段開始而自動失效時為 null']
+  deleted_at timestamptz [note: '軟刪除時間；未刪除時為 null']
+
+  indexes {
+    (reservation_id) [unique, name: 'uq_reschedule_requests_pending_per_reservation', note: '僅在 status = pending_approval 且 deleted_at IS NULL 時生效（PostgreSQL partial unique index：WHERE status = \'pending_approval\' AND deleted_at IS NULL），同一筆預約同時最多一筆改期審核中的申請；並發送出時只有一筆成立（FR-004）']
+    (status, to_reservation_date, to_slot_id, created_at) [name: 'idx_reschedule_requests_status_to_slot', note: '管理員待審清單依新日期、時段與申請時間排序、查詢前讓到期的改期審核中申請失效，以及「設備預約」頁面查詢本人改期審核中的新時段（FR-005、FR-011、FR-012、FR-017、NFR-002）']
+    (reservation_id, created_at) [name: 'idx_reschedule_requests_reservation_created', note: '「我的預約」依預約列出每筆改期紀錄，並在取消或登記領取時找出該預約改期審核中的申請（FR-009、FR-013、FR-016、NFR-002）']
+  }
+
+  Note: 'D2：Key Entities 改期申請；FR-002 免審核設備即時改期時在同一交易內建立 approved 紀錄、FR-003 需人工審核設備建立 pending_approval 申請且不占用新時段（新時段不建立任何唯一約束，其他成員仍可預約）、FR-004 以 uq_reschedule_requests_pending_per_reservation 限制同一預約最多一筆改期審核中申請、FR-005 待審清單列出改期審核中申請、FR-006 核准時改為 approved 並記錄 reviewed_by 與 reviewed_at、FR-007 駁回時改為 rejected 並記錄原因、FR-009 保存原／新日期時段、申請時間、審核時間與駁回原因供「我的預約」顯示、FR-010 撤回時改為 withdrawn 並記錄 withdrawn_at、FR-011 與 FR-012 時段開始時改為 expired、FR-013 與 FR-016 取消或登記領取原預約時在同一交易內改為 expired、FR-015 以新增資料表無損遷移並擴充 5 態 demo seed、FR-017 查詢本人改期審核中的新時段；SC-002、SC-004、NFR-002。申請進入終態後保留原資料列與歷程，不物理刪除也不覆寫；刪除資料時設定 deleted_at，查詢有效資料時排除 deleted_at 不為 null 的資料列。'
+}
+
+// ---------- Table Groups ----------
+
+TableGroup d1_auth_and_session_access [note: 'D1 帳號、驗證碼挑戰與工作階段資料存取'] {
+  users
+  captcha_challenges
+  sessions
+}
+
+TableGroup d2_reservation_and_reschedule_persistence [note: 'D2 預約借還紀錄與改期申請持久化'] {
+  equipments
+  time_slots
+  reservations
+  reschedule_requests
+}
+
+// ---------- Relationships ----------
+
+Ref: sessions.user_id > users.id
+Ref: reservations.user_id > users.id
+Ref: reservations.reviewed_by > users.id
+Ref: reservations.checked_out_by > users.id
+Ref: reservations.returned_by > users.id
+Ref: reservations.equipment_id > equipments.id
+Ref: reservations.slot_id > time_slots.id
+Ref: reschedule_requests.reservation_id > reservations.id
+Ref: reschedule_requests.user_id > users.id
+Ref: reschedule_requests.reviewed_by > users.id
+Ref: reschedule_requests.from_slot_id > time_slots.id
+Ref: reschedule_requests.to_slot_id > time_slots.id
