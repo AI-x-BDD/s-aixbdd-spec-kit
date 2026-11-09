@@ -7,6 +7,7 @@ import {
   approveReservation,
   listAllReservations,
   listPendingReservations,
+  pickupReservationByAdmin,
   rejectReservation,
 } from "../services/reservationService.js";
 
@@ -159,6 +160,20 @@ adminRouter.post(
       adminUserId: req.authUser!.id,
       reservationId,
       rejectReason: parsedBody?.rejectReason ?? null,
+    });
+    res.status(200).json(result);
+  },
+);
+
+adminRouter.post(
+  "/reservations/:reservationId/pickup",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { reservationId } = reservationIdParamsSchema.parse(req.params);
+    const result = await pickupReservationByAdmin({
+      adminUserId: req.authUser!.id,
+      reservationId,
     });
     res.status(200).json(result);
   },

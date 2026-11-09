@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../middleware/errorHandler.js";
 import {
+  canPickupInWindow,
+  checkPickupWindow,
   formatUtcDateToDateStr,
   getTaipeiNow,
   hasSlotStarted,
@@ -33,6 +35,13 @@ export interface ReservationDto {
   reviewedByDisplayName: string | null;
   reviewedAt: string | null;
   rejectReason: string | null;
+  checkedOutAt: string | null;
+  checkedOutByUserId: string | null;
+  checkedOutByName: string | null;
+  returnedAt: string | null;
+  returnedByUserId: string | null;
+  returnedByName: string | null;
+  canCancel: boolean;
   createdAt: string;
   cancelledAt: string | null;
 }
@@ -52,36 +61,56 @@ export function generateReservationNo(): string {
   return `RV-${compactDate}-${suffix}`;
 }
 
-export function toReservationDto(row: {
-  id: string;
-  reservation_no: string;
-  user_id: string;
-  equipment_id: string;
-  reservation_date: Date;
-  slot_id: string;
-  status: ReservationStatus;
-  reviewed_by: string | null;
-  reviewed_at: Date | null;
-  reject_reason: string | null;
-  created_at: Date;
-  cancelled_at: Date | null;
-  equipment: {
-    equipment_code: string;
-    name: string;
-    category: string;
-    requires_approval: boolean;
-  };
-  slot: {
-    name: string;
-    start_time: string;
-    end_time: string;
-    sort_order: number;
-  };
-  reviewer?: {
-    username: string;
-    display_name: string;
-  } | null;
-}): ReservationDto {
+export function toReservationDto(
+  row: {
+    id: string;
+    reservation_no: string;
+    user_id: string;
+    equipment_id: string;
+    reservation_date: Date;
+    slot_id: string;
+    status: ReservationStatus;
+    reviewed_by: string | null;
+    reviewed_at: Date | null;
+    reject_reason: string | null;
+    checked_out_by?: string | null;
+    checked_out_at?: Date | null;
+    returned_by?: string | null;
+    returned_at?: Date | null;
+    created_at: Date;
+    cancelled_at: Date | null;
+    equipment: {
+      equipment_code: string;
+      name: string;
+      category: string;
+      requires_approval: boolean;
+    };
+    slot: {
+      name: string;
+      start_time: string;
+      end_time: string;
+      sort_order: number;
+    };
+    reviewer?: {
+      username: string;
+      display_name: string;
+    } | null;
+    checkout_admin?: {
+      username: string;
+      display_name: string;
+    } | null;
+    return_admin?: {
+      username: string;
+      display_name: string;
+    } | null;
+  },
+  now: Date = new Date(),
+): ReservationDto {
+  const reservationDateStr = formatUtcDateToDateStr(row.reservation_date);
+  const canCancel =
+    (row.status === "pending_approval" || row.status === "confirmed") &&
+    !hasSlotStarted(reservationDateStr, row.slot.start_time, now);
+
   return {
     id: row.id,
     reservationNumber: row.reservation_no,
@@ -91,7 +120,7 @@ export function toReservationDto(row: {
     equipmentName: row.equipment.name,
     equipmentCategory: row.equipment.category,
     equipmentRequiresApproval: row.equipment.requires_approval,
-    reservationDate: formatUtcDateToDateStr(row.reservation_date),
+    reservationDate: reservationDateStr,
     slotId: row.slot_id,
     slotName: row.slot.name,
     slotStartTime: row.slot.start_time,
@@ -102,6 +131,13 @@ export function toReservationDto(row: {
     reviewedByDisplayName: row.reviewer ? row.reviewer.display_name : null,
     reviewedAt: row.reviewed_at ? row.reviewed_at.toISOString() : null,
     rejectReason: row.reject_reason,
+    checkedOutAt: row.checked_out_at ? row.checked_out_at.toISOString() : null,
+    checkedOutByUserId: row.checked_out_by ?? null,
+    checkedOutByName: row.checkout_admin ? row.checkout_admin.display_name : null,
+    returnedAt: row.returned_at ? row.returned_at.toISOString() : null,
+    returnedByUserId: row.returned_by ?? null,
+    returnedByName: row.return_admin ? row.return_admin.display_name : null,
+    canCancel,
     createdAt: row.created_at.toISOString(),
     cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
   };
@@ -294,7 +330,7 @@ export async function listMyReservations(params: {
   });
 
   return {
-    items: rows.map(toReservationDto),
+    items: rows.map((row) => toReservationDto(row)),
     page: params.page,
     pageSize: params.pageSize,
     totalItems,
@@ -568,6 +604,10 @@ export interface AdminReservationItemDto extends ReservationDto {
   username: string;
   userDisplayName: string;
   reviewedByUsername: string | null;
+  checkedOutByUsername: string | null;
+  returnedByUsername: string | null;
+  canPickup: boolean;
+  canReturn: boolean;
 }
 
 export interface AdminReservationPageDto {
@@ -578,46 +618,149 @@ export interface AdminReservationPageDto {
   totalPages: number;
 }
 
-export function toAdminReservationDto(row: {
-  id: string;
-  reservation_no: string;
-  user_id: string;
-  equipment_id: string;
-  reservation_date: Date;
-  slot_id: string;
-  status: ReservationStatus;
-  reviewed_by: string | null;
-  reviewed_at: Date | null;
-  reject_reason: string | null;
-  created_at: Date;
-  cancelled_at: Date | null;
-  user: {
-    username: string;
-    display_name: string;
-  };
-  equipment: {
-    equipment_code: string;
-    name: string;
-    category: string;
-    requires_approval: boolean;
-  };
-  slot: {
-    name: string;
-    start_time: string;
-    end_time: string;
-    sort_order: number;
-  };
-  reviewer?: {
-    username: string;
-    display_name: string;
-  } | null;
-}): AdminReservationItemDto {
+export function toAdminReservationDto(
+  row: {
+    id: string;
+    reservation_no: string;
+    user_id: string;
+    equipment_id: string;
+    reservation_date: Date;
+    slot_id: string;
+    status: ReservationStatus;
+    reviewed_by: string | null;
+    reviewed_at: Date | null;
+    reject_reason: string | null;
+    checked_out_by?: string | null;
+    checked_out_at?: Date | null;
+    returned_by?: string | null;
+    returned_at?: Date | null;
+    created_at: Date;
+    cancelled_at: Date | null;
+    user: {
+      username: string;
+      display_name: string;
+    };
+    equipment: {
+      equipment_code: string;
+      name: string;
+      category: string;
+      requires_approval: boolean;
+    };
+    slot: {
+      name: string;
+      start_time: string;
+      end_time: string;
+      sort_order: number;
+    };
+    reviewer?: {
+      username: string;
+      display_name: string;
+    } | null;
+    checkout_admin?: {
+      username: string;
+      display_name: string;
+    } | null;
+    return_admin?: {
+      username: string;
+      display_name: string;
+    } | null;
+  },
+  now: Date = new Date(),
+): AdminReservationItemDto {
+  const baseDto = toReservationDto(row, now);
   return {
-    ...toReservationDto(row),
+    ...baseDto,
     username: row.user.username,
     userDisplayName: row.user.display_name,
     reviewedByUsername: row.reviewer ? row.reviewer.username : null,
+    checkedOutByUsername: row.checkout_admin ? row.checkout_admin.username : null,
+    returnedByUsername: row.return_admin ? row.return_admin.username : null,
+    canPickup:
+      row.status === "confirmed" &&
+      canPickupInWindow(baseDto.reservationDate, row.slot.end_time, now),
+    canReturn: row.status === "checked_out",
   };
+}
+
+export async function pickupReservationByAdmin(params: {
+  adminUserId: string;
+  reservationId: string;
+  now?: Date;
+}): Promise<AdminReservationItemDto> {
+  const now = params.now ?? new Date();
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.reservations.findFirst({
+      where: {
+        id: params.reservationId,
+        deleted_at: null,
+      },
+      include: {
+        user: true,
+        equipment: true,
+        slot: true,
+        reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
+      },
+    });
+
+    if (!existing) {
+      throw new AppError(
+        "RESOURCE_NOT_FOUND",
+        404,
+        "操作失敗：找不到指定的預約借用紀錄，請重新整理清單後再試。",
+      );
+    }
+
+    if (existing.status !== "confirmed") {
+      throw new AppError(
+        "INVALID_RESERVATION_STATUS",
+        409,
+        `無法登記領取：預約編號 ${existing.reservation_no} 目前狀態為「${getStatusZhLabel(existing.status)}」（非「已核准／有效」狀態），系統僅允許對「已核准／有效」預約執行單次登記領取，禁止對待審核、借用中、已歸還、已駁回或已取消紀錄重複領取。`,
+      );
+    }
+
+    const reservationDateStr = formatUtcDateToDateStr(existing.reservation_date);
+    const { dateStr: todayStr, timeStr } = getTaipeiNow(now);
+    const windowResult = checkPickupWindow(reservationDateStr, existing.slot.end_time, now);
+
+    if (windowResult === "PICKUP_DATE_NOT_TODAY") {
+      throw new AppError(
+        "PICKUP_DATE_NOT_TODAY",
+        400,
+        `無法登記領取：預約編號 ${existing.reservation_no} 的預約日期為 ${reservationDateStr}（非今日 ${todayStr}），系統僅開放預約當日且尚未超過該固定時段結束時間的已核准預約辦理現場領取，拒絕未來日期提前領取。`,
+      );
+    }
+
+    if (windowResult === "PICKUP_WINDOW_EXPIRED") {
+      throw new AppError(
+        "PICKUP_WINDOW_EXPIRED",
+        400,
+        `無法登記領取：預約編號 ${existing.reservation_no}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）的固定時段已經結束（目前台灣時間 ${timeStr} 已超過 ${existing.slot.end_time}），已逾期未領取的預約無法補登領取。`,
+      );
+    }
+
+    const updated = await tx.reservations.update({
+      where: { id: existing.id },
+      data: {
+        status: "checked_out",
+        checked_out_at: now,
+        checked_out_by: params.adminUserId,
+        updated_at: now,
+        updated_by: params.adminUserId,
+      },
+      include: {
+        user: true,
+        equipment: true,
+        slot: true,
+        reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
+      },
+    });
+
+    return toAdminReservationDto(updated, now);
+  });
 }
 
 export async function listPendingReservations(params: {
@@ -668,7 +811,7 @@ export async function listPendingReservations(params: {
   });
 
   return {
-    items: rows.map(toAdminReservationDto),
+    items: rows.map((row) => toAdminReservationDto(row)),
     page: params.page,
     pageSize: params.pageSize,
     totalItems,
@@ -725,7 +868,7 @@ export async function listAllReservations(params: {
   });
 
   return {
-    items: rows.map(toAdminReservationDto),
+    items: rows.map((row) => toAdminReservationDto(row)),
     page: params.page,
     pageSize: params.pageSize,
     totalItems,

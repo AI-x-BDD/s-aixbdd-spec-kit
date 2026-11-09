@@ -394,6 +394,26 @@ export function LoginView({ bannerMessage, onLoginSuccess }: LoginViewProps): Re
               </div>
             ))}
           </div>
+
+          <div
+            style={{
+              marginTop: "20px",
+              padding: "14px 16px",
+              borderRadius: "10px",
+              border: "1px solid var(--line)",
+              background: "var(--surface-muted)",
+              fontSize: "13px",
+            }}
+          >
+            <strong>驗證碼、現場領取歸還與借用規範提醒</strong>
+            <ul style={{ margin: "6px 0 0", paddingLeft: "18px", color: "var(--muted)" }}>
+              <li>驗證碼嚴格區分大小寫（例如 A7k9M2x 與 a7k9m2x 視為不同）。</li>
+              <li>開放當日起算 7 天內尚未開始的單日固定時段。</li>
+              <li>
+                成員於預約當日到現場領取時，由管理員執行「登記領取」轉為「借用中」（一旦領取後即不可取消）；歸還時由管理員執行「登記歸還」轉為「已歸還」。
+              </li>
+            </ul>
+          </div>
         </aside>
       </section>
     </div>

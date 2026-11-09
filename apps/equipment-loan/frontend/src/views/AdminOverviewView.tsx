@@ -9,6 +9,7 @@ import {
   approveReservationApi,
   fetchAdminEquipments,
   fetchPendingReservations,
+  pickupReservationByAdmin,
   rejectReservationApi,
   type ReservationStatus,
   updateEquipmentApprovalModeApi,
@@ -17,6 +18,15 @@ import { UI_TEXT } from "../text/zh-TW";
 
 export type AdminReservationItem = AdminReservationItemDto;
 export type AdminReservationPage = AdminReservationPageDto;
+
+function getTaipeiTodayStr(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 function formatIsoToTaipeiDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -61,6 +71,7 @@ export function AdminOverviewView({
   } | null>(null);
   const [togglingEqId, setTogglingEqId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [pickupProcessingId, setPickupProcessingId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<AdminReservationItem | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>("");
   const [rejectError, setRejectError] = useState<string>("");
@@ -153,6 +164,25 @@ export function AdminOverviewView({
     setRejectError("");
   };
 
+  const handlePickup = async (item: AdminReservationItem): Promise<void> => {
+    setPickupProcessingId(item.id);
+    setBanner(null);
+    try {
+      const updated = await pickupReservationByAdmin(item.id);
+      setBanner({
+        tone: "success",
+        text: `已完成登記領取！預約編號 ${updated.reservationNumber}（${updated.userDisplayName}，${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}）狀態已更新為「借用中」，記錄領取時間 ${formatIsoToTaipeiDateTime(updated.checkedOutAt)} 與領取經手管理員${updated.checkedOutByName ?? "管理員"}${updated.checkedOutByUsername ? ` (${updated.checkedOutByUsername})` : ""}。`,
+      });
+      await loadAdminData();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "登記領取失敗，請稍後再試。";
+      setBanner({ tone: "danger", text: msg });
+      await loadAdminData();
+    } finally {
+      setPickupProcessingId(null);
+    }
+  };
+
   const handleConfirmReject = async (): Promise<void> => {
     if (!rejectTarget) return;
     const trimmed = rejectReasonInput.trim();
@@ -221,10 +251,10 @@ export function AdminOverviewView({
           >
             !
           </div>
-          <h2>權限不足：拒絕存取管理員設備審核設定與待審核申請清單</h2>
+          <h2>權限不足：拒絕存取管理員審核與現場借還管理</h2>
           <p className="muted" style={{ margin: "8px 0 22px" }}>
-            權限不足：「管理員設備審核設定與待審核申請清單」僅供管理員（admin）角色存取與操作，您目前的身分為一般成員（
-            {currentUser.displayName}），系統已拒絕存取。
+            權限不足：「登記領取」、「登記歸還」與「審核及借用管理」僅供管理員（admin）角色執行，您目前的身分為一般成員（
+            {currentUser.displayName}），系統已攔截拒絕操作。
           </p>
           <div
             style={{
@@ -624,21 +654,32 @@ export function AdminOverviewView({
                   預約狀態
                 </th>
                 <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                  領取時間／經手管理員
+                </th>
+                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
                   審核資訊／駁回原因
                 </th>
                 <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
                   建立／取消時間
                 </th>
+                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                  現場管理操作
+                </th>
               </tr>
             </thead>
             <tbody>
               {reservations.map((r) => {
+                const todayStr = getTaipeiTodayStr();
                 const badgeClass =
                   r.status === "confirmed"
                     ? "badge-mine"
-                    : r.status === "pending_approval"
-                      ? "badge-pending"
-                      : "badge-cancelled";
+                    : r.status === "checked_out"
+                      ? "badge-loan"
+                      : r.status === "returned"
+                        ? "badge-returned"
+                        : r.status === "pending_approval"
+                          ? "badge-pending"
+                          : "badge-cancelled";
 
                 return (
                   <tr
@@ -665,9 +706,25 @@ export function AdminOverviewView({
                       {r.reservationDate} {r.slotName} {r.slotStartTime}–{r.slotEndTime}
                     </td>
                     <td style={{ padding: "13px 16px" }}>
-                      <span className={`badge ${badgeClass}`}>
+                      <span
+                        className={`badge ${badgeClass}`}
+                        data-testid={`admin-status-${r.reservationNumber}`}
+                      >
                         {UI_TEXT.reservationStatus[r.status]}
                       </span>
+                    </td>
+                    <td style={{ padding: "13px 16px", fontSize: "13px" }}>
+                      {r.checkedOutAt ? (
+                        <div>
+                          <div className="mono">{formatIsoToTaipeiDateTime(r.checkedOutAt)}</div>
+                          <div className="muted" style={{ fontSize: "11px" }}>
+                            經手：{r.checkedOutByName ?? "管理員"}
+                            {r.checkedOutByUsername ? ` (${r.checkedOutByUsername})` : ""}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
                     </td>
                     <td style={{ padding: "13px 16px", fontSize: "13px" }}>
                       {r.reviewedAt ? (
@@ -696,6 +753,45 @@ export function AdminOverviewView({
                         <div className="muted">
                           取消：{formatIsoToTaipeiDateTime(r.cancelledAt)}
                         </div>
+                      )}
+                    </td>
+                    <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+                      {r.canPickup ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          disabled={pickupProcessingId === r.id}
+                          data-testid={`pickup-btn-${r.reservationNumber}`}
+                          onClick={() => void handlePickup(r)}
+                        >
+                          {pickupProcessingId === r.id
+                            ? UI_TEXT.actions.pickupProcessing
+                            : UI_TEXT.actions.pickup}
+                        </button>
+                      ) : r.status === "confirmed" && r.reservationDate > todayStr ? (
+                        <span
+                          className="muted"
+                          style={{ fontSize: "12px" }}
+                          data-testid={`pickup-hint-${r.reservationNumber}`}
+                        >
+                          非當日預約（限當日領取）
+                        </span>
+                      ) : r.status === "confirmed" ? (
+                        <span
+                          className="muted"
+                          style={{ fontSize: "12px" }}
+                          data-testid={`pickup-hint-${r.reservationNumber}`}
+                        >
+                          時段已結束未領（逾期不可領取）
+                        </span>
+                      ) : r.status === "pending_approval" ? (
+                        <span className="muted" style={{ fontSize: "12px" }}>
+                          請先於上方待審清單審核
+                        </span>
+                      ) : (
+                        <span className="muted" style={{ fontSize: "12px" }}>
+                          —
+                        </span>
                       )}
                     </td>
                   </tr>
