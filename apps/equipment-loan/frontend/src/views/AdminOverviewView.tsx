@@ -1,30 +1,22 @@
 import React, { useCallback, useEffect, useState } from "react";
 import type { AuthenticatedUser } from "../App";
 import {
+  type AdminEquipmentSettingDto,
   type AdminReservationItemDto,
   type AdminReservationPageDto,
   ApiError,
   apiRequest,
   approveReservationApi,
-  type EquipmentAvailabilityPageDto,
-  type EquipmentWithSlotsDto,
+  fetchAdminEquipments,
   fetchPendingReservations,
   rejectReservationApi,
   type ReservationStatus,
+  updateEquipmentApprovalModeApi,
 } from "../api/client";
 import { UI_TEXT } from "../text/zh-TW";
 
 export type AdminReservationItem = AdminReservationItemDto;
 export type AdminReservationPage = AdminReservationPageDto;
-
-function getTaipeiTodayStr(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
 
 function formatIsoToTaipeiDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -56,7 +48,7 @@ export function AdminOverviewView({
   onGoToBooking,
   onSwitchAccount,
 }: AdminOverviewViewProps): React.ReactElement {
-  const [equipments, setEquipments] = useState<EquipmentWithSlotsDto[]>([]);
+  const [equipments, setEquipments] = useState<AdminEquipmentSettingDto[]>([]);
   const [pendingList, setPendingList] = useState<AdminReservationItem[]>([]);
   const [reservations, setReservations] = useState<AdminReservationItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<"ALL" | ReservationStatus>("ALL");
@@ -67,6 +59,7 @@ export function AdminOverviewView({
     tone: "danger" | "success" | "info";
     text: string;
   } | null>(null);
+  const [togglingEqId, setTogglingEqId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<AdminReservationItem | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>("");
@@ -75,7 +68,6 @@ export function AdminOverviewView({
   const loadAdminData = useCallback(async () => {
     setLoading(true);
     try {
-      const today = getTaipeiTodayStr();
       const resParams = new URLSearchParams({
         page: "1",
         pageSize: "100",
@@ -88,7 +80,7 @@ export function AdminOverviewView({
       }
 
       const [eqData, pendingData, resData] = await Promise.all([
-        apiRequest<EquipmentAvailabilityPageDto>(`/equipments?date=${today}&page=1&pageSize=50`),
+        fetchAdminEquipments(),
         fetchPendingReservations(
           equipmentFilter !== "ALL" ? { equipmentId: equipmentFilter } : undefined,
         ),
@@ -116,6 +108,25 @@ export function AdminOverviewView({
   useEffect(() => {
     void loadAdminData();
   }, [loadAdminData]);
+
+  const handleToggleApprovalMode = async (eq: AdminEquipmentSettingDto): Promise<void> => {
+    setTogglingEqId(eq.id);
+    setBanner(null);
+    try {
+      const updated = await updateEquipmentApprovalModeApi(eq.id, !eq.requiresApproval);
+      setBanner({
+        tone: "success",
+        text: `已更新設備審核設定：${updated.equipmentCode} ${updated.name} 已設為「${updated.requiresApproval ? "需人工審核" : "免審核"}」；既有「已核准／有效」預約與既有「待審核」申請均維持原狀態與效力不變，新設定僅適用於後續新送出的預約申請。`,
+      });
+      await loadAdminData();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "更新設備人工審核設定失敗，請稍後再試。";
+      setBanner({ tone: "danger", text: msg });
+      await loadAdminData();
+    } finally {
+      setTogglingEqId(null);
+    }
+  };
 
   const handleApprove = async (item: AdminReservationItem): Promise<void> => {
     setReviewingId(item.id);
@@ -308,7 +319,24 @@ export function AdminOverviewView({
               </div>
             </div>
             <div style={{ fontSize: "14px", fontWeight: 700 }}>{eq.name}</div>
-            <div style={{ fontSize: "12px", color: "var(--muted)" }}>分類：{eq.category}</div>
+            <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+              分類：{eq.category}｜更新：
+              <span className="mono">{formatIsoToTaipeiDateTime(eq.updatedAt)}</span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={togglingEqId === eq.id}
+              data-testid={`toggle-approval-btn-${eq.equipmentCode}`}
+              onClick={() => void handleToggleApprovalMode(eq)}
+              style={{ marginTop: "4px" }}
+            >
+              {togglingEqId === eq.id
+                ? "儲存設定中…"
+                : eq.requiresApproval
+                  ? "切換為免審核"
+                  : "切換為需人工審核"}
+            </button>
           </div>
         ))}
       </div>

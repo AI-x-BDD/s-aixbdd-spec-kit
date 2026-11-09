@@ -215,20 +215,20 @@ description: "Task list for 設備人工審核設定與預約申請審核 implem
 
 > D2 的 `equipments.requires_approval` 欄位與索引已在 Phase 2 建立，本故事沒有資料庫任務。
 
-- [ ] T022 [US3] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 實作 B5 `listAdminEquipments({ category, requiresApproval, page, pageSize })`（`GET /api/admin/equipments`）與 `updateEquipmentApprovalMode({ adminUserId, equipmentId, requiresApproval })`（`PATCH /api/admin/equipments/:equipmentId/approval-mode`）：`listAdminEquipments` 驗證分頁參數（不合法回 `400 PAGINATION_INVALID`），依 `equipment_code` ASC、`id` ASC 分頁回傳 `AdminEquipmentPage`（含 `requiresApproval` 與 `updatedAt`；`isActive` 轉換見 Notes 待確認 1）；`updateEquipmentApprovalMode` 查詢未軟刪除的目標設備（不存在回 `404 RESOURCE_NOT_FOUND`），僅更新 `equipments.requires_approval`、`updated_at = now()` 與 `updated_by = adminUserId`，不修改 `reservations` 表中的任何既有 `confirmed` 或 `pending_approval` 資料列，並回傳更新後的 `AdminEquipmentSetting`（FR-009、FR-010、NFR-002、SC-003、SC-004、US3 情境 1–3、Edge Cases 設備在「免審核」與「需人工審核」之間來回切換）
+- [X] T022 [US3] 在 `apps/equipment-loan/backend/src/services/equipmentService.ts` 實作 B5 `listAdminEquipments({ category, requiresApproval, page, pageSize })`（`GET /api/admin/equipments`）與 `updateEquipmentApprovalMode({ adminUserId, equipmentId, requiresApproval })`（`PATCH /api/admin/equipments/:equipmentId/approval-mode`）：`listAdminEquipments` 驗證分頁參數（不合法回 `400 PAGINATION_INVALID`），依 `equipment_code` ASC、`id` ASC 分頁回傳 `AdminEquipmentPage`（含 `requiresApproval` 與 `updatedAt`；`isActive` 轉換見 Notes 待確認 1）；`updateEquipmentApprovalMode` 查詢未軟刪除的目標設備（不存在回 `404 RESOURCE_NOT_FOUND`），僅更新 `equipments.requires_approval`、`updated_at = now()` 與 `updated_by = adminUserId`，不修改 `reservations` 表中的任何既有 `confirmed` 或 `pending_approval` 資料列，並回傳更新後的 `AdminEquipmentSetting`（FR-009、FR-010、NFR-002、SC-003、SC-004、US3 情境 1–3、Edge Cases 設備在「免審核」與「需人工審核」之間來回切換）
   - **Must Read**
     - `contracts/openapi.yaml` → `listAdminEquipments`、`updateEquipmentApprovalMode`、`UpdateEquipmentApprovalModeRequest`、`AdminEquipmentSetting`、`AdminEquipmentPage` — Why：管理員查詢與切換設備人工審核設定的請求、回應與錯誤碼
     - `data/data-model.dbml` → `Table equipments`、`Table reservations` — Why：更新 `equipments.requires_approval` 與 `updated_by` 時保持既有 `reservations` 狀態不變
     - `research.md` → §2 — Why：切換設備審核模式僅更新 `equipments` 資料表、不變動既有預約紀錄的設計
     - `spec.md` → US3 情境 1–3、FR-009、FR-010、SC-003、Edge Cases「設備在「免審核」與「需人工審核」之間來回切換」 — Why：舊預約保留原有效力、既有待審維持待審、新設定僅適用於切換後新送出的申請
-- [ ] T023 [US3] 在 `apps/equipment-loan/backend/src/routes/adminRouter.ts` 掛載 B5 路由：`GET /api/admin/equipments`（`listAdminEquipments`）與 `PATCH /api/admin/equipments/:equipmentId/approval-mode`（`updateEquipmentApprovalMode`），套用 `requireAuth` 與 `requireAdmin` 中介層（一般成員呼叫時回傳 `403 FORBIDDEN`），並以 zod 驗證路徑參數 `equipmentId`（UUID）、分頁篩選參數與請求 body `{ requiresApproval: z.boolean() }`（不合法回 `400 VALIDATION_FAILED`）（FR-009、FR-010、SC-005、US3 情境 1、4、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）
+- [X] T023 [US3] 在 `apps/equipment-loan/backend/src/routes/adminRouter.ts` 掛載 B5 路由：`GET /api/admin/equipments`（`listAdminEquipments`）與 `PATCH /api/admin/equipments/:equipmentId/approval-mode`（`updateEquipmentApprovalMode`），套用 `requireAuth` 與 `requireAdmin` 中介層（一般成員呼叫時回傳 `403 FORBIDDEN`），並以 zod 驗證路徑參數 `equipmentId`（UUID）、分頁篩選參數與請求 body `{ requiresApproval: z.boolean() }`（不合法回 `400 VALIDATION_FAILED`）（FR-009、FR-010、SC-005、US3 情境 1、4、Edge Cases 一般成員越權存取待審清單、審核申請或修改設備審核設定）
   - **Must Read**
     - `contracts/openapi.yaml` → `listAdminEquipments`、`updateEquipmentApprovalMode`、`UpdateEquipmentApprovalModeRequest`、`Forbidden`、`ValidationFailed` — Why：路由路徑、zod 驗證規則與非管理員 `403 FORBIDDEN` 攔截
     - `spec.md` → US3 情境 4、FR-009、SC-005 — Why：一般成員嘗試變更設備人工審核設定時 100% 拒絕
 
 ### 前端（F4）
 
-- [ ] T024 [US3] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 擴充 F4 的「預建設備人工審核設定」管理區塊：呼叫 `GET /api/admin/equipments` 顯示每台預建單件設備的編號、名稱、分類、目前審核模式徽章（「需人工審核」或「免審核」）與最後更新時間，並提供「切換為需人工審核」／「切換為免審核」操作按鈕；點擊後呼叫 `PATCH /api/admin/equipments/:equipmentId/approval-mode`，儲存中按鈕顯示「儲存設定中…」並停用，成功後更新該設備卡片標示並顯示綠色成功橫幅說明既有「已核准／有效」預約與既有「待審核」申請均維持原狀態不變、新設定僅適用於後續新送出的預約申請（FR-009、FR-010、NFR-001、NFR-002、SC-003、SC-004、US3 情境 1–4）
+- [X] T024 [US3] 在 `apps/equipment-loan/frontend/src/views/AdminOverviewView.tsx` 擴充 F4 的「預建設備人工審核設定」管理區塊：呼叫 `GET /api/admin/equipments` 顯示每台預建單件設備的編號、名稱、分類、目前審核模式徽章（「需人工審核」或「免審核」）與最後更新時間，並提供「切換為需人工審核」／「切換為免審核」操作按鈕；點擊後呼叫 `PATCH /api/admin/equipments/:equipmentId/approval-mode`，儲存中按鈕顯示「儲存設定中…」並停用，成功後更新該設備卡片標示並顯示綠色成功橫幅說明既有「已核准／有效」預約與既有「待審核」申請均維持原狀態不變、新設定僅適用於後續新送出的預約申請（FR-009、FR-010、NFR-001、NFR-002、SC-003、SC-004、US3 情境 1–4）
   - **Must Read**
     - `ui/plan.md` → §3.3 `A11`、§4 `admin.html` 的「設備審核設定、待審清單與全體預約總覽」「切換設備審核設定中」「已切換設備審核設定（保留既有預約與待審）」 — Why：設備審核設定卡片、切換中狀態與切換成功橫幅文案
     - `ui/admin.html` → 雛形狀態「設備審核設定、待審清單與全體預約總覽」「切換設備審核設定中」「已切換設備審核設定（保留既有預約與待審）」 — Why：對照設備審核設定卡片與切換按鈕的實際視覺呈現
