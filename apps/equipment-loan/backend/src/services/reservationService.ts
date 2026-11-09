@@ -10,7 +10,8 @@ import {
   parseDateOnlyToUtc,
 } from "../utils/taipeiTime.js";
 
-export type ReservationStatus = "pending_approval" | "confirmed" | "rejected" | "cancelled";
+export type ReservationStatus =
+  "pending_approval" | "confirmed" | "checked_out" | "returned" | "rejected" | "cancelled";
 
 export interface ReservationDto {
   id: string;
@@ -307,6 +308,10 @@ function getStatusZhLabel(status: ReservationStatus): string {
       return "待審核";
     case "confirmed":
       return "已核准／有效";
+    case "checked_out":
+      return "借用中";
+    case "returned":
+      return "已歸還";
     case "rejected":
       return "已駁回";
     case "cancelled":

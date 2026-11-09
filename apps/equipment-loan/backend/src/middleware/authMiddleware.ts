@@ -86,7 +86,7 @@ export async function requireAdmin(
     throw new AppError(
       "FORBIDDEN",
       403,
-      "權限不足：「管理員設備審核設定與待審核申請清單」僅供管理員（admin）角色存取與操作。",
+      "權限不足：「登記領取」、「登記歸還」與「審核及借用管理」僅供管理員（admin）角色執行。",
     );
   }
 

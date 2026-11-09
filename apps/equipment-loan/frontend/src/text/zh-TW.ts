@@ -13,6 +13,9 @@ export type ErrorCode =
   | "RESERVATION_CONFLICT"
   | "DUPLICATE_PENDING_OR_ACTIVE_RESERVATION"
   | "INVALID_RESERVATION_STATUS"
+  | "PICKUP_DATE_NOT_TODAY"
+  | "PICKUP_WINDOW_EXPIRED"
+  | "RESERVATION_ALREADY_CHECKED_OUT"
   | "RESERVATION_ALREADY_STARTED"
   | "RESERVATION_ALREADY_CANCELLED";
 
@@ -23,18 +26,27 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
     "驗證碼輸入錯誤（英文須區分大小寫，例如 a 與 A 不同），原驗證碼已失效，請輸入新驗證碼後重試。",
   CAPTCHA_EXPIRED: "此 7 位數驗證碼已超過 5 分鐘有效期限或已失效，系統已換發新驗證碼，請重新輸入。",
   INVALID_CREDENTIALS: "帳號或密碼不正確，且原驗證碼已單次消耗失效，請確認密碼並輸入新驗證碼。",
-  UNAUTHORIZED: "請先完成帳號密碼與 7 位數驗證碼登入，才能檢視設備清單或執行預約與審核操作。",
-  FORBIDDEN: "權限不足：您沒有權限執行此操作或存取此資源。",
-  RESOURCE_NOT_FOUND: "指定的設備、固定時段或預約申請紀錄不存在。",
+  UNAUTHORIZED:
+    "請先完成帳號密碼與 7 位數驗證碼登入，才能檢視設備清單或執行預約、領取與歸還管理操作。",
+  FORBIDDEN:
+    "權限不足：「登記領取」、「登記歸還」與「審核及借用管理」僅供管理員（admin）角色執行。",
+  RESOURCE_NOT_FOUND: "找不到指定的預約借用紀錄或目標設備，請重新整理清單後再試。",
   DATE_OUT_OF_RANGE: "僅開放申請當日起算 7 天內尚未開始的固定時段，所選日期不在開放範圍內。",
   SLOT_ALREADY_STARTED: "無法申請：所選固定時段已開始或已結束，請選擇尚未開始的固定時段。",
-  EQUIPMENT_UNAVAILABLE: "該單件設備目前不可預約，請選擇其他可用設備。",
+  EQUIPMENT_UNAVAILABLE:
+    "無法建立預約：指定的設備不存在或目前處於不可借用狀態，請重新整理設備清單後改選其他設備。",
   RESERVATION_CONFLICT:
-    "操作失敗：該設備於所選日期與固定時段已被其他「已核准／有效」預約占用，請改選其他可預約時段。",
+    "申請失敗：該設備於所選日期與固定時段已完成當日借用並歸還結案（或已被其他有效／借用中紀錄占用），同一固定時段不重新開放重複預約。",
   DUPLICATE_PENDING_OR_ACTIVE_RESERVATION:
-    "重複申請遭拒：您已對同一台設備、同一日期與同一固定時段持有一筆未結束的「待審核」或「已核准／有效」申請，同一成員不得重複申請。",
+    "重複申請遭拒：您已對同一台設備、同一日期與同一固定時段持有一筆未結束的紀錄，同一成員不得對同一設備時段重複申請。",
   INVALID_RESERVATION_STATUS:
-    "無法執行此操作：該筆預約申請目前狀態已變更（如已取消、已核准或已駁回），請重新整理列表。",
+    "無法執行此操作：該筆預約或借用紀錄目前狀態不允許執行此操作（僅「已核准／有效」預約可執行登記領取，僅「借用中」紀錄可執行登記歸還）。",
+  PICKUP_DATE_NOT_TODAY:
+    "無法登記領取：系統僅開放預約當日且尚未超過該固定時段結束時間的已核准預約辦理現場領取，拒絕未來日期提前領取。",
+  PICKUP_WINDOW_EXPIRED:
+    "無法登記領取：該筆預約的固定時段已經結束，已逾期未領取的預約無法補登領取。",
+  RESERVATION_ALREADY_CHECKED_OUT:
+    "無法取消預約：該筆預約已完成現場登記領取（目前狀態為「借用中」或「已歸還」），一旦領取設備後即禁止取消預約，請於使用完畢後將設備帶回現場由管理員執行「登記歸還」。",
   RESERVATION_ALREADY_STARTED: "無法執行此操作：該筆申請的預約時段已到達或超過開始時間。",
   RESERVATION_ALREADY_CANCELLED: "無法取消預約：該筆申請已經處於「已取消」狀態，無須重複取消。",
 };
@@ -45,7 +57,7 @@ export const UI_TEXT = {
     login: "登入",
     booking: "設備預約",
     myReservations: "我的預約",
-    admin: "審核與預約管理",
+    admin: "審核與借用管理",
     logout: "登出",
     darkMode: "深色模式",
     lightMode: "淺色模式",
@@ -63,13 +75,31 @@ export const UI_TEXT = {
     available: "可預約",
     pending_by_me: "本人待審核",
     booked_by_me: "本人已預約",
+    checked_out_by_me: "本人借用中",
+    returned_by_me: "本人已歸還",
     booked_by_others: "已被預約",
+  },
+  slotStatusByCode: {
+    AVAILABLE: "可預約",
+    MY_PENDING: "本人待審核",
+    MY_CONFIRMED: "本人已預約",
+    MY_CHECKED_OUT: "本人借用中",
+    MY_RETURNED: "本人已歸還",
+    OCCUPIED: "已被預約",
   },
   reservationStatus: {
     pending_approval: "待審核",
     confirmed: "已核准／有效",
+    checked_out: "借用中",
+    returned: "已歸還",
     rejected: "已駁回",
     cancelled: "已取消",
+  },
+  actions: {
+    pickup: "登記領取",
+    pickupProcessing: "登記領取中…",
+    returnEquipment: "登記歸還",
+    returnProcessing: "登記歸還中…",
   },
   fieldValidation: {
     usernameRequired: "請輸入登入帳號",

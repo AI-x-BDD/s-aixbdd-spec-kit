@@ -20,23 +20,27 @@ enum equipment_status {
 enum reservation_status {
   pending_approval
   confirmed
+  checked_out
+  returned
   rejected
   cancelled
 }
 
 model users {
-  id                    String         @id @default(uuid()) @db.Uuid
-  username              String         @unique @db.VarChar(64)
-  password_hash         String         @db.VarChar(255)
-  display_name          String         @db.VarChar(100)
-  role                  user_role      @default(member)
-  created_at            DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime       @default(now()) @db.Timestamptz(6)
-  updated_by            String?        @db.Uuid
-  deleted_at            DateTime?      @db.Timestamptz(6)
-  sessions              sessions[]
-  reservations          reservations[] @relation("ReservationApplicant")
-  reviewed_reservations reservations[] @relation("ReservationReviewer")
+  id                       String         @id @default(uuid()) @db.Uuid
+  username                 String         @unique @db.VarChar(64)
+  password_hash            String         @db.VarChar(255)
+  display_name             String         @db.VarChar(100)
+  role                     user_role      @default(member)
+  created_at               DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime       @default(now()) @db.Timestamptz(6)
+  updated_by               String?        @db.Uuid
+  deleted_at               DateTime?      @db.Timestamptz(6)
+  sessions                 sessions[]
+  reservations             reservations[] @relation("ReservationApplicant")
+  reviewed_reservations    reservations[] @relation("ReservationReviewer")
+  checked_out_reservations reservations[] @relation("ReservationCheckoutAdmin")
+  returned_reservations    reservations[] @relation("ReservationReturnAdmin")
 
   @@index([role, deleted_at], map: "idx_users_role_active")
 }
@@ -111,6 +115,10 @@ model reservations {
   reviewed_by      String?            @db.Uuid
   reviewed_at      DateTime?          @db.Timestamptz(6)
   reject_reason    String?            @db.VarChar(200)
+  checked_out_by   String?            @db.Uuid
+  checked_out_at   DateTime?          @db.Timestamptz(6)
+  returned_by      String?            @db.Uuid
+  returned_at      DateTime?          @db.Timestamptz(6)
   cancelled_at     DateTime?          @db.Timestamptz(6)
   created_at       DateTime           @default(now()) @db.Timestamptz(6)
   updated_at       DateTime           @default(now()) @db.Timestamptz(6)
@@ -118,13 +126,15 @@ model reservations {
   deleted_at       DateTime?          @db.Timestamptz(6)
   user             users              @relation("ReservationApplicant", fields: [user_id], references: [id])
   reviewer         users?             @relation("ReservationReviewer", fields: [reviewed_by], references: [id])
+  checkout_admin   users?             @relation("ReservationCheckoutAdmin", fields: [checked_out_by], references: [id])
+  return_admin     users?             @relation("ReservationReturnAdmin", fields: [returned_by], references: [id])
   equipment        equipments         @relation(fields: [equipment_id], references: [id])
   slot             time_slots         @relation(fields: [slot_id], references: [id])
 
-  @@unique([equipment_id, reservation_date, slot_id], map: "uq_reservations_active_slot", where: { status: "confirmed", deleted_at: null })
-  @@unique([user_id, equipment_id, reservation_date, slot_id], map: "uq_reservations_user_active_request", where: raw("status IN ('pending_approval', 'confirmed') AND deleted_at IS NULL"))
+  @@unique([equipment_id, reservation_date, slot_id], map: "uq_reservations_active_slot", where: raw("status IN ('confirmed', 'checked_out', 'returned') AND deleted_at IS NULL"))
+  @@unique([user_id, equipment_id, reservation_date, slot_id], map: "uq_reservations_user_active_request", where: raw("status IN ('pending_approval', 'confirmed', 'checked_out') AND deleted_at IS NULL"))
   @@index([status, reservation_date, slot_id, created_at], map: "idx_reservations_status_date_slot")
-  @@index([user_id, reservation_date, created_at], map: "idx_reservations_user_date_created")
+  @@index([user_id, status, reservation_date, created_at], map: "idx_reservations_user_date_created")
   @@index([reservation_date, slot_id, created_at], map: "idx_reservations_date_slot_created")
   @@index([reservation_date, equipment_id, status], map: "idx_reservations_date_equipment_status")
 }

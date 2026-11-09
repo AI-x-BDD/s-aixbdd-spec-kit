@@ -65,3 +65,26 @@ export function hasSlotStarted(
   }
   return timeStr >= slotStartTime;
 }
+
+export function checkPickupWindow(
+  reservationDateStr: string,
+  slotEndTime: string,
+  now: Date = new Date(),
+): "OK" | "PICKUP_DATE_NOT_TODAY" | "PICKUP_WINDOW_EXPIRED" {
+  const { dateStr: todayStr, timeStr } = getTaipeiNow(now);
+  if (reservationDateStr > todayStr) {
+    return "PICKUP_DATE_NOT_TODAY";
+  }
+  if (reservationDateStr < todayStr || timeStr >= slotEndTime) {
+    return "PICKUP_WINDOW_EXPIRED";
+  }
+  return "OK";
+}
+
+export function canPickupInWindow(
+  reservationDateStr: string,
+  slotEndTime: string,
+  now: Date = new Date(),
+): boolean {
+  return checkPickupWindow(reservationDateStr, slotEndTime, now) === "OK";
+}

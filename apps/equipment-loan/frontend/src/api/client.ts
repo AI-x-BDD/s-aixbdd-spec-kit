@@ -2,10 +2,19 @@ import { getErrorMessage } from "../text/zh-TW";
 
 const SESSION_TOKEN_KEY = "el_session_token";
 
-export type SlotAvailabilityStatus =
-  "available" | "pending_by_me" | "booked_by_me" | "booked_by_others";
+export type SlotStatus =
+  "AVAILABLE" | "MY_PENDING" | "MY_CONFIRMED" | "MY_CHECKED_OUT" | "MY_RETURNED" | "OCCUPIED";
 
-export type ReservationStatus = "pending_approval" | "confirmed" | "rejected" | "cancelled";
+export type SlotAvailabilityStatus =
+  | "available"
+  | "pending_by_me"
+  | "booked_by_me"
+  | "checked_out_by_me"
+  | "returned_by_me"
+  | "booked_by_others";
+
+export type ReservationStatus =
+  "pending_approval" | "confirmed" | "checked_out" | "returned" | "rejected" | "cancelled";
 
 export interface SlotAvailabilityDto {
   slotId: string;
@@ -14,10 +23,13 @@ export interface SlotAvailabilityDto {
   startTime: string;
   endTime: string;
   sortOrder: number;
+  slotStatus?: SlotStatus;
   availabilityStatus: SlotAvailabilityStatus;
   isBookable: boolean;
   myReservationId: string | null;
 }
+
+export type EquipmentSlotAvailability = SlotAvailabilityDto;
 
 export interface EquipmentWithSlotsDto {
   id: string;
@@ -58,9 +70,18 @@ export interface ReservationDto {
   reviewedByDisplayName: string | null;
   reviewedAt: string | null;
   rejectReason: string | null;
+  checkedOutAt: string | null;
+  checkedOutByUserId: string | null;
+  checkedOutByName: string | null;
+  returnedAt: string | null;
+  returnedByUserId: string | null;
+  returnedByName: string | null;
+  canCancel: boolean;
   createdAt: string;
   cancelledAt: string | null;
 }
+
+export type Reservation = ReservationDto;
 
 export interface ReservationPageDto {
   items: ReservationDto[];
@@ -74,7 +95,13 @@ export interface AdminReservationItemDto extends ReservationDto {
   username: string;
   userDisplayName: string;
   reviewedByUsername: string | null;
+  checkedOutByUsername: string | null;
+  returnedByUsername: string | null;
+  canPickup: boolean;
+  canReturn: boolean;
 }
+
+export type AdminReservationItem = AdminReservationItemDto;
 
 export interface AdminReservationPageDto {
   items: AdminReservationItemDto[];
@@ -165,6 +192,19 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   return data as T;
 }
 
+export function listMyLoanReservations(params?: {
+  status?: ReservationStatus;
+  page?: number;
+  pageSize?: number;
+}): Promise<ReservationPageDto> {
+  const qs = new URLSearchParams({
+    page: String(params?.page ?? 1),
+    pageSize: String(params?.pageSize ?? 50),
+  });
+  if (params?.status) qs.set("status", params.status);
+  return apiRequest<ReservationPageDto>(`/reservations/my?${qs.toString()}`);
+}
+
 export function fetchAdminEquipments(params?: {
   category?: string;
   requiresApproval?: boolean;
@@ -208,5 +248,17 @@ export function rejectReservationApi(
   return apiRequest<AdminReservationItemDto>(`/admin/reservations/${reservationId}/reject`, {
     method: "POST",
     body: JSON.stringify({ rejectReason: rejectReason ?? null }),
+  });
+}
+
+export function pickupReservationByAdmin(reservationId: string): Promise<AdminReservationItemDto> {
+  return apiRequest<AdminReservationItemDto>(`/admin/reservations/${reservationId}/pickup`, {
+    method: "POST",
+  });
+}
+
+export function returnReservationByAdmin(reservationId: string): Promise<AdminReservationItemDto> {
+  return apiRequest<AdminReservationItemDto>(`/admin/reservations/${reservationId}/return`, {
+    method: "POST",
   });
 }
