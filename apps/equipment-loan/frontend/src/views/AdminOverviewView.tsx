@@ -12,6 +12,7 @@ import {
   pickupReservationByAdmin,
   rejectReservationApi,
   type ReservationStatus,
+  returnReservationByAdmin,
   updateEquipmentApprovalModeApi,
 } from "../api/client";
 import { UI_TEXT } from "../text/zh-TW";
@@ -26,6 +27,23 @@ function getTaipeiTodayStr(): string {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+function getTaipeiTimeStr(): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+}
+
+function isOverdueCheckedOut(item: AdminReservationItem): boolean {
+  if (item.status !== "checked_out") return false;
+  const todayStr = getTaipeiTodayStr();
+  if (item.reservationDate < todayStr) return true;
+  if (item.reservationDate === todayStr && getTaipeiTimeStr() >= item.slotEndTime) return true;
+  return false;
 }
 
 function formatIsoToTaipeiDateTime(iso: string | null): string {
@@ -72,6 +90,7 @@ export function AdminOverviewView({
   const [togglingEqId, setTogglingEqId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [pickupProcessingId, setPickupProcessingId] = useState<string | null>(null);
+  const [returnProcessingId, setReturnProcessingId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<AdminReservationItem | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>("");
   const [rejectError, setRejectError] = useState<string>("");
@@ -183,6 +202,33 @@ export function AdminOverviewView({
     }
   };
 
+  const handleReturn = async (item: AdminReservationItem): Promise<void> => {
+    const wasOverdue = isOverdueCheckedOut(item);
+    setReturnProcessingId(item.id);
+    setBanner(null);
+    try {
+      const updated = await returnReservationByAdmin(item.id);
+      if (wasOverdue) {
+        setBanner({
+          tone: "success",
+          text: `已完成逾時設備登記歸還！預約編號 ${updated.reservationNumber}（${updated.userDisplayName}，${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}）雖已超過原時段結束時間，系統已允許結案並更新為「已歸還」，記錄實際歸還時間 ${formatIsoToTaipeiDateTime(updated.returnedAt)} 與歸還經手管理員${updated.returnedByName ?? "管理員"}${updated.returnedByUsername ? ` (${updated.returnedByUsername})` : ""}。`,
+        });
+      } else {
+        setBanner({
+          tone: "success",
+          text: `已完成登記歸還！預約編號 ${updated.reservationNumber}（${updated.userDisplayName}，${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}）狀態已更新為「已歸還」，記錄歸還時間 ${formatIsoToTaipeiDateTime(updated.returnedAt)} 與歸還經手管理員${updated.returnedByName ?? "管理員"}${updated.returnedByUsername ? ` (${updated.returnedByUsername})` : ""}，該時段視為已履約結案不重新開放。`,
+        });
+      }
+      await loadAdminData();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "登記歸還失敗，請稍後再試。";
+      setBanner({ tone: "danger", text: msg });
+      await loadAdminData();
+    } finally {
+      setReturnProcessingId(null);
+    }
+  };
+
   const handleConfirmReject = async (): Promise<void> => {
     if (!rejectTarget) return;
     const trimmed = rejectReasonInput.trim();
@@ -288,9 +334,10 @@ export function AdminOverviewView({
 
   return (
     <div>
-      <h1>管理員設備審核設定、待審清單與核准駁回</h1>
+      <h1>管理員設備審核設定、待審清單與現場領取歸還登記</h1>
       <p className="page-lead">
-        集中管理組織內預建單件設備的「需人工審核／免審核」設定、依預約日期由近到遠與申請時間由早到晚處理待審清單，並檢視全體成員的四種狀態預約紀錄。
+        支援依全部 6
+        種狀態（待審核、已核准／有效、借用中、已歸還、已駁回、已取消）篩選紀錄，完整顯示領取與歸還時間及經手管理員；僅對當日且尚未超過時段結束時間的「已核准／有效」預約開放單鍵「登記領取」，僅對「借用中」紀錄（含逾時未還）開放單鍵「登記歸還」。
       </p>
 
       {banner && (
@@ -524,79 +571,128 @@ export function AdminOverviewView({
           padding: "16px 20px",
           marginBottom: "16px",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "14px",
-          flexWrap: "wrap",
+          flexDirection: "column",
+          gap: "12px",
         }}
       >
-        <div>
-          <strong>全體成員預約紀錄清單</strong>
-          <span className="muted" style={{ fontSize: "13px", marginLeft: "8px" }}>
-            共 {reservations.length} 筆紀錄
-          </span>
-        </div>
-
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            justifyContent: "space-between",
+            gap: "14px",
             flexWrap: "wrap",
           }}
         >
-          <label htmlFor="admin-status-filter" className="muted" style={{ fontSize: "13px" }}>
-            預約狀態：
-          </label>
-          <select
-            id="admin-status-filter"
-            data-testid="admin-status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "ALL" | ReservationStatus)}
-            style={{
-              height: "36px",
-              padding: "0 10px",
-              border: "1px solid var(--line)",
-              borderRadius: "8px",
-              background: "var(--surface)",
-              color: "var(--ink)",
-              font: "inherit",
-              fontSize: "13px",
-            }}
-          >
-            <option value="ALL">全部狀態</option>
-            <option value="pending_approval">待審核 (pending_approval)</option>
-            <option value="confirmed">已核准／有效 (confirmed)</option>
-            <option value="rejected">已駁回 (rejected)</option>
-            <option value="cancelled">已取消 (cancelled)</option>
-          </select>
+          <div>
+            <strong>全體預約與借用管理清單（現場登記領取／登記歸還）</strong>
+            <span className="muted" style={{ fontSize: "13px", marginLeft: "8px" }}>
+              共 {reservations.length} 筆紀錄
+            </span>
+          </div>
 
-          <label htmlFor="admin-eq-filter" className="muted" style={{ fontSize: "13px" }}>
-            單件設備：
-          </label>
-          <select
-            id="admin-eq-filter"
-            data-testid="admin-eq-filter"
-            value={equipmentFilter}
-            onChange={(e) => setEquipmentFilter(e.target.value)}
+          <div
             style={{
-              height: "36px",
-              padding: "0 10px",
-              border: "1px solid var(--line)",
-              borderRadius: "8px",
-              background: "var(--surface)",
-              color: "var(--ink)",
-              font: "inherit",
-              fontSize: "13px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              flexWrap: "wrap",
             }}
           >
-            <option value="ALL">全部預建設備</option>
-            {equipments.map((eq) => (
-              <option key={eq.id} value={eq.id}>
-                {eq.equipmentCode} {eq.name}
-              </option>
-            ))}
-          </select>
+            <label htmlFor="admin-status-filter" className="muted" style={{ fontSize: "13px" }}>
+              預約狀態：
+            </label>
+            <select
+              id="admin-status-filter"
+              data-testid="admin-status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "ALL" | ReservationStatus)}
+              style={{
+                height: "36px",
+                padding: "0 10px",
+                border: "1px solid var(--line)",
+                borderRadius: "8px",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                font: "inherit",
+                fontSize: "13px",
+              }}
+            >
+              <option value="ALL">全部狀態（6 種狀態）</option>
+              <option value="pending_approval">待審核 (pending_approval)</option>
+              <option value="confirmed">已核准／有效 — 待領取 (confirmed)</option>
+              <option value="checked_out">借用中 — 待歸還 (checked_out)</option>
+              <option value="returned">已歸還 (returned)</option>
+              <option value="rejected">已駁回 (rejected)</option>
+              <option value="cancelled">已取消 (cancelled)</option>
+            </select>
+
+            <label htmlFor="admin-eq-filter" className="muted" style={{ fontSize: "13px" }}>
+              單件設備：
+            </label>
+            <select
+              id="admin-eq-filter"
+              data-testid="admin-eq-filter"
+              value={equipmentFilter}
+              onChange={(e) => setEquipmentFilter(e.target.value)}
+              style={{
+                height: "36px",
+                padding: "0 10px",
+                border: "1px solid var(--line)",
+                borderRadius: "8px",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                font: "inherit",
+                fontSize: "13px",
+              }}
+            >
+              <option value="ALL">全部預建設備</option>
+              {equipments.map((eq) => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.equipmentCode} {eq.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div
+          role="group"
+          aria-label="6 態快速篩選"
+          style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}
+        >
+          {[
+            { value: "ALL", label: "全部狀態" },
+            { value: "confirmed", label: "已核准／有效（待領取）" },
+            { value: "checked_out", label: "借用中（待歸還）" },
+            { value: "returned", label: "已歸還" },
+            { value: "pending_approval", label: "待審核" },
+            { value: "rejected", label: "已駁回" },
+            { value: "cancelled", label: "已取消" },
+          ].map((tab) => {
+            const active = statusFilter === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                data-testid={`admin-tab-${tab.value}`}
+                onClick={() => setStatusFilter(tab.value as "ALL" | ReservationStatus)}
+                style={{
+                  padding: "6px 12px",
+                  border: `1px solid ${active ? "var(--primary)" : "var(--line)"}`,
+                  borderRadius: "8px",
+                  background: active ? "var(--primary)" : "var(--surface)",
+                  color: active ? "#ffffff" : "var(--muted)",
+                  font: "inherit",
+                  fontSize: "13px",
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -657,6 +753,9 @@ export function AdminOverviewView({
                   領取時間／經手管理員
                 </th>
                 <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                  歸還時間／經手管理員
+                </th>
+                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
                   審核資訊／駁回原因
                 </th>
                 <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
@@ -670,6 +769,7 @@ export function AdminOverviewView({
             <tbody>
               {reservations.map((r) => {
                 const todayStr = getTaipeiTodayStr();
+                const overdue = isOverdueCheckedOut(r);
                 const badgeClass =
                   r.status === "confirmed"
                     ? "badge-mine"
@@ -679,7 +779,9 @@ export function AdminOverviewView({
                         ? "badge-returned"
                         : r.status === "pending_approval"
                           ? "badge-pending"
-                          : "badge-cancelled";
+                          : r.status === "rejected"
+                            ? "badge-cancelled"
+                            : "badge-occupied";
 
                 return (
                   <tr
@@ -710,7 +812,7 @@ export function AdminOverviewView({
                         className={`badge ${badgeClass}`}
                         data-testid={`admin-status-${r.reservationNumber}`}
                       >
-                        {UI_TEXT.reservationStatus[r.status]}
+                        {overdue ? "借用中（逾時未還）" : UI_TEXT.reservationStatus[r.status]}
                       </span>
                     </td>
                     <td style={{ padding: "13px 16px", fontSize: "13px" }}>
@@ -720,6 +822,19 @@ export function AdminOverviewView({
                           <div className="muted" style={{ fontSize: "11px" }}>
                             經手：{r.checkedOutByName ?? "管理員"}
                             {r.checkedOutByUsername ? ` (${r.checkedOutByUsername})` : ""}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "13px 16px", fontSize: "13px" }}>
+                      {r.returnedAt ? (
+                        <div>
+                          <div className="mono">{formatIsoToTaipeiDateTime(r.returnedAt)}</div>
+                          <div className="muted" style={{ fontSize: "11px" }}>
+                            經手：{r.returnedByName ?? "管理員"}
+                            {r.returnedByUsername ? ` (${r.returnedByUsername})` : ""}
                           </div>
                         </div>
                       ) : (
@@ -759,7 +874,7 @@ export function AdminOverviewView({
                       {r.canPickup ? (
                         <button
                           type="button"
-                          className="btn btn-sm btn-primary"
+                          className="btn btn-sm btn-loan"
                           disabled={pickupProcessingId === r.id}
                           data-testid={`pickup-btn-${r.reservationNumber}`}
                           onClick={() => void handlePickup(r)}
@@ -767,6 +882,18 @@ export function AdminOverviewView({
                           {pickupProcessingId === r.id
                             ? UI_TEXT.actions.pickupProcessing
                             : UI_TEXT.actions.pickup}
+                        </button>
+                      ) : r.canReturn ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-returned"
+                          disabled={returnProcessingId === r.id}
+                          data-testid={`return-btn-${r.reservationNumber}`}
+                          onClick={() => void handleReturn(r)}
+                        >
+                          {returnProcessingId === r.id
+                            ? UI_TEXT.actions.returnProcessing
+                            : UI_TEXT.actions.returnEquipment}
                         </button>
                       ) : r.status === "confirmed" && r.reservationDate > todayStr ? (
                         <span
@@ -784,13 +911,21 @@ export function AdminOverviewView({
                         >
                           時段已結束未領（逾期不可領取）
                         </span>
+                      ) : r.status === "returned" ? (
+                        <span
+                          className="muted"
+                          style={{ fontSize: "12px" }}
+                          data-testid={`return-hint-${r.reservationNumber}`}
+                        >
+                          已完成歸還結案
+                        </span>
                       ) : r.status === "pending_approval" ? (
                         <span className="muted" style={{ fontSize: "12px" }}>
                           請先於上方待審清單審核
                         </span>
                       ) : (
                         <span className="muted" style={{ fontSize: "12px" }}>
-                          —
+                          無可用操作
                         </span>
                       )}
                     </td>

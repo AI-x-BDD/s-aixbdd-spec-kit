@@ -9,6 +9,7 @@ import {
   listPendingReservations,
   pickupReservationByAdmin,
   rejectReservation,
+  returnReservationByAdmin,
 } from "../services/reservationService.js";
 
 export const adminRouter = express.Router();
@@ -83,7 +84,9 @@ const listPendingQuerySchema = z.object({
 });
 
 const listAllReservationsQuerySchema = z.object({
-  status: z.enum(["pending_approval", "confirmed", "rejected", "cancelled"]).optional(),
+  status: z
+    .enum(["pending_approval", "confirmed", "checked_out", "returned", "rejected", "cancelled"])
+    .optional(),
   equipmentId: z.string().uuid("設備 ID 格式不合法").optional(),
 });
 
@@ -172,6 +175,20 @@ adminRouter.post(
   async (req, res) => {
     const { reservationId } = reservationIdParamsSchema.parse(req.params);
     const result = await pickupReservationByAdmin({
+      adminUserId: req.authUser!.id,
+      reservationId,
+    });
+    res.status(200).json(result);
+  },
+);
+
+adminRouter.post(
+  "/reservations/:reservationId/return",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { reservationId } = reservationIdParamsSchema.parse(req.params);
+    const result = await returnReservationByAdmin({
       adminUserId: req.authUser!.id,
       reservationId,
     });

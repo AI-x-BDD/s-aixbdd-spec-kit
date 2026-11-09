@@ -114,6 +114,26 @@ export function App(): React.ReactElement {
 
   return (
     <div>
+      <style>{`
+        :root {
+          --loan: #0284c7;
+          --loan-soft: #e0f2fe;
+          --returned: #0d9488;
+          --returned-soft: #ccfbf1;
+        }
+        [data-theme="dark"] {
+          --loan: #38bdf8;
+          --loan-soft: #0c4a6e;
+          --returned: #2dd4bf;
+          --returned-soft: #134e4a;
+        }
+        .badge-pending { background: var(--pending-soft); color: var(--pending); }
+        .badge-loan { background: var(--loan-soft); color: var(--loan); }
+        .badge-returned { background: var(--returned-soft); color: var(--returned); }
+        .btn-loan { background: var(--loan); border-color: var(--loan); color: #ffffff; }
+        .btn-returned { background: var(--returned); border-color: var(--returned); color: #ffffff; }
+        .btn-pending { background: var(--pending); border-color: var(--pending); color: #ffffff; }
+      `}</style>
       <header className="site-header">
         <div className="inner">
           <button

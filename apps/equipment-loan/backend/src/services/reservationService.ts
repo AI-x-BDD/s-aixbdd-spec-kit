@@ -400,7 +400,7 @@ export async function approveReservation(params: {
           equipment_id: existing.equipment_id,
           reservation_date: existing.reservation_date,
           slot_id: existing.slot_id,
-          status: "confirmed",
+          status: { in: ["confirmed", "checked_out", "returned"] },
           deleted_at: null,
         },
       });
@@ -409,7 +409,7 @@ export async function approveReservation(params: {
         throw new AppError(
           "RESERVATION_CONFLICT",
           409,
-          `無法核准申請：預約編號 ${existing.reservation_no} 所申請的 ${existing.equipment.equipment_code} ${existing.equipment.name}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已被另一筆「已核准／有效」預約（${conflict.reservation_no}）占用；${existing.reservation_no} 仍維持「待審核」狀態，請改為執行駁回。`,
+          `無法核准申請：預約編號 ${existing.reservation_no} 所申請的 ${existing.equipment.equipment_code} ${existing.equipment.name}（${reservationDateStr} ${existing.slot.name} ${existing.slot.start_time}–${existing.slot.end_time}）已被另一筆占用狀態紀錄（${conflict.reservation_no}）鎖定；${existing.reservation_no} 仍維持「待審核」狀態，請改為執行駁回。`,
         );
       }
 
@@ -428,10 +428,12 @@ export async function approveReservation(params: {
           equipment: true,
           slot: true,
           reviewer: true,
+          checkout_admin: true,
+          return_admin: true,
         },
       });
 
-      return toAdminReservationDto(updated);
+      return toAdminReservationDto(updated, now);
     });
   } catch (err: unknown) {
     if (
@@ -519,10 +521,12 @@ export async function rejectReservation(params: {
         equipment: true,
         slot: true,
         reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
       },
     });
 
-    return toAdminReservationDto(updated);
+    return toAdminReservationDto(updated, now);
   });
 }
 
@@ -763,6 +767,67 @@ export async function pickupReservationByAdmin(params: {
   });
 }
 
+export async function returnReservationByAdmin(params: {
+  adminUserId: string;
+  reservationId: string;
+  now?: Date;
+}): Promise<AdminReservationItemDto> {
+  const now = params.now ?? new Date();
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.reservations.findFirst({
+      where: {
+        id: params.reservationId,
+        deleted_at: null,
+      },
+      include: {
+        user: true,
+        equipment: true,
+        slot: true,
+        reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
+      },
+    });
+
+    if (!existing) {
+      throw new AppError(
+        "RESOURCE_NOT_FOUND",
+        404,
+        "操作失敗：找不到指定的預約借用紀錄，請重新整理清單後再試。",
+      );
+    }
+
+    if (existing.status !== "checked_out") {
+      throw new AppError(
+        "INVALID_RESERVATION_STATUS",
+        409,
+        `無法登記歸還：預約編號 ${existing.reservation_no} 目前狀態為「${getStatusZhLabel(existing.status)}」，系統僅允許對處於「借用中」狀態的紀錄執行登記歸還，禁止未領先還或重複歸還。`,
+      );
+    }
+
+    const updated = await tx.reservations.update({
+      where: { id: existing.id },
+      data: {
+        status: "returned",
+        returned_at: now,
+        returned_by: params.adminUserId,
+        updated_at: now,
+        updated_by: params.adminUserId,
+      },
+      include: {
+        user: true,
+        equipment: true,
+        slot: true,
+        reviewer: true,
+        checkout_admin: true,
+        return_admin: true,
+      },
+    });
+
+    return toAdminReservationDto(updated, now);
+  });
+}
+
 export async function listPendingReservations(params: {
   equipmentId?: string;
   page: number;
@@ -799,6 +864,8 @@ export async function listPendingReservations(params: {
       equipment: true,
       slot: true,
       reviewer: true,
+      checkout_admin: true,
+      return_admin: true,
     },
     orderBy: [
       { reservation_date: "asc" },
@@ -856,6 +923,8 @@ export async function listAllReservations(params: {
       equipment: true,
       slot: true,
       reviewer: true,
+      checkout_admin: true,
+      return_admin: true,
     },
     orderBy: [
       { reservation_date: "desc" },
