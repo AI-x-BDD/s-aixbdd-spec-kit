@@ -48,16 +48,16 @@ description: "Task list for 設備現場領取與歸還登記及借用狀態檢�
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 依 plan.md 的 Source Code 確認 `apps/equipment-loan/`、`apps/equipment-loan/frontend/`、`apps/equipment-loan/backend/` 與 `apps/equipment-loan/e2e/` 目錄結構與 `apps/equipment-loan/docker-compose.yml`（PostgreSQL 18）、`apps/equipment-loan/backend/.env.example` 設定齊備（FR-009、research §1、§4）
+- [X] T001 依 plan.md 的 Source Code 確認 `apps/equipment-loan/`、`apps/equipment-loan/frontend/`、`apps/equipment-loan/backend/` 與 `apps/equipment-loan/e2e/` 目錄結構與 `apps/equipment-loan/docker-compose.yml`（PostgreSQL 18）、`apps/equipment-loan/backend/.env.example` 設定齊備（FR-009、research §1、§4）
   - **Must Read**
     - `plan.md` → `Source Code (repository root)` — Why：前後端與資料庫遷移、測試目錄配置
     - `research.md` → §1、§4 — Why：沿用 `apps/equipment-loan/` 結構與 PostgreSQL 18 Docker Compose 環境
-- [ ] T002 [P] 確認 `apps/equipment-loan/backend/package.json`、`apps/equipment-loan/backend/tsconfig.json` 與 `apps/equipment-loan/backend/prisma.config.ts` 的後端套件與腳本設定：TypeScript 6.0、Node.js 24 LTS 以上、`express`（Express 5）、`zod`（zod 4）、`@prisma/client`、`@prisma/adapter-pg`、`pg`、`prisma`（Prisma 7.10）、`tsx`、ESLint 10、Prettier、Vitest 5 與 Supertest 7，且不引入 `redis`、`xstate`、`socket.io`、`luxon`、`moment`、`bcrypt`、`express-session`、`jsonwebtoken`（research §1、§2、§4、§5）
+- [X] T002 [P] 確認 `apps/equipment-loan/backend/package.json`、`apps/equipment-loan/backend/tsconfig.json` 與 `apps/equipment-loan/backend/prisma.config.ts` 的後端套件與腳本設定：TypeScript 6.0、Node.js 24 LTS 以上、`express`（Express 5）、`zod`（zod 4）、`@prisma/client`、`@prisma/adapter-pg`、`pg`、`prisma`（Prisma 7.10）、`tsx`、ESLint 10、Prettier、Vitest 5 與 Supertest 7，且不引入 `redis`、`xstate`、`socket.io`、`luxon`、`moment`、`bcrypt`、`express-session`、`jsonwebtoken`（research §1、§2、§4、§5）
   - **Must Read**
     - `techstack.md` → `技術堆疊總覽` — Why：後端與資料庫、測試工具採用的版本
     - `techstack.md` → `本次開發不引入的技術` — Why：確認不得安裝的後端套件類別
     - `research.md` → §2、§4、§5 — Why：後端執行環境、驗證與測試工具鏈設定
-- [ ] T003 [P] 確認 `apps/equipment-loan/frontend/package.json`、`apps/equipment-loan/frontend/tsconfig.json`、`apps/equipment-loan/frontend/vite.config.ts` 與 `apps/equipment-loan/playwright.config.ts` 的前端與 E2E 設定：React 19、Vite 8（含 `/api` 代理至 `http://localhost:3000`）、`@vitejs/plugin-react` 6、TypeScript 6.0、ESLint 10、Prettier、Vitest 5 與 `@playwright/test` 1.65，且不引入 `react-router`、`zustand`、`@reduxjs/toolkit`、`react-i18next`（research §3、§4、§5）
+- [X] T003 [P] 確認 `apps/equipment-loan/frontend/package.json`、`apps/equipment-loan/frontend/tsconfig.json`、`apps/equipment-loan/frontend/vite.config.ts` 與 `apps/equipment-loan/playwright.config.ts` 的前端與 E2E 設定：React 19、Vite 8（含 `/api` 代理至 `http://localhost:3000`）、`@vitejs/plugin-react` 6、TypeScript 6.0、ESLint 10、Prettier、Vitest 5 與 `@playwright/test` 1.65，且不引入 `react-router`、`zustand`、`@reduxjs/toolkit`、`react-i18next`（research §3、§4、§5）
   - **Must Read**
     - `techstack.md` → `技術堆疊總覽` — Why：前端與端對端測試採用的技術與版本
     - `techstack.md` → `本次開發不引入的技術` — Why：確認不得安裝的前端路由、狀態管理與國際化套件
