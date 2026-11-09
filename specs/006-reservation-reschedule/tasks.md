@@ -49,25 +49,25 @@ description: "Task list for 成員預約改期申請與改期成功前保留原�
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 依 plan.md 的 Source Code 確認 `apps/equipment-loan/` 既有的 `frontend/`、`backend/`、`e2e/`、`docker-compose.yml` 與 `README.md` 結構不變；記下本次要新增的 `apps/equipment-loan/backend/src/services/rescheduleService.ts`、`apps/equipment-loan/backend/src/routes/rescheduleRequestsRouter.ts` 與 `apps/equipment-loan/frontend/src/components/RescheduleDialog.tsx`，且不新增排程或背景工作目錄（research §3）
+- [X] T001 依 plan.md 的 Source Code 確認 `apps/equipment-loan/` 既有的 `frontend/`、`backend/`、`e2e/`、`docker-compose.yml` 與 `README.md` 結構不變；記下本次要新增的 `apps/equipment-loan/backend/src/services/rescheduleService.ts`、`apps/equipment-loan/backend/src/routes/rescheduleRequestsRouter.ts` 與 `apps/equipment-loan/frontend/src/components/RescheduleDialog.tsx`，且不新增排程或背景工作目錄（research §3）
   - **Must Read**
     - `plan.md` → Source Code (repository root) — Why：前後端既有檔案與本次新增檔案的位置與職責
     - `plan.md` → Structure Decision — Why：只在既有模組內新增改期路由、服務與對話框元件，不新增背景工作目錄
-- [ ] T002 [P] 確認 `apps/equipment-loan/backend/package.json` 與 `apps/equipment-loan/backend/prisma/schema.prisma` 的後端技術版本：Express 5、zod 4、TypeScript 6.0、Node.js 24 LTS 以上、`tsx`、Prisma ORM 7.10（`@prisma/adapter-pg`、`pg`）與 `previewFeatures = ["partialIndexes"]`；不安裝 `node-cron`、`pg_cron`、BullMQ、Redis 與 XState（research §1、§2、§3）
+- [X] T002 [P] 確認 `apps/equipment-loan/backend/package.json` 與 `apps/equipment-loan/backend/prisma/schema.prisma` 的後端技術版本：Express 5、zod 4、TypeScript 6.0、Node.js 24 LTS 以上、`tsx`、Prisma ORM 7.10（`@prisma/adapter-pg`、`pg`）與 `previewFeatures = ["partialIndexes"]`；不安裝 `node-cron`、`pg_cron`、BullMQ、Redis 與 XState（research §1、§2、§3）
   - **Must Read**
     - `techstack.md` → 技術堆疊總覽 — Why：後端與資料儲存各套件採用的版本
     - `techstack.md` → 本次開發不引入的技術 — Why：不得安裝的排程、Redis 與狀態機套件
     - `research.md` → §1 — Why：維持 `partialIndexes` preview feature 以建立改期申請的部分唯一索引
-- [ ] T003 [P] 確認 `apps/equipment-loan/frontend/package.json` 的前端技術版本：React 19、Vite 8、`@vitejs/plugin-react` 6、TypeScript 6.0、ESLint 10、`typescript-eslint` 8 與 Prettier；不安裝 react-day-picker、React Router、Zustand 與 react-i18next（research §4）
+- [X] T003 [P] 確認 `apps/equipment-loan/frontend/package.json` 的前端技術版本：React 19、Vite 8、`@vitejs/plugin-react` 6、TypeScript 6.0、ESLint 10、`typescript-eslint` 8 與 Prettier；不安裝 react-day-picker、React Router、Zustand 與 react-i18next（research §4）
   - **Must Read**
     - `techstack.md` → 技術堆疊總覽 — Why：前端各套件採用的版本
     - `techstack.md` → 本次開發不引入的技術 — Why：不得安裝的日期選擇器、路由、全域狀態與國際化套件
     - `research.md` → §4 — Why：改期對話框重用既有 7 天 × 3 時段格子，不需要新套件
-- [ ] T004 [P] 確認 `apps/equipment-loan/package.json` 與 `apps/equipment-loan/playwright.config.ts` 的測試腳本：`test:backend`（Vitest 5 + Supertest 7）、`test:frontend`（Vitest 5）、`test:e2e`（`@playwright/test` 1.65）、`db:migrate`、`db:seed` 與 `check` 都可執行（research §5）
+- [X] T004 [P] 確認 `apps/equipment-loan/package.json` 與 `apps/equipment-loan/playwright.config.ts` 的測試腳本：`test:backend`（Vitest 5 + Supertest 7）、`test:frontend`（Vitest 5）、`test:e2e`（`@playwright/test` 1.65）、`db:migrate`、`db:seed` 與 `check` 都可執行（research §5）
   - **Must Read**
     - `research.md` → §5 — Why：本次沿用的測試工具與各自的用途
     - `techstack.md` → 技術堆疊總覽 — Why：測試工具的版本
-- [ ] T005 在尚未修改程式的 005 版本上建立回歸基準：在 `apps/equipment-loan/` 執行 `docker compose up -d`、`npm run db:migrate`、`npm run db:seed`，再執行 `npm run test:backend`、`npm run test:frontend` 與 `npm run test:e2e`，記錄 003～005 既有測試的通過數，供 T054 比對（FR-015、SC-006）
+- [X] T005 在尚未修改程式的 005 版本上建立回歸基準：在 `apps/equipment-loan/` 執行 `docker compose up -d`、`npm run db:migrate`、`npm run db:seed`，再執行 `npm run test:backend`、`npm run test:frontend` 與 `npm run test:e2e`，記錄 003～005 既有測試的通過數，供 T054 比對（FR-015、SC-006）
   - **Must Read**
     - `spec.md` → FR-015、SC-006 — Why：前三次迭代既有功能必須完整保留，回歸測試通過率須達 100%
     - `research.md` → §5 — Why：要重跑的 003～005 全套整合測試與 E2E
