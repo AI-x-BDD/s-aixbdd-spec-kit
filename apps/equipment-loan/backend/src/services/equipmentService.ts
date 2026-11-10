@@ -274,6 +274,15 @@ export async function listEquipments(params: {
   });
 }
 
+/** 設備最近一次狀態變更的摘要（contracts/openapi.yaml LastEquipmentStatusChange，FR-008）。 */
+export interface LastEquipmentStatusChangeDto {
+  changedBy: string;
+  changedByDisplayName: string;
+  changedAt: string;
+  fromStatus: EquipmentStatus;
+  toStatus: EquipmentStatus;
+}
+
 export interface AdminEquipmentSettingDto {
   id: string;
   equipmentCode: string;
@@ -281,7 +290,15 @@ export interface AdminEquipmentSettingDto {
   category: string;
   status: EquipmentStatus;
   requiresApproval: boolean;
+  lastStatusChange: LastEquipmentStatusChangeDto | null;
   updatedAt: string;
+}
+
+/** 全部設備依狀態的台數，不受查詢篩選條件影響（contracts/openapi.yaml EquipmentStatusCounts）。 */
+export interface EquipmentStatusCountsDto {
+  available: number;
+  maintenance: number;
+  retired: number;
 }
 
 export interface AdminEquipmentPageDto {
@@ -290,9 +307,10 @@ export interface AdminEquipmentPageDto {
   pageSize: number;
   totalItems: number;
   totalPages: number;
+  statusCounts: EquipmentStatusCountsDto;
 }
 
-function toAdminEquipmentSettingDto(eq: {
+type AdminEquipmentRow = {
   id: string;
   equipment_code: string;
   name: string;
@@ -300,7 +318,36 @@ function toAdminEquipmentSettingDto(eq: {
   status: EquipmentStatus;
   requires_approval: boolean;
   updated_at: Date;
-}): AdminEquipmentSettingDto {
+};
+
+type StatusChangeRow = {
+  changed_by: string;
+  changed_at: Date;
+  from_status: EquipmentStatus;
+  to_status: EquipmentStatus;
+  changer: { display_name: string };
+};
+
+/** 取設備最近一次有效狀態變更（changed_at 最大、deleted_at 為 null）的查詢條件，使用 idx_equipment_status_changes_equipment_changed。 */
+const lastStatusChangeInclude = {
+  status_changes: {
+    where: { deleted_at: null },
+    orderBy: [{ changed_at: "desc" as const }, { id: "desc" as const }],
+    take: 1,
+    select: {
+      changed_by: true,
+      changed_at: true,
+      from_status: true,
+      to_status: true,
+      changer: { select: { display_name: true } },
+    },
+  },
+};
+
+function toAdminEquipmentSettingDto(
+  eq: AdminEquipmentRow & { status_changes: StatusChangeRow[] },
+): AdminEquipmentSettingDto {
+  const last = eq.status_changes[0];
   return {
     id: eq.id,
     equipmentCode: eq.equipment_code,
@@ -308,11 +355,34 @@ function toAdminEquipmentSettingDto(eq: {
     category: eq.category,
     status: eq.status,
     requiresApproval: eq.requires_approval,
+    lastStatusChange: last
+      ? {
+          changedBy: last.changed_by,
+          changedByDisplayName: last.changer.display_name,
+          changedAt: last.changed_at.toISOString(),
+          fromStatus: last.from_status,
+          toStatus: last.to_status,
+        }
+      : null,
     updatedAt: eq.updated_at.toISOString(),
   };
 }
 
+async function countEquipmentsByStatus(): Promise<EquipmentStatusCountsDto> {
+  const groups = await prisma.equipments.groupBy({
+    by: ["status"],
+    where: { deleted_at: null },
+    _count: { _all: true },
+  });
+  const counts: EquipmentStatusCountsDto = { available: 0, maintenance: 0, retired: 0 };
+  for (const g of groups) {
+    counts[g.status] = g._count._all;
+  }
+  return counts;
+}
+
 export async function listAdminEquipments(params: {
+  status?: EquipmentStatus;
   category?: string;
   requiresApproval?: boolean;
   page: number;
@@ -320,6 +390,7 @@ export async function listAdminEquipments(params: {
 }): Promise<AdminEquipmentPageDto> {
   const whereClause = {
     deleted_at: null as Date | null,
+    ...(params.status ? { status: params.status } : {}),
     ...(params.category ? { category: params.category } : {}),
     ...(params.requiresApproval !== undefined
       ? { requires_approval: params.requiresApproval }
@@ -329,6 +400,7 @@ export async function listAdminEquipments(params: {
   const totalItems = await prisma.equipments.count({
     where: whereClause,
   });
+  const statusCounts = await countEquipmentsByStatus();
 
   const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / params.pageSize);
 
@@ -339,6 +411,7 @@ export async function listAdminEquipments(params: {
       pageSize: params.pageSize,
       totalItems,
       totalPages,
+      statusCounts,
     };
   }
 
@@ -349,6 +422,7 @@ export async function listAdminEquipments(params: {
     orderBy: [{ equipment_code: "asc" }, { id: "asc" }],
     skip,
     take: params.pageSize,
+    include: lastStatusChangeInclude,
   });
 
   return {
@@ -357,6 +431,7 @@ export async function listAdminEquipments(params: {
     pageSize: params.pageSize,
     totalItems,
     totalPages,
+    statusCounts,
   };
 }
 
@@ -384,6 +459,7 @@ export async function updateEquipmentApprovalMode(params: {
       updated_at: now,
       updated_by: params.adminUserId,
     },
+    include: lastStatusChangeInclude,
   });
 
   return toAdminEquipmentSettingDto(updated);

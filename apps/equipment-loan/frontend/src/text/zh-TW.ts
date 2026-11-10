@@ -71,6 +71,16 @@ export const RESCHEDULE_ERROR_MESSAGES: Record<RescheduleErrorCode, string> = {
     "無法執行此操作：這筆改期申請已非「改期審核中」（已改期成功、被駁回、已撤回或已失效）。",
 };
 
+export type EquipmentStatusErrorCode =
+  "EQUIPMENT_ON_LOAN" | "EQUIPMENT_STATUS_UNCHANGED" | "EQUIPMENT_STATE_CHANGED";
+
+/** 迭代 5 設備狀態變更錯誤碼說明；與 ERROR_MESSAGES 分開，保留前幾次迭代的錯誤碼清單不變（NFR-001、FR-005、FR-019）。 */
+export const EQUIPMENT_STATUS_ERROR_MESSAGES: Record<EquipmentStatusErrorCode, string> = {
+  EQUIPMENT_ON_LOAN: "設備借用中，請先登記歸還",
+  EQUIPMENT_STATUS_UNCHANGED: "無法變更：設備已經是這個狀態，請重新整理設備清單。",
+  EQUIPMENT_STATE_CHANGED: "設備狀態已被變更，請重新確認",
+};
+
 export const UI_TEXT = {
   brandTitle: "精密實驗設備借用中心",
   nav: {
@@ -92,6 +102,38 @@ export const UI_TEXT = {
     available: "可用",
     maintenance: "送修中",
     retired: "停用",
+  },
+  /** 取消原因標籤（contracts ReservationCancelReason；member_cancelled 只在全體預約管理顯示，見 Notes 待確認 2）。 */
+  cancelReason: {
+    equipment_maintenance: "設備送修",
+    equipment_retired: "設備停用",
+    member_cancelled: "成員取消",
+  },
+  /** 設備狀態管理的操作與確認視窗文字（ui/plan.md §4 equipment-status.html）。 */
+  equipmentStatusActions: {
+    setMaintenance: "設為送修",
+    setRetired: "設為停用",
+    confirmMaintenance: "確認設為送修",
+    confirmRetired: "確認設為停用",
+    processing: "設定中…",
+    cancel: "取消",
+    calculating: "正在計算將取消的預約與將失效的改期申請…",
+    impactSummary: (cancelCount: number, expireCount: number) =>
+      `將取消 ${cancelCount} 筆預約、${expireCount} 筆改期申請將失效`,
+    /** 完成橫幅：從「可用」設為送修或停用（ui/plan.md §4「已設為送修」）。 */
+    setDone: (equipmentLabel: string, toLabel: string, cancelCount: number, expireCount: number) =>
+      `已將 ${equipmentLabel} 設為「${toLabel}」，取消 ${cancelCount} 筆預約，${expireCount} 筆改期申請已失效。`,
+    /** 完成橫幅：送修中與停用之間切換（ui/plan.md §4「已改為停用」）。 */
+    switchDone: (
+      equipmentLabel: string,
+      fromLabel: string,
+      toLabel: string,
+      cancelCount: number,
+      expireCount: number,
+    ) =>
+      cancelCount === 0 && expireCount === 0
+        ? `已將 ${equipmentLabel} 從「${fromLabel}」改為「${toLabel}」，沒有需要取消的預約。`
+        : `已將 ${equipmentLabel} 從「${fromLabel}」改為「${toLabel}」，取消 ${cancelCount} 筆預約，${expireCount} 筆改期申請已失效。`,
   },
   approvalModes: {
     requiresApproval: "需人工審核",
@@ -164,6 +206,9 @@ export function getErrorMessage(code?: string, fallbackMessage?: string): string
   }
   if (code && code in RESCHEDULE_ERROR_MESSAGES) {
     return RESCHEDULE_ERROR_MESSAGES[code as RescheduleErrorCode];
+  }
+  if (code && code in EQUIPMENT_STATUS_ERROR_MESSAGES) {
+    return EQUIPMENT_STATUS_ERROR_MESSAGES[code as EquipmentStatusErrorCode];
   }
   return "操作失敗，請稍後再試。";
 }

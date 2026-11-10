@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError, rescheduleError } from "../middleware/errorHandler.js";
+import type { EquipmentStatus } from "./equipmentService.js";
 import {
   addDaysToDateStr,
   formatUtcDateToDateStr,
@@ -218,6 +219,22 @@ function alreadyPendingError(reservationNo: string, requestNo: string): AppError
  * 新時段占用由 uq_reservations_active_slot 保護，P2002 轉成 409 RESCHEDULE_SLOT_CONFLICT（FR-014）；
  * 需人工審核設備只建立 pending_approval 申請（FR-003），同一預約已有審核中申請時回 409 RESCHEDULE_ALREADY_PENDING（FR-004）。
  */
+type LockedEquipmentRow = { status: EquipmentStatus; requires_approval: boolean };
+
+/** 設備送修中或停用時的改期錯誤（FR-006、FR-009；訊息依狀態寫「設備送修中」或「設備已停用」）。 */
+function equipmentUnavailableForRescheduleError(
+  action: "改期" | "核准",
+  status: EquipmentStatus,
+): AppError {
+  return new AppError(
+    "EQUIPMENT_UNAVAILABLE",
+    409,
+    status === "maintenance"
+      ? `無法${action}：設備送修中，不能改到新時段。`
+      : `無法${action}：設備已停用，不能改到新時段。`,
+  );
+}
+
 export async function createRescheduleRequest(params: {
   userId: string;
   reservationId: string;
@@ -238,6 +255,19 @@ export async function createRescheduleRequest(params: {
 
   try {
     return await prisma.$transaction(async (tx) => {
+      // FR-009、research §3：交易第一個語句以 FOR SHARE 鎖定這筆預約的設備列，與設定送修或停用的 FOR UPDATE 互斥。
+      // 需人工審核設備的送出路徑也一併鎖定（Notes 待確認 4 的暫行做法會違反 FR-004，見決策紀錄）
+      const lockedEquipments = await tx.$queryRaw<LockedEquipmentRow[]>`
+        SELECT status, requires_approval FROM equipments
+        WHERE id = (
+          SELECT equipment_id FROM reservations
+          WHERE id = ${params.reservationId}::uuid AND deleted_at IS NULL
+        )
+          AND deleted_at IS NULL
+        FOR SHARE
+      `;
+      const lockedEquipment = lockedEquipments[0];
+
       const now = new Date();
       // 先讓到期的改期審核中申請失效，避免已到期的申請擋住單一審核中檢查（research §3）
       await expireDueRescheduleRequests(tx, now);
@@ -250,7 +280,7 @@ export async function createRescheduleRequest(params: {
         where: { id: params.toSlotId, deleted_at: null },
       });
 
-      if (!reservation || !toSlot) {
+      if (!reservation || !toSlot || !lockedEquipment) {
         throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的預約或固定時段不存在。");
       }
 
@@ -268,6 +298,11 @@ export async function createRescheduleRequest(params: {
           "RESCHEDULE_NOT_ALLOWED",
           `無法改期：預約 ${reservation.reservation_no} 目前為「${RESERVATION_STATUS_LABEL[reservation.status]}」。只有原時段尚未開始的「已核准／有效」預約可以改期。`,
         );
+      }
+
+      // 即時改期（免審核設備）取得鎖之後才檢查設備狀態，非可用時拒絕（FR-006、FR-009）
+      if (!lockedEquipment.requires_approval && lockedEquipment.status !== "available") {
+        throw equipmentUnavailableForRescheduleError("改期", lockedEquipment.status);
       }
 
       // 免審核與需人工審核兩條路徑都先檢查單一審核中限制（FR-004）
@@ -348,7 +383,7 @@ export async function createRescheduleRequest(params: {
         );
       }
 
-      if (reservation.equipment.requires_approval) {
+      if (lockedEquipment.requires_approval) {
         // 需人工審核設備（FR-003）：只建立 pending_approval 申請，不寫入 reservations、不保留新時段
         const pending = await tx.reschedule_requests.create({
           data: {
@@ -657,6 +692,19 @@ export async function approveRescheduleRequest(params: {
 
   try {
     return await prisma.$transaction(async (tx) => {
+      // FR-009、research §3：交易第一個語句以 FOR SHARE 鎖定原預約的設備列，取得鎖之後才檢查設備狀態
+      const lockedEquipments = await tx.$queryRaw<LockedEquipmentRow[]>`
+        SELECT status, requires_approval FROM equipments
+        WHERE id = (
+          SELECT r.equipment_id FROM reschedule_requests AS rr
+          JOIN reservations AS r ON r.id = rr.reservation_id
+          WHERE rr.id = ${params.rescheduleRequestId}::uuid AND rr.deleted_at IS NULL
+        )
+          AND deleted_at IS NULL
+        FOR SHARE
+      `;
+      const lockedEquipment = lockedEquipments[0];
+
       const now = new Date();
       // 先讓到期的改期審核中申請失效；已失效的申請在下方狀態檢查回 409 INVALID_RESCHEDULE_STATUS（FR-011、FR-012、SC-004）
       await expireDueRescheduleRequests(tx, now);
@@ -665,12 +713,17 @@ export async function approveRescheduleRequest(params: {
         where: { id: params.rescheduleRequestId, deleted_at: null },
         include: adminRescheduleRequestInclude,
       });
-      if (!request) {
+      if (!request || !lockedEquipment) {
         throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的改期申請不存在。");
       }
 
+      // FR-004：原預約因設備送修或停用被取消後，申請已是 expired（reservation_cancelled），維持回 INVALID_RESCHEDULE_STATUS
       if (request.status !== "pending_approval") {
         throw notPendingError("核准", request.request_no, request.status);
+      }
+
+      if (lockedEquipment.status !== "available") {
+        throw equipmentUnavailableForRescheduleError("核准", lockedEquipment.status);
       }
 
       const reservation = request.reservation;

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../middleware/errorHandler.js";
+import type { EquipmentStatus } from "./equipmentService.js";
 import {
   canPickupInWindow,
   checkPickupWindow,
@@ -22,6 +23,10 @@ import {
 
 export type ReservationStatus =
   "pending_approval" | "confirmed" | "checked_out" | "returned" | "rejected" | "cancelled";
+
+/** 預約的取消原因（contracts/openapi.yaml ReservationCancelReason，FR-015、FR-020）。 */
+export type ReservationCancelReason =
+  "member_cancelled" | "equipment_maintenance" | "equipment_retired";
 
 export interface ReservationDto {
   id: string;
@@ -52,6 +57,7 @@ export interface ReservationDto {
   canCancel: boolean;
   createdAt: string;
   cancelledAt: string | null;
+  cancelReason: ReservationCancelReason | null;
 }
 
 export interface PendingRescheduleSummaryDto {
@@ -110,6 +116,8 @@ export function toReservationDto(
     returned_at?: Date | null;
     created_at: Date;
     cancelled_at: Date | null;
+    // 未載入時（例如單元測試組出的資料列）視為未取消
+    cancel_reason?: ReservationCancelReason | null;
     equipment: {
       equipment_code: string;
       name: string;
@@ -171,6 +179,7 @@ export function toReservationDto(
     canCancel,
     createdAt: row.created_at.toISOString(),
     cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
+    cancelReason: row.cancel_reason ?? null,
   };
 }
 
@@ -265,95 +274,117 @@ export async function createReservation(params: {
     );
   }
 
-  const [equipment, slot] = await Promise.all([
-    prisma.equipments.findFirst({
-      where: { id: params.equipmentId, deleted_at: null },
-    }),
-    prisma.time_slots.findFirst({
-      where: { id: params.slotId, deleted_at: null },
-    }),
-  ]);
-
-  if (!equipment || !slot) {
-    throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的設備或固定時段不存在。");
-  }
-
-  if (equipment.status !== "available") {
-    throw new AppError(
-      "EQUIPMENT_UNAVAILABLE",
-      409,
-      "該單件設備目前不可預約，請選擇其他可用設備。",
-    );
-  }
-
-  if (hasSlotStarted(params.reservationDate, slot.start_time)) {
-    throw new AppError(
-      "SLOT_ALREADY_STARTED",
-      400,
-      `無法申請：${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 時段已開始或已結束，請選擇尚未開始的固定時段。`,
-    );
-  }
-
-  const targetDateUtc = parseDateOnlyToUtc(params.reservationDate);
-
-  const [existingOccupied, existingMyOpen] = await Promise.all([
-    prisma.reservations.findFirst({
-      where: {
-        equipment_id: params.equipmentId,
-        reservation_date: targetDateUtc,
-        slot_id: params.slotId,
-        status: { in: ["confirmed", "checked_out", "returned"] },
-        deleted_at: null,
-      },
-    }),
-    prisma.reservations.findFirst({
-      where: {
-        user_id: params.userId,
-        equipment_id: params.equipmentId,
-        reservation_date: targetDateUtc,
-        slot_id: params.slotId,
-        status: { in: ["pending_approval", "confirmed", "checked_out"] },
-        deleted_at: null,
-      },
-    }),
-  ]);
-
-  if (existingMyOpen) {
-    const statusLabel = getStatusZhLabel(existingMyOpen.status);
-    throw new AppError(
-      "DUPLICATE_PENDING_OR_ACTIVE_RESERVATION",
-      409,
-      `重複申請遭拒：您已對 ${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 持有一筆未結束的「${statusLabel}」紀錄（${existingMyOpen.reservation_no}），同一成員不得對同一設備時段重複申請。`,
-    );
-  }
-
-  if (existingOccupied) {
-    throw new AppError(
-      "RESERVATION_CONFLICT",
-      409,
-      `申請失敗：${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 已完成當日借用並歸還結案（或已被其他有效／借用中紀錄占用），同一固定時段不重新開放重複預約。`,
-    );
-  }
-
-  const targetStatus: ReservationStatus = equipment.requires_approval
-    ? "pending_approval"
-    : "confirmed";
+  // 例外訊息使用的設備與時段資訊（交易回滾後仍可組出 P2002 的訊息）
+  let equipmentLabel = "";
+  let slotLabel = "";
+  let targetStatus = "confirmed" as ReservationStatus;
 
   try {
-    const created = await prisma.reservations.create({
-      data: {
-        reservation_no: generateReservationNo(),
-        user_id: params.userId,
-        equipment_id: params.equipmentId,
-        reservation_date: targetDateUtc,
-        slot_id: params.slotId,
-        status: targetStatus,
-        updated_by: params.userId,
-      },
-      include: memberReservationInclude,
-    });
+    // FR-009、research §3：檢查與新增包在同一個交易內，第一個語句以 FOR SHARE 鎖定設備列，
+    // 與設定送修或停用的 FOR UPDATE 互斥；取得鎖之後才檢查設備狀態
+    return await prisma.$transaction(async (tx) => {
+      const lockedEquipments = await tx.$queryRaw<
+        Array<{ status: EquipmentStatus; requires_approval: boolean }>
+      >`
+        SELECT status, requires_approval FROM equipments
+        WHERE id = ${params.equipmentId}::uuid AND deleted_at IS NULL
+        FOR SHARE
+      `;
+      const lockedEquipment = lockedEquipments[0];
 
-    return toMemberReservationDto(created);
+      const equipment = lockedEquipment
+        ? await tx.equipments.findFirst({
+            where: { id: params.equipmentId, deleted_at: null },
+          })
+        : null;
+      const slot = await tx.time_slots.findFirst({
+        where: { id: params.slotId, deleted_at: null },
+      });
+
+      if (!lockedEquipment || !equipment || !slot) {
+        throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的設備或固定時段不存在。");
+      }
+
+      equipmentLabel = `${equipment.equipment_code} ${equipment.name}`;
+      slotLabel = `${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time}`;
+
+      // FR-006：設備送修中或停用時拒絕新預約，訊息說明設備目前狀態
+      if (lockedEquipment.status !== "available") {
+        throw new AppError(
+          "EQUIPMENT_UNAVAILABLE",
+          409,
+          lockedEquipment.status === "maintenance"
+            ? "設備送修中，無法預約"
+            : "設備已停用，無法預約",
+        );
+      }
+
+      if (hasSlotStarted(params.reservationDate, slot.start_time)) {
+        throw new AppError(
+          "SLOT_ALREADY_STARTED",
+          400,
+          `無法申請：${slotLabel} 時段已開始或已結束，請選擇尚未開始的固定時段。`,
+        );
+      }
+
+      const targetDateUtc = parseDateOnlyToUtc(params.reservationDate);
+
+      // 互動式交易內依序查詢（同一連線不並行送出查詢）
+      const existingOccupied = await tx.reservations.findFirst({
+        where: {
+          equipment_id: params.equipmentId,
+          reservation_date: targetDateUtc,
+          slot_id: params.slotId,
+          status: { in: ["confirmed", "checked_out", "returned"] },
+          deleted_at: null,
+        },
+      });
+      const existingMyOpen = await tx.reservations.findFirst({
+        where: {
+          user_id: params.userId,
+          equipment_id: params.equipmentId,
+          reservation_date: targetDateUtc,
+          slot_id: params.slotId,
+          status: { in: ["pending_approval", "confirmed", "checked_out"] },
+          deleted_at: null,
+        },
+      });
+
+      if (existingMyOpen) {
+        const statusLabel = getStatusZhLabel(existingMyOpen.status);
+        throw new AppError(
+          "DUPLICATE_PENDING_OR_ACTIVE_RESERVATION",
+          409,
+          `重複申請遭拒：您已對 ${equipmentLabel} 於 ${slotLabel} 持有一筆未結束的「${statusLabel}」紀錄（${existingMyOpen.reservation_no}），同一成員不得對同一設備時段重複申請。`,
+        );
+      }
+
+      if (existingOccupied) {
+        throw new AppError(
+          "RESERVATION_CONFLICT",
+          409,
+          `申請失敗：${equipmentLabel} 於 ${slotLabel} 已完成當日借用並歸還結案（或已被其他有效／借用中紀錄占用），同一固定時段不重新開放重複預約。`,
+        );
+      }
+
+      // FR-013：依鎖定後讀到的 requires_approval 決定新預約的狀態
+      targetStatus = lockedEquipment.requires_approval ? "pending_approval" : "confirmed";
+
+      const created = await tx.reservations.create({
+        data: {
+          reservation_no: generateReservationNo(),
+          user_id: params.userId,
+          equipment_id: params.equipmentId,
+          reservation_date: targetDateUtc,
+          slot_id: params.slotId,
+          status: targetStatus,
+          updated_by: params.userId,
+        },
+        include: memberReservationInclude,
+      });
+
+      return toMemberReservationDto(created);
+    });
   } catch (err: unknown) {
     if (
       typeof err === "object" &&
@@ -365,13 +396,13 @@ export async function createReservation(params: {
         throw new AppError(
           "DUPLICATE_PENDING_OR_ACTIVE_RESERVATION",
           409,
-          `重複申請遭拒：您已對 ${equipment.equipment_code} ${equipment.name} 於 ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 持有一筆未結束的「待審核」或「已核准／有效」申請，同一成員不得對同一設備時段重複申請。`,
+          `重複申請遭拒：您已對 ${equipmentLabel} 於 ${slotLabel} 持有一筆未結束的「待審核」或「已核准／有效」申請，同一成員不得對同一設備時段重複申請。`,
         );
       }
       throw new AppError(
         "RESERVATION_CONFLICT",
         409,
-        `預約失敗：${equipment.equipment_code} ${equipment.name} ${params.reservationDate} ${slot.name} ${slot.start_time}–${slot.end_time} 剛被其他預約占用，請改選其他時段。`,
+        `預約失敗：${equipmentLabel} ${slotLabel} 剛被其他預約占用，請改選其他時段。`,
       );
     }
     throw err;
@@ -472,6 +503,20 @@ export async function approveReservation(params: {
 }): Promise<AdminReservationItemDto> {
   try {
     return await prisma.$transaction(async (tx) => {
+      // FR-009、research §3：交易第一個語句以 FOR SHARE 鎖定這筆申請的設備列，
+      // 與設定送修或停用的 FOR UPDATE 互斥；取得鎖之後才讀取申請與設備狀態
+      const lockedEquipments = await tx.$queryRaw<
+        Array<{ status: EquipmentStatus; requires_approval: boolean }>
+      >`
+        SELECT status, requires_approval FROM equipments
+        WHERE id = (
+          SELECT equipment_id FROM reservations
+          WHERE id = ${params.reservationId}::uuid AND deleted_at IS NULL
+        )
+          AND deleted_at IS NULL
+        FOR SHARE
+      `;
+
       const existing = await tx.reservations.findFirst({
         where: {
           id: params.reservationId,
@@ -485,15 +530,42 @@ export async function approveReservation(params: {
         },
       });
 
-      if (!existing) {
+      if (!existing || lockedEquipments.length === 0) {
         throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的待審核預約申請紀錄不存在。");
       }
 
       if (existing.status !== "pending_approval") {
+        // FR-002、Edge Cases 待審核的預約：已因設備送修或停用被取消時，寫出取消時間與原因（ui/plan.md §5「核准時預約已取消」）
+        if (
+          existing.status === "cancelled" &&
+          existing.cancelled_at &&
+          (existing.cancel_reason === "equipment_maintenance" ||
+            existing.cancel_reason === "equipment_retired")
+        ) {
+          const cancelledAt = getTaipeiNow(existing.cancelled_at);
+          const reasonText =
+            existing.cancel_reason === "equipment_maintenance" ? "設備送修" : "設備停用";
+          throw new AppError(
+            "INVALID_RESERVATION_STATUS",
+            409,
+            `無法核准：預約 ${existing.reservation_no} 已在 ${cancelledAt.dateStr} ${cancelledAt.timeStr} 因${reasonText}取消，已移出待審清單。`,
+          );
+        }
         throw new AppError(
           "INVALID_RESERVATION_STATUS",
           409,
           `無法執行審核：預約編號 ${existing.reservation_no} 目前狀態為「${getStatusZhLabel(existing.status)}」，僅處於「待審核」狀態的申請可執行核准或駁回。`,
+        );
+      }
+
+      // FR-006、FR-009：設備送修中或停用時不可核准
+      if (lockedEquipments[0]!.status !== "available") {
+        throw new AppError(
+          "EQUIPMENT_UNAVAILABLE",
+          409,
+          lockedEquipments[0]!.status === "maintenance"
+            ? "無法核准：設備送修中，無法預約"
+            : "無法核准：設備已停用，無法預約",
         );
       }
 
@@ -563,6 +635,27 @@ export async function approveReservation(params: {
   }
 }
 
+/**
+ * 預約已因設備送修或停用被取消時，回傳寫出取消時間（Asia/Taipei）與取消原因的訊息片段；其他情況回傳 null
+ * （FR-002、FR-003、ui/plan.md §5「登記領取時預約已取消」）。
+ */
+function describeEquipmentCancellation(row: {
+  status: ReservationStatus;
+  cancelled_at: Date | null;
+  cancel_reason?: ReservationCancelReason | null;
+}): string | null {
+  if (
+    row.status !== "cancelled" ||
+    !row.cancelled_at ||
+    (row.cancel_reason !== "equipment_maintenance" && row.cancel_reason !== "equipment_retired")
+  ) {
+    return null;
+  }
+  const at = getTaipeiNow(row.cancelled_at);
+  const reasonText = row.cancel_reason === "equipment_maintenance" ? "設備送修" : "設備停用";
+  return `已在 ${at.dateStr} ${at.timeStr} 因${reasonText}取消`;
+}
+
 export async function rejectReservation(params: {
   adminUserId: string;
   reservationId: string;
@@ -600,6 +693,15 @@ export async function rejectReservation(params: {
     }
 
     if (existing.status !== "pending_approval") {
+      // FR-002：申請已因設備送修或停用被取消時，寫出取消時間與原因
+      const cancellation = describeEquipmentCancellation(existing);
+      if (cancellation) {
+        throw new AppError(
+          "INVALID_RESERVATION_STATUS",
+          409,
+          `無法駁回：預約 ${existing.reservation_no} ${cancellation}，已移出待審清單。`,
+        );
+      }
       throw new AppError(
         "INVALID_RESERVATION_STATUS",
         409,
@@ -772,6 +874,7 @@ export function toAdminReservationDto(
     returned_at?: Date | null;
     created_at: Date;
     cancelled_at: Date | null;
+    cancel_reason?: ReservationCancelReason | null;
     user: {
       username: string;
       display_name: string;
@@ -850,6 +953,17 @@ export async function pickupReservationByAdmin(params: {
 }): Promise<AdminReservationItemDto> {
   const now = params.now ?? new Date();
   return prisma.$transaction(async (tx) => {
+    // FR-005、SC-003（analysis F3）：第一個語句以 FOR SHARE 鎖定這筆預約的設備列，與設定送修或停用的
+    // FOR UPDATE 互斥，避免設定交易計數後、取消前預約被登記領取，留下送修中或停用設備上的借用中預約
+    await tx.$queryRaw`
+      SELECT id FROM equipments
+      WHERE id = (
+        SELECT equipment_id FROM reservations
+        WHERE id = ${params.reservationId}::uuid AND deleted_at IS NULL
+      )
+      FOR SHARE
+    `;
+
     // FR-011：先讓到期的改期審核中申請失效；原時段開始後原預約維持 confirmed，照 005 規則登記領取（research §3）
     await expireDueRescheduleRequests(tx, now);
 
@@ -877,6 +991,15 @@ export async function pickupReservationByAdmin(params: {
     }
 
     if (existing.status !== "confirmed") {
+      // FR-003、Edge Cases 時段進行中但尚未領取：已因設備送修或停用被取消，不能領取這台設備
+      const cancellation = describeEquipmentCancellation(existing);
+      if (cancellation) {
+        throw new AppError(
+          "INVALID_RESERVATION_STATUS",
+          409,
+          `無法登記領取：預約 ${existing.reservation_no} ${cancellation}，不能領取這台設備。`,
+        );
+      }
       throw new AppError(
         "INVALID_RESERVATION_STATUS",
         409,

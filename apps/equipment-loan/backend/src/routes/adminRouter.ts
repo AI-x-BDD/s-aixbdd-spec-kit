@@ -4,6 +4,10 @@ import { requireAdmin, requireAuth } from "../middleware/authMiddleware.js";
 import { AppError, parsePaginationParams } from "../middleware/errorHandler.js";
 import { listAdminEquipments, updateEquipmentApprovalMode } from "../services/equipmentService.js";
 import {
+  getEquipmentStatusChangePreview,
+  updateEquipmentStatus,
+} from "../services/equipmentStatusService.js";
+import {
   approveReservation,
   listAllReservations,
   listPendingReservations,
@@ -20,6 +24,11 @@ import {
 export const adminRouter = express.Router();
 
 const listAdminEquipmentsQuerySchema = z.object({
+  status: z
+    .enum(["available", "maintenance", "retired"], {
+      message: "查詢參數 status 必須為 available、maintenance 或 retired。",
+    })
+    .optional(),
   category: z.string().min(1).max(50).optional(),
   requiresApproval: z
     .enum(["true", "false"])
@@ -52,11 +61,13 @@ adminRouter.get("/equipments", requireAuth, requireAdmin, async (req, res) => {
   }
 
   const query = listAdminEquipmentsQuerySchema.parse({
+    status: req.query.status,
     category: req.query.category,
     requiresApproval: req.query.requiresApproval,
   });
 
   const result = await listAdminEquipments({
+    status: query.status,
     category: query.category,
     requiresApproval: query.requiresApproval,
     page,
@@ -81,6 +92,66 @@ adminRouter.patch(
     });
 
     res.status(200).json(updated);
+  },
+);
+
+const statusChangePreviewQuerySchema = z.object({
+  targetStatus: z.enum(["maintenance", "retired"], {
+    message: "查詢參數 targetStatus 必須為 maintenance 或 retired。",
+  }),
+});
+
+const setEquipmentUnavailableBodySchema = z.object({
+  targetStatus: z.enum(["maintenance", "retired"], {
+    message: "請求欄位 targetStatus 必須為 maintenance 或 retired。",
+  }),
+  expectedCurrentStatus: z.enum(["available", "maintenance", "retired"], {
+    message:
+      "請求欄位 expectedCurrentStatus 必須為 available、maintenance 或 retired（取自確認視窗的預覽結果）。",
+  }),
+  expectedCancelCount: z
+    .number({ message: "請求欄位 expectedCancelCount 必須為大於或等於 0 的整數。" })
+    .int("請求欄位 expectedCancelCount 必須為大於或等於 0 的整數。")
+    .min(0, "請求欄位 expectedCancelCount 必須為大於或等於 0 的整數。"),
+  expectedExpireCount: z
+    .number({ message: "請求欄位 expectedExpireCount 必須為大於或等於 0 的整數。" })
+    .int("請求欄位 expectedExpireCount 必須為大於或等於 0 的整數。")
+    .min(0, "請求欄位 expectedExpireCount 必須為大於或等於 0 的整數。"),
+});
+
+adminRouter.get(
+  "/equipments/:equipmentId/status-change-preview",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { equipmentId } = equipmentIdParamsSchema.parse(req.params);
+    const { targetStatus } = statusChangePreviewQuerySchema.parse({
+      targetStatus: req.query.targetStatus,
+    });
+
+    const preview = await getEquipmentStatusChangePreview(equipmentId, targetStatus);
+    res.status(200).json(preview);
+  },
+);
+
+adminRouter.patch(
+  "/equipments/:equipmentId/status",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { equipmentId } = equipmentIdParamsSchema.parse(req.params);
+    const body = setEquipmentUnavailableBodySchema.parse(req.body);
+
+    const result = await updateEquipmentStatus({
+      adminUserId: req.authUser!.id,
+      equipmentId,
+      targetStatus: body.targetStatus,
+      expectedCurrentStatus: body.expectedCurrentStatus,
+      expectedCancelCount: body.expectedCancelCount,
+      expectedExpireCount: body.expectedExpireCount,
+    });
+
+    res.status(200).json(result);
   },
 );
 

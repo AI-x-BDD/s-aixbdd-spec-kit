@@ -148,6 +148,8 @@ interface ReservationBaseDto {
   canCancel: boolean;
   createdAt: string;
   cancelledAt: string | null;
+  /** 取消原因；status 為 cancelled 時不為 null，其餘為 null（contracts ReservationCancelReason）。 */
+  cancelReason: ReservationCancelReason | null;
 }
 
 export interface ReservationDto extends ReservationBaseDto {
@@ -228,6 +230,15 @@ export interface CreateRescheduleRequestResponse {
   reservation: ReservationDto;
 }
 
+/** 設備最近一次狀態變更（contracts LastEquipmentStatusChange）。 */
+export interface LastEquipmentStatusChange {
+  changedBy: string;
+  changedByDisplayName: string;
+  changedAt: string;
+  fromStatus: EquipmentStatus;
+  toStatus: EquipmentStatus;
+}
+
 export interface AdminEquipmentSettingDto {
   id: string;
   equipmentCode: string;
@@ -235,7 +246,18 @@ export interface AdminEquipmentSettingDto {
   category: string;
   status: EquipmentStatus;
   requiresApproval: boolean;
+  /** 沒有任何狀態變更紀錄時為 null，畫面顯示「尚無狀態變更」。 */
+  lastStatusChange: LastEquipmentStatusChange | null;
   updatedAt: string;
+}
+
+export type AdminEquipmentSetting = AdminEquipmentSettingDto;
+
+/** 全部設備依狀態的台數，不受篩選條件影響（contracts EquipmentStatusCounts）。 */
+export interface EquipmentStatusCounts {
+  available: number;
+  maintenance: number;
+  retired: number;
 }
 
 export interface AdminEquipmentPageDto {
@@ -244,6 +266,70 @@ export interface AdminEquipmentPageDto {
   pageSize: number;
   totalItems: number;
   totalPages: number;
+  statusCounts: EquipmentStatusCounts;
+}
+
+/** 設為送修或停用的目標狀態。 */
+export type UnavailableTargetStatus = "maintenance" | "retired";
+
+/** 設備借用中預約的摘要（contracts CheckedOutReservationSummary）。 */
+export interface CheckedOutReservationSummary {
+  reservationId: string;
+  reservationNumber: string;
+  userDisplayName: string;
+  reservationDate: string;
+  slotName: string;
+  slotStartTime: string;
+  slotEndTime: string;
+  isOverdue: boolean;
+}
+
+/** 設為送修或停用前的預覽結果（contracts EquipmentStatusChangePreview）。 */
+export interface EquipmentStatusChangePreview {
+  equipmentId: string;
+  equipmentCode: string;
+  equipmentName: string;
+  currentStatus: EquipmentStatus;
+  targetStatus: UnavailableTargetStatus;
+  cancelCount: number;
+  expireCount: number;
+  hasCheckedOutReservation: boolean;
+  checkedOutReservations: CheckedOutReservationSummary[];
+}
+
+/** 設為送修或停用的請求；expected 欄位取自預覽結果（contracts SetEquipmentUnavailableRequest）。 */
+export interface SetEquipmentUnavailableRequest {
+  targetStatus: UnavailableTargetStatus;
+  expectedCurrentStatus: EquipmentStatus;
+  expectedCancelCount: number;
+  expectedExpireCount: number;
+}
+
+/** 恢復可用的請求（contracts RestoreEquipmentRequest）。 */
+export interface RestoreEquipmentRequest {
+  targetStatus: "available";
+}
+
+/** 設備狀態變更請求（contracts UpdateEquipmentStatusRequest）。 */
+export type UpdateEquipmentStatusRequest = SetEquipmentUnavailableRequest | RestoreEquipmentRequest;
+
+/** 一筆設備狀態變更紀錄（contracts EquipmentStatusChange）。 */
+export interface EquipmentStatusChange {
+  id: string;
+  equipmentId: string;
+  fromStatus: EquipmentStatus;
+  toStatus: EquipmentStatus;
+  changedBy: string;
+  changedByDisplayName: string;
+  changedAt: string;
+  cancelledReservationCount: number;
+}
+
+/** 設備狀態變更的結果（contracts EquipmentStatusChangeResult）。 */
+export interface EquipmentStatusChangeResult {
+  equipment: AdminEquipmentSetting;
+  statusChange: EquipmentStatusChange;
+  expiredRescheduleRequestCount: number;
 }
 
 export class ApiError extends Error {
@@ -390,6 +476,28 @@ export function updateEquipmentApprovalModeApi(
   return apiRequest<AdminEquipmentSettingDto>(`/admin/equipments/${equipmentId}/approval-mode`, {
     method: "PATCH",
     body: JSON.stringify({ requiresApproval }),
+  });
+}
+
+/** 預覽設為送修或停用時將取消的預約數與將失效的改期申請數（getEquipmentStatusChangePreview）。 */
+export function getEquipmentStatusChangePreview(
+  equipmentId: string,
+  targetStatus: UnavailableTargetStatus,
+): Promise<EquipmentStatusChangePreview> {
+  const qs = new URLSearchParams({ targetStatus });
+  return apiRequest<EquipmentStatusChangePreview>(
+    `/admin/equipments/${equipmentId}/status-change-preview?${qs.toString()}`,
+  );
+}
+
+/** 把設備設為送修、停用或恢復可用（updateEquipmentStatus）。 */
+export function updateEquipmentStatus(
+  equipmentId: string,
+  body: UpdateEquipmentStatusRequest,
+): Promise<EquipmentStatusChangeResult> {
+  return apiRequest<EquipmentStatusChangeResult>(`/admin/equipments/${equipmentId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
   });
 }
 

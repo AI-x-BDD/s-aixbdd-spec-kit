@@ -10,16 +10,21 @@ import {
   approveRescheduleRequest,
   approveReservationApi,
   type EquipmentStatus,
+  type EquipmentStatusChangeResult,
+  type EquipmentStatusCounts,
+  type UnavailableTargetStatus,
   fetchAdminEquipments,
   fetchPendingReservations,
   listRescheduleRequests,
   pickupReservationByAdmin,
   rejectRescheduleRequest,
   rejectReservationApi,
+  type ReservationCancelReason,
   type ReservationStatus,
   returnReservationByAdmin,
   updateEquipmentApprovalModeApi,
 } from "../api/client";
+import { EquipmentStatusDialog } from "../components/EquipmentStatusDialog";
 import { UI_TEXT } from "../text/zh-TW";
 
 /** 設備狀態徽章：可用為綠色、送修中為琥珀色實心（暫時性）、停用為中性灰（長期）（ui/plan.md §2）。 */
@@ -93,6 +98,21 @@ function slotRangeText(
   return `${date} ${slot.slotName} ${slot.startTime}–${slot.endTime}`;
 }
 
+/** 取消原因樣式：設備送修為琥珀色、設備停用為灰色、成員取消為純文字（ui/plan.md §5「因設備送修或停用取消的預約」）。 */
+const CANCEL_REASON_BADGE_STYLE: Record<ReservationCancelReason, React.CSSProperties | null> = {
+  equipment_maintenance: {
+    background: "var(--pending-soft)",
+    color: "var(--pending)",
+    border: "1px solid var(--pending)",
+  },
+  equipment_retired: {
+    background: "var(--occupied-soft)",
+    color: "var(--occupied)",
+    border: "1px solid var(--occupied)",
+  },
+  member_cancelled: null,
+};
+
 /** 「改期申請」標示：琥珀色虛線框（ui/admin.html 的 badge-reschedule） */
 const RESCHEDULE_BADGE_STYLE: React.CSSProperties = {
   background: "var(--surface)",
@@ -121,6 +141,10 @@ async function describeRescheduleNotPending(
     if (latest.status === "expired" && latest.expireReason === "new_slot_started") {
       return `無法${action}：改期申請 ${latest.requestNumber} 的新時段 ${toText} 已開始（早於原時段 ${fromText}），申請已自動變成「改期已失效」並移出待審清單。${latest.userDisplayName}的預約 ${latest.reservationNumber} 維持原時段。`;
     }
+    if (latest.status === "expired" && latest.expireReason === "reservation_cancelled") {
+      // FR-004、ui/plan.md §5「核准改期時申請已失效」：原預約因設備送修或停用被取消
+      return `無法${action}：改期申請 ${latest.requestNumber} 已變成「改期已失效」（失效原因：${UI_TEXT.rescheduleExpireReason.reservation_cancelled}），已移出待審清單。`;
+    }
     if (latest.status === "withdrawn") {
       return `無法審核：改期申請 ${latest.requestNumber} 已在 ${formatIsoToTaipeiDateTime(latest.withdrawnAt)} 被${latest.userDisplayName}撤回，目前為「改期已撤回」。只有「改期審核中」的申請可以核准或駁回。`;
     }
@@ -144,13 +168,53 @@ interface AdminOverviewViewProps {
   section: AdminOverviewSection;
   onGoToBooking: () => void;
   onSwitchAccount: () => void;
+  /** 全體預約篩選的初始值；「查看受影響的預約」切換過來時為「已取消」（FR-020）。 */
+  initialStatusFilter?: ReservationStatus | null;
+  /** 設備狀態管理頁的「查看受影響的預約」：切換到「審核與借用管理」頁籤並篩選「已取消」。 */
+  onGoToReview?: () => void;
+  /** 確認視窗的「前往登記歸還」：切換到「審核與借用管理」頁籤。 */
+  onGoToReturn?: () => void;
+  /** 登記歸還完成橫幅的「前往設備狀態管理」：切換到「設備狀態管理」頁籤。 */
+  onGoToEquipmentStatus?: () => void;
 }
+
+/** 設備狀態管理頁的版面（720px 以下一台設備一張卡片，ui/equipment-status.html）。 */
+const EQUIPMENT_STATUS_PAGE_CSS = `
+.eqs-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.eqs-table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+.eqs-table th { padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface-muted); color: var(--muted); font-size: 13px; }
+.eqs-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.eqs-name { font-weight: 600; }
+.eqs-name .mono { color: var(--primary); margin-right: 6px; }
+.eqs-cat { font-size: 12px; color: var(--muted); }
+.eqs-approval { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.eqs-change { font-size: 13px; }
+.eqs-change .mono { display: block; font-size: 12px; color: var(--muted); }
+.eqs-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .eqs-table thead { display: none; }
+  .eqs-table tr { display: block; margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .eqs-table td { display: block; padding: 4px 0; border: 0; }
+  .eqs-table td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
+}
+`;
+
+/** 各狀態可用的送修、停用操作（恢復可用另由 US2 處理）（research §4、ui/plan.md §4「設備清單」）。 */
+const UNAVAILABLE_ACTIONS: Record<EquipmentStatus, UnavailableTargetStatus[]> = {
+  available: ["maintenance", "retired"],
+  maintenance: ["retired"],
+  retired: ["maintenance"],
+};
 
 export function AdminOverviewView({
   currentUser,
   section,
   onGoToBooking,
   onSwitchAccount,
+  initialStatusFilter = null,
+  onGoToReview,
+  onGoToReturn,
+  onGoToEquipmentStatus,
 }: AdminOverviewViewProps): React.ReactElement {
   const [equipments, setEquipments] = useState<AdminEquipmentSettingDto[]>([]);
   const [pendingList, setPendingList] = useState<AdminReservationItem[]>([]);
@@ -167,13 +231,21 @@ export function AdminOverviewView({
     occupantNumber: string | null;
   } | null>(null);
   const [reservations, setReservations] = useState<AdminReservationItem[]>([]);
-  const [statusFilter, setStatusFilter] = useState<"ALL" | ReservationStatus>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | ReservationStatus>(
+    initialStatusFilter ?? "ALL",
+  );
   const [equipmentFilter, setEquipmentFilter] = useState<string>("ALL");
   const [loading, setLoading] = useState<boolean>(currentUser.role === "admin");
   const [forbidden, setForbidden] = useState<boolean>(currentUser.role !== "admin");
   const [banner, setBanner] = useState<{
     tone: "danger" | "success" | "info";
     text: string;
+    link?: { text: string; onClick: () => void };
+  } | null>(null);
+  const [statusCounts, setStatusCounts] = useState<EquipmentStatusCounts | null>(null);
+  const [statusDialog, setStatusDialog] = useState<{
+    equipment: AdminEquipmentSettingDto;
+    targetStatus: UnavailableTargetStatus;
   } | null>(null);
   const [togglingEqId, setTogglingEqId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
@@ -210,6 +282,7 @@ export function AdminOverviewView({
       ]);
 
       setEquipments(eqData.items);
+      setStatusCounts(eqData.statusCounts);
       setPendingList(pendingData.items);
       setRescheduleList(rescheduleData.items);
       setReservations(resData.items);
@@ -401,14 +474,20 @@ export function AdminOverviewView({
     setBanner(null);
     try {
       const updated = await returnReservationByAdmin(item.id);
+      // ui/plan.md §4「登記歸還完成」：歸還後可前往設備狀態管理設為送修或停用
+      const equipmentStatusLink = onGoToEquipmentStatus
+        ? { text: "前往設備狀態管理", onClick: onGoToEquipmentStatus }
+        : undefined;
       if (wasOverdue) {
         setBanner({
           tone: "success",
+          link: equipmentStatusLink,
           text: `已完成逾時設備登記歸還！預約編號 ${updated.reservationNumber}（${updated.userDisplayName}，${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}）雖已超過原時段結束時間，系統已允許結案並更新為「已歸還」，記錄實際歸還時間 ${formatIsoToTaipeiDateTime(updated.returnedAt)} 與歸還經手管理員${updated.returnedByName ?? "管理員"}${updated.returnedByUsername ? ` (${updated.returnedByUsername})` : ""}。`,
         });
       } else {
         setBanner({
           tone: "success",
+          link: equipmentStatusLink,
           text: `已完成登記歸還！預約編號 ${updated.reservationNumber}（${updated.userDisplayName}，${updated.equipmentCode} ${updated.equipmentName}，${updated.reservationDate} ${updated.slotName} ${updated.slotStartTime}–${updated.slotEndTime}）狀態已更新為「已歸還」，記錄歸還時間 ${formatIsoToTaipeiDateTime(updated.returnedAt)} 與歸還經手管理員${updated.returnedByName ?? "管理員"}${updated.returnedByUsername ? ` (${updated.returnedByUsername})` : ""}，該時段視為已履約結案不重新開放。`,
         });
       }
@@ -453,6 +532,58 @@ export function AdminOverviewView({
     }
   };
 
+  /** 設為送修或停用成功：重新拉取清單並顯示完成橫幅（ui/plan.md §4「已設為送修」「已改為停用」）。 */
+  const handleStatusChangeSuccess = async (result: EquipmentStatusChangeResult): Promise<void> => {
+    setStatusDialog(null);
+    const { equipment, statusChange, expiredRescheduleRequestCount } = result;
+    const label = `${equipment.equipmentCode} ${equipment.name}`;
+    const toLabel = UI_TEXT.equipmentStatus[statusChange.toStatus];
+    const text =
+      statusChange.fromStatus === "available"
+        ? UI_TEXT.equipmentStatusActions.setDone(
+            label,
+            toLabel,
+            statusChange.cancelledReservationCount,
+            expiredRescheduleRequestCount,
+          )
+        : UI_TEXT.equipmentStatusActions.switchDone(
+            label,
+            UI_TEXT.equipmentStatus[statusChange.fromStatus],
+            toLabel,
+            statusChange.cancelledReservationCount,
+            expiredRescheduleRequestCount,
+          );
+    setBanner({
+      tone: "success",
+      text,
+      link:
+        statusChange.cancelledReservationCount > 0 && onGoToReview
+          ? { text: "查看受影響的預約", onClick: onGoToReview }
+          : undefined,
+    });
+    await loadAdminData();
+  };
+
+  /** 確認被拒：設備狀態已被變更（FR-019）或剛被登記領取（FR-005），關閉視窗、顯示紅色橫幅並重新拉取清單。 */
+  const handleStatusChangeRejected = async (err: ApiError): Promise<void> => {
+    const target = statusDialog?.equipment;
+    setStatusDialog(null);
+    const label = target ? `${target.equipmentCode} ${target.name}` : "這台設備";
+    if (err.code === "EQUIPMENT_ON_LOAN") {
+      setBanner({
+        tone: "danger",
+        text: "設備借用中，請先登記歸還。",
+        link: onGoToReturn ? { text: "前往登記歸還", onClick: onGoToReturn } : undefined,
+      });
+    } else {
+      setBanner({
+        tone: "danger",
+        text: `設備狀態已被變更，請重新確認。${label} 與所有預約都沒有變更。`,
+      });
+    }
+    await loadAdminData();
+  };
+
   if (forbidden || currentUser.role !== "admin") {
     return (
       <div>
@@ -492,8 +623,10 @@ export function AdminOverviewView({
           </div>
           <h2 style={{ color: "var(--danger)" }}>權限不足</h2>
           <p className="muted" style={{ margin: "8px 0 22px" }}>
-            核准或駁回改期申請、審核預約與登記領取歸還，只限管理員操作。您目前登入的身分是一般成員（
-            {currentUser.displayName}）。
+            {section === "equipment"
+              ? "設定送修、停用與恢復可用只限管理員操作。"
+              : "核准或駁回改期申請、審核預約與登記領取歸還，只限管理員操作。"}
+            您目前登入的身分是一般成員（{currentUser.displayName}）。
           </p>
           <div
             style={{
@@ -536,85 +669,178 @@ export function AdminOverviewView({
       {banner && (
         <div className={`banner banner-${banner.tone}`} role="alert" data-testid="admin-banner">
           <span>{banner.text}</span>
+          {banner.link && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={banner.link.onClick}
+              data-testid="admin-banner-link"
+            >
+              {banner.link.text}
+            </button>
+          )}
         </div>
       )}
 
       {section === "equipment" && (
         <>
-          <h2>預建單件獨立設備清單（共 {equipments.length} 台）</h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "14px",
-              marginBottom: "24px",
-            }}
-          >
-            {equipments.map((eq) => (
-              <div
-                key={eq.id}
-                className="card"
-                data-testid={`admin-eq-card-${eq.equipmentCode}`}
-                style={{ padding: "16px", display: "grid", gap: "8px" }}
-              >
+          <style>{EQUIPMENT_STATUS_PAGE_CSS}</style>
+          {loading && equipments.length === 0 ? (
+            <div className="card" style={{ padding: "24px", color: "var(--muted)" }}>
+              正在載入設備狀態…
+            </div>
+          ) : (
+            <>
+              {statusCounts && (
+                <div
+                  className="eqs-summary"
+                  aria-label="設備狀態統計"
+                  data-testid="equipment-status-summary"
+                >
+                  {(["available", "maintenance", "retired"] as const).map((st, i) => (
+                    <React.Fragment key={st}>
+                      {i > 0 && (
+                        <span className="muted" aria-hidden="true">
+                          ｜
+                        </span>
+                      )}
+                      <span
+                        className={`badge ${EQUIPMENT_STATUS_BADGE_CLASS[st]}`}
+                        style={EQUIPMENT_STATUS_BADGE_STYLE[st]}
+                      >
+                        {UI_TEXT.equipmentStatus[st]} {statusCounts[st]}
+                      </span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
+              <div className="card" style={{ padding: "16px", marginBottom: "24px" }}>
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    alignItems: "center",
+                    alignItems: "baseline",
                     gap: "8px",
                     flexWrap: "wrap",
+                    marginBottom: "8px",
                   }}
                 >
-                  <span
-                    className="mono"
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      color: "var(--primary)",
-                    }}
-                  >
-                    {eq.equipmentCode}
+                  <h2 style={{ margin: 0 }}>設備清單（共 {equipments.length} 台）</h2>
+                  <span className="muted" style={{ fontSize: "13px" }}>
+                    最近變更顯示最近一次狀態變更的管理員與時間
                   </span>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    <span
-                      className={`badge ${eq.requiresApproval ? "badge-pending" : "badge-available"}`}
-                      data-testid={`admin-eq-mode-${eq.equipmentCode}`}
-                    >
-                      {eq.requiresApproval
-                        ? UI_TEXT.approvalModes.requiresApproval
-                        : UI_TEXT.approvalModes.noApproval}
-                    </span>
-                    <span
-                      className={`badge ${EQUIPMENT_STATUS_BADGE_CLASS[eq.status]}`}
-                      style={EQUIPMENT_STATUS_BADGE_STYLE[eq.status]}
-                    >
-                      {UI_TEXT.equipmentStatus[eq.status]}
-                    </span>
-                  </div>
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: 700 }}>{eq.name}</div>
-                <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-                  分類：{eq.category}｜更新：
-                  <span className="mono">{formatIsoToTaipeiDateTime(eq.updatedAt)}</span>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={togglingEqId === eq.id}
-                  data-testid={`toggle-approval-btn-${eq.equipmentCode}`}
-                  onClick={() => void handleToggleApprovalMode(eq)}
-                  style={{ marginTop: "4px" }}
-                >
-                  {togglingEqId === eq.id
-                    ? "儲存設定中…"
-                    : eq.requiresApproval
-                      ? "切換為免審核"
-                      : "切換為需人工審核"}
-                </button>
+                <table className="eqs-table" data-testid="equipment-status-table">
+                  <thead>
+                    <tr>
+                      <th>設備</th>
+                      <th>狀態</th>
+                      <th>審核設定</th>
+                      <th>最近變更</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipments.map((eq) => (
+                      <tr key={eq.id} data-testid={`admin-eq-card-${eq.equipmentCode}`}>
+                        <td data-label="設備">
+                          <div className="eqs-name">
+                            <span className="mono">{eq.equipmentCode}</span>
+                            {eq.name}
+                          </div>
+                          <div className="eqs-cat">分類：{eq.category}</div>
+                        </td>
+                        <td data-label="狀態">
+                          <span
+                            className={`badge ${EQUIPMENT_STATUS_BADGE_CLASS[eq.status]}`}
+                            style={EQUIPMENT_STATUS_BADGE_STYLE[eq.status]}
+                            data-testid={`admin-eq-status-${eq.equipmentCode}`}
+                          >
+                            {UI_TEXT.equipmentStatus[eq.status]}
+                          </span>
+                        </td>
+                        <td data-label="審核設定">
+                          <div className="eqs-approval">
+                            <span
+                              className={`badge ${eq.requiresApproval ? "badge-pending" : "badge-available"}`}
+                              data-testid={`admin-eq-mode-${eq.equipmentCode}`}
+                            >
+                              {eq.requiresApproval
+                                ? UI_TEXT.approvalModes.requiresApproval
+                                : UI_TEXT.approvalModes.noApproval}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              disabled={togglingEqId === eq.id}
+                              data-testid={`toggle-approval-btn-${eq.equipmentCode}`}
+                              onClick={() => void handleToggleApprovalMode(eq)}
+                            >
+                              {togglingEqId === eq.id
+                                ? "儲存設定中…"
+                                : eq.requiresApproval
+                                  ? "切換為免審核"
+                                  : "切換為需人工審核"}
+                            </button>
+                          </div>
+                        </td>
+                        <td
+                          data-label="最近變更"
+                          className="eqs-change"
+                          data-testid={`admin-eq-last-change-${eq.equipmentCode}`}
+                        >
+                          {eq.lastStatusChange ? (
+                            <>
+                              {eq.lastStatusChange.changedByDisplayName}
+                              <span className="mono">
+                                {formatIsoToTaipeiDateTime(eq.lastStatusChange.changedAt)}
+                              </span>
+                              <span className="muted">
+                                {UI_TEXT.equipmentStatus[eq.lastStatusChange.fromStatus]} →{" "}
+                                {UI_TEXT.equipmentStatus[eq.lastStatusChange.toStatus]}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="muted">尚無狀態變更</span>
+                          )}
+                        </td>
+                        <td data-label="操作">
+                          <div className="eqs-actions">
+                            {UNAVAILABLE_ACTIONS[eq.status].map((target) => (
+                              <button
+                                key={target}
+                                type="button"
+                                className={`btn btn-sm${target === "maintenance" ? " btn-pending" : ""}`}
+                                data-testid={`eq-${target === "maintenance" ? "set-maintenance" : "set-retired"}-btn-${eq.equipmentCode}`}
+                                onClick={() => {
+                                  setBanner(null);
+                                  setStatusDialog({ equipment: eq, targetStatus: target });
+                                }}
+                              >
+                                {target === "maintenance"
+                                  ? UI_TEXT.equipmentStatusActions.setMaintenance
+                                  : UI_TEXT.equipmentStatusActions.setRetired}
+                              </button>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+            </>
+          )}
+          {statusDialog && (
+            <EquipmentStatusDialog
+              equipment={statusDialog.equipment}
+              targetStatus={statusDialog.targetStatus}
+              onClose={() => setStatusDialog(null)}
+              onSuccess={(result) => void handleStatusChangeSuccess(result)}
+              onConfirmRejected={(err) => void handleStatusChangeRejected(err)}
+              onGoToReturn={onGoToReturn}
+            />
+          )}
         </>
       )}
 
@@ -1103,6 +1329,9 @@ export function AdminOverviewView({
                       預約狀態
                     </th>
                     <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      取消原因
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
                       領取時間／經手管理員
                     </th>
                     <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
@@ -1180,6 +1409,33 @@ export function AdminOverviewView({
                                 改期審核中 {r.pendingRescheduleRequest.requestNumber}
                               </span>
                             </div>
+                          )}
+                        </td>
+                        <td
+                          style={{ padding: "13px 16px", fontSize: "13px" }}
+                          data-testid={`admin-cancel-reason-${r.reservationNumber}`}
+                        >
+                          {r.status === "cancelled" && r.cancelReason ? (
+                            <div style={{ display: "grid", gap: "2px" }}>
+                              {CANCEL_REASON_BADGE_STYLE[r.cancelReason] ? (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    ...CANCEL_REASON_BADGE_STYLE[r.cancelReason],
+                                    justifySelf: "start",
+                                  }}
+                                >
+                                  {UI_TEXT.cancelReason[r.cancelReason]}
+                                </span>
+                              ) : (
+                                <span>{UI_TEXT.cancelReason[r.cancelReason]}</span>
+                              )}
+                              <span className="mono muted" style={{ fontSize: "12px" }}>
+                                取消時間 {formatIsoToTaipeiDateTime(r.cancelledAt)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="muted">—</span>
                           )}
                         </td>
                         <td style={{ padding: "13px 16px", fontSize: "13px" }}>

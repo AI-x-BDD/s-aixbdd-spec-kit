@@ -29,6 +29,10 @@ export function App(): React.ReactElement {
   });
   const [activeView, setActiveView] = useState<ViewName>("login");
   const [bookingTargetDate, setBookingTargetDate] = useState<string | null>(null);
+  // 「查看受影響的預約」切到審核與借用管理時，全體預約篩選預設為「已取消」（FR-020）
+  const [adminInitialStatusFilter, setAdminInitialStatusFilter] = useState<"cancelled" | null>(
+    null,
+  );
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [restoringSession, setRestoringSession] = useState<boolean>(() =>
     Boolean(getStoredToken()),
@@ -90,6 +94,8 @@ export function App(): React.ReactElement {
       setActiveView("login");
       return;
     }
+    // 從頁首導覽切換時，全體預約篩選回到「全部」
+    setAdminInitialStatusFilter(null);
     setActiveView(target);
   };
 
@@ -247,8 +253,24 @@ export function App(): React.ReactElement {
             key={activeView}
             currentUser={currentUser}
             section={activeView === "equipment-status" ? "equipment" : "review"}
+            initialStatusFilter={activeView === "admin" ? adminInitialStatusFilter : null}
             onGoToBooking={() => setActiveView("booking")}
             onSwitchAccount={() => void handleLogout()}
+            onGoToReview={() => {
+              // 設備狀態管理的「查看受影響的預約」：切到審核與借用管理並篩選「已取消」（ui/plan.md §3.2）
+              setAdminInitialStatusFilter("cancelled");
+              setActiveView("admin");
+            }}
+            onGoToReturn={() => {
+              // 確認視窗的「前往登記歸還」：切到審核與借用管理（FR-005）
+              setAdminInitialStatusFilter(null);
+              setActiveView("admin");
+            }}
+            onGoToEquipmentStatus={() => {
+              // 登記歸還完成橫幅的「前往設備狀態管理」（ui/plan.md §3.2）
+              setAdminInitialStatusFilter(null);
+              setActiveView("equipment-status");
+            }}
           />
         ) : (
           <EquipmentBookingView

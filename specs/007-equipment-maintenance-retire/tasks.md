@@ -152,7 +152,7 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 > D2、D3 的 Enum、`cancel_reason` 與 `equipment_status_changes` 已在 Foundational 建立，本故事沒有資料庫任務。
 
-- [ ] T014 [US1] 在 `backend/src/services/equipmentService.ts` 擴充 `listAdminEquipments`：新增選填篩選 `status`；每台設備回傳 `lastStatusChange`（依 `idx_equipment_status_changes_equipment_changed` 取 `changed_at` 最大且 `deleted_at` 為 null 的一筆，join `users.display_name`，輸出 `changedBy`、`changedByDisplayName`、`changedAt`、`fromStatus`、`toStatus`，沒有紀錄時為 null）；回應新增 `statusCounts`（全部設備依狀態的台數，不受篩選影響）；`updateEquipmentApprovalMode` 回傳同一個含 `lastStatusChange` 的 DTO；在 `backend/src/routes/adminRouter.ts` 的 `GET /admin/equipments` 以 zod 驗證新的 `status` 查詢參數（FR-008、US1 情境 10）
+- [X] T014 [US1] 在 `backend/src/services/equipmentService.ts` 擴充 `listAdminEquipments`：新增選填篩選 `status`；每台設備回傳 `lastStatusChange`（依 `idx_equipment_status_changes_equipment_changed` 取 `changed_at` 最大且 `deleted_at` 為 null 的一筆，join `users.display_name`，輸出 `changedBy`、`changedByDisplayName`、`changedAt`、`fromStatus`、`toStatus`，沒有紀錄時為 null）；回應新增 `statusCounts`（全部設備依狀態的台數，不受篩選影響）；`updateEquipmentApprovalMode` 回傳同一個含 `lastStatusChange` 的 DTO；在 `backend/src/routes/adminRouter.ts` 的 `GET /admin/equipments` 以 zod 驗證新的 `status` 查詢參數（FR-008、US1 情境 10）
   - **Must Read**
     - `contracts/openapi.yaml` → `listAdminEquipments`、`AdminEquipmentPage`、`AdminEquipmentSetting` — Why：新增的 `status` 篩選、`statusCounts` 與排序分頁規則
     - `contracts/openapi.yaml` → `LastEquipmentStatusChange`、`EquipmentStatusCounts` — Why：最近一次變更與狀態台數的欄位
@@ -160,7 +160,7 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
     - `data/data-model.dbml` → `Table users` 的 `display_name` — Why：最近變更的管理員名稱來源
   - **Optional**
     - `contracts/openapi.yaml` → `updateEquipmentApprovalMode` — Why：需要確認切換審核設定時設備送修中或停用也可以切換時
-- [ ] T015 [US1] 新增 `backend/src/services/equipmentStatusService.ts`，先寫預覽與確認共用的計數函式：這台設備 `deleted_at` 為 null、`status` 為 `pending_approval` 或 `confirmed`，且時段結束時間（`reservation_date` 加 `time_slots.end_time`，依 `Asia/Taipei` 解讀）晚於目前時間的預約數為 `cancelCount`；其中有 `pending_approval` 改期申請的筆數為 `expireCount`；`checked_out`（含逾期未還）的預約轉成 `checkedOutReservations`（依 `reservationDate`、`slotStartTime`、`reservationId` 由小到大，附 `isOverdue`）；再實作 `getEquipmentStatusChangePreview(equipmentId, targetStatus)`：在交易內先呼叫 `expireDueRescheduleRequests(tx, now)`，設備不存在回 `404 RESOURCE_NOT_FOUND`，`targetStatus` 等於目前狀態回 `409 EQUIPMENT_STATUS_UNCHANGED`，回傳 `EquipmentStatusChangePreview`；本操作不改變任何設備、預約與改期申請（FR-002、FR-003、FR-004、FR-005、FR-007、US1 情境 3、4、6、16）
+- [X] T015 [US1] 新增 `backend/src/services/equipmentStatusService.ts`，先寫預覽與確認共用的計數函式：這台設備 `deleted_at` 為 null、`status` 為 `pending_approval` 或 `confirmed`，且時段結束時間（`reservation_date` 加 `time_slots.end_time`，依 `Asia/Taipei` 解讀）晚於目前時間的預約數為 `cancelCount`；其中有 `pending_approval` 改期申請的筆數為 `expireCount`；`checked_out`（含逾期未還）的預約轉成 `checkedOutReservations`（依 `reservationDate`、`slotStartTime`、`reservationId` 由小到大，附 `isOverdue`）；再實作 `getEquipmentStatusChangePreview(equipmentId, targetStatus)`：在交易內先呼叫 `expireDueRescheduleRequests(tx, now)`，設備不存在回 `404 RESOURCE_NOT_FOUND`，`targetStatus` 等於目前狀態回 `409 EQUIPMENT_STATUS_UNCHANGED`，回傳 `EquipmentStatusChangePreview`；本操作不改變任何設備、預約與改期申請（FR-002、FR-003、FR-004、FR-005、FR-007、US1 情境 3、4、6、16）
   - **Must Read**
     - `contracts/openapi.yaml` → `getEquipmentStatusChangePreview`、`EquipmentStatusChangePreview`、`CheckedOutReservationSummary` — Why：3 個計數的條件、回傳欄位與借用中預約摘要的排序
     - `research.md` → §2 — Why：預覽與確認時共用同一組計算條件
@@ -168,7 +168,7 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
     - `spec.md` → FR-002、FR-003、FR-004、FR-005 — Why：要計入取消與失效的預約範圍，以及借用中的判斷
   - **Optional**
     - `spec.md` → Edge Cases「設備有逾期未還的借用」 — Why：需要確認逾期未還仍視為借用中時
-- [ ] T016 [US1] 在 `backend/src/services/equipmentStatusService.ts` 實作 `updateEquipmentStatus` 的送修與停用路徑（`targetStatus` 為 `maintenance` 或 `retired`）：以單一 `prisma.$transaction(async (tx) => ...)` 執行，第一個語句以 `tx.$queryRaw` 下達 `SELECT status FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`，接著呼叫 `expireDueRescheduleRequests(tx, now)`；依序檢查：有 `checked_out` 預約回 `EQUIPMENT_ON_LOAN`；目前狀態不等於 `expectedCurrentStatus` 回 `EQUIPMENT_STATE_CHANGED`、目標狀態等於目前狀態回 `EQUIPMENT_STATUS_UNCHANGED`（判斷順序見 Notes 待確認 3）；以 T015 的計數函式重算，和 `expectedCancelCount`、`expectedExpireCount` 任一不同回 `EQUIPMENT_STATE_CHANGED`；通過後以一條 `UPDATE reservations r SET status = 'cancelled', cancel_reason = ..., cancelled_at = now, updated_at = now, updated_by = 管理員 FROM time_slots s WHERE ... RETURNING r.id` 取消預約（`cancel_reason` 為 `equipment_maintenance` 或 `equipment_retired`）；以一條 `updateMany` 把這些預約的 `pending_approval` 改期申請改為 `expired`、`expire_reason` 為 `reservation_cancelled`、`expired_at` 為 now、`updated_by` 為管理員；更新 `equipments.status`、`updated_at`、`updated_by`（不改 `requires_approval`）；新增一筆 `equipment_status_changes`（`changed_at` 為 now，`cancelled_reservation_count` 為 RETURNING 的筆數）；回傳 `EquipmentStatusChangeResult`；送修中與停用直接切換走同一條路徑（FR-001、FR-002、FR-003、FR-004、FR-005、FR-008、FR-010、FR-019、US1 情境 2、5、6、7、8、11、15、16）
+- [X] T016 [US1] 在 `backend/src/services/equipmentStatusService.ts` 實作 `updateEquipmentStatus` 的送修與停用路徑（`targetStatus` 為 `maintenance` 或 `retired`）：以單一 `prisma.$transaction(async (tx) => ...)` 執行，第一個語句以 `tx.$queryRaw` 下達 `SELECT status FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`，接著呼叫 `expireDueRescheduleRequests(tx, now)`；依序檢查：有 `checked_out` 預約回 `EQUIPMENT_ON_LOAN`；目前狀態不等於 `expectedCurrentStatus` 回 `EQUIPMENT_STATE_CHANGED`、目標狀態等於目前狀態回 `EQUIPMENT_STATUS_UNCHANGED`（判斷順序見 Notes 待確認 3）；以 T015 的計數函式重算，和 `expectedCancelCount`、`expectedExpireCount` 任一不同回 `EQUIPMENT_STATE_CHANGED`；通過後以一條 `UPDATE reservations r SET status = 'cancelled', cancel_reason = ..., cancelled_at = now, updated_at = now, updated_by = 管理員 FROM time_slots s WHERE ... RETURNING r.id` 取消預約（`cancel_reason` 為 `equipment_maintenance` 或 `equipment_retired`）；以一條 `updateMany` 把這些預約的 `pending_approval` 改期申請改為 `expired`、`expire_reason` 為 `reservation_cancelled`、`expired_at` 為 now、`updated_by` 為管理員；更新 `equipments.status`、`updated_at`、`updated_by`（不改 `requires_approval`）；新增一筆 `equipment_status_changes`（`changed_at` 為 now，`cancelled_reservation_count` 為 RETURNING 的筆數）；回傳 `EquipmentStatusChangeResult`；送修中與停用直接切換走同一條路徑（FR-001、FR-002、FR-003、FR-004、FR-005、FR-008、FR-010、FR-019、US1 情境 2、5、6、7、8、11、15、16）
   - **Must Read**
     - `contracts/openapi.yaml` → `updateEquipmentStatus`、`SetEquipmentUnavailableRequest` — Why：檢查順序、批次更新內容與各錯誤碼
     - `contracts/openapi.yaml` → `EquipmentStatusChangeResult`、`EquipmentStatusChange` — Why：成功時的回應欄位
@@ -179,30 +179,30 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
     - `spec.md` → FR-019、US1 情境 15 — Why：確認時狀態或數量不同要拒絕，且設備、預約與改期申請都不變
   - **Optional**
     - `data/data-model.dbml` → `Enum reservation_status` — Why：需要確認 `returned`、`rejected`、`cancelled` 不在取消範圍時
-- [ ] T017 [US1] 在 `backend/src/routes/adminRouter.ts` 新增 `GET /admin/equipments/:equipmentId/status-change-preview`（`getEquipmentStatusChangePreview`）：以 zod 驗證路徑參數 uuid 與 `targetStatus`（`maintenance`、`retired`），不符時回 `VALIDATION_FAILED`；新增 `PATCH /admin/equipments/:equipmentId/status`（`updateEquipmentStatus`）：以 zod 驗證 `SetEquipmentUnavailableRequest`，缺少 expected 欄位時回 `VALIDATION_FAILED`，把 `req.authUser.id` 傳給服務作為經手管理員；兩者都掛在 `requireAuth`、`requireAdmin` 之後（FR-007、FR-017、NFR-002）
+- [X] T017 [US1] 在 `backend/src/routes/adminRouter.ts` 新增 `GET /admin/equipments/:equipmentId/status-change-preview`（`getEquipmentStatusChangePreview`）：以 zod 驗證路徑參數 uuid 與 `targetStatus`（`maintenance`、`retired`），不符時回 `VALIDATION_FAILED`；新增 `PATCH /admin/equipments/:equipmentId/status`（`updateEquipmentStatus`）：以 zod 驗證 `SetEquipmentUnavailableRequest`，缺少 expected 欄位時回 `VALIDATION_FAILED`，把 `req.authUser.id` 傳給服務作為經手管理員；兩者都掛在 `requireAuth`、`requireAdmin` 之後（FR-007、FR-017、NFR-002）
   - **Must Read**
     - `contracts/openapi.yaml` → `getEquipmentStatusChangePreview`、`updateEquipmentStatus` — Why：兩個路由的路徑、查詢參數、狀態碼與回應
     - `contracts/openapi.yaml` → `SetEquipmentUnavailableRequest` — Why：設為送修或停用時必填的 expected 欄位
-- [ ] T018 [US1] 在 `backend/src/services/reservationService.ts` 的 `toReservationDto` 加入 `cancelReason`（取自 `cancel_reason`，未取消時為 null），讓 `Reservation` 與 `AdminReservationItem` 都帶取消原因；`listAllReservations` 照常回傳送修中與停用設備上的紀錄（FR-020、US1 情境 17）
+- [X] T018 [US1] 在 `backend/src/services/reservationService.ts` 的 `toReservationDto` 加入 `cancelReason`（取自 `cancel_reason`，未取消時為 null），讓 `Reservation` 與 `AdminReservationItem` 都帶取消原因；`listAllReservations` 照常回傳送修中與停用設備上的紀錄（FR-020、US1 情境 17）
   - **Must Read**
     - `contracts/openapi.yaml` → `AdminReservationItem` 的 `cancelReason`、`cancelledAt` — Why：取消原因的值與為 null 的情況
     - `contracts/openapi.yaml` → `listAllReservations` — Why：全體預約回傳取消原因，管理員從這裡找出受影響的成員
-- [ ] T019 [US1] 在 `backend/src/services/reservationService.ts` 把 `createReservation` 的檢查與新增包進單一 `prisma.$transaction(async (tx) => ...)`：第一個語句以 `tx.$queryRaw` 下達 `SELECT status, requires_approval FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR SHARE`，取得鎖之後才檢查狀態；`status` 不是 `available` 時回 `409 EQUIPMENT_UNAVAILABLE`，訊息依狀態寫「設備送修中，無法預約」或「設備已停用，無法預約」；新預約依鎖定後讀到的 `requires_approval` 決定 `pending_approval` 或 `confirmed`；`P2002` 轉成 `409` 的既有處理不變（FR-006、FR-009、FR-013、US1 情境 9、12、SC-002）
+- [X] T019 [US1] 在 `backend/src/services/reservationService.ts` 把 `createReservation` 的檢查與新增包進單一 `prisma.$transaction(async (tx) => ...)`：第一個語句以 `tx.$queryRaw` 下達 `SELECT status, requires_approval FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR SHARE`，取得鎖之後才檢查狀態；`status` 不是 `available` 時回 `409 EQUIPMENT_UNAVAILABLE`，訊息依狀態寫「設備送修中，無法預約」或「設備已停用，無法預約」；新預約依鎖定後讀到的 `requires_approval` 決定 `pending_approval` 或 `confirmed`；`P2002` 轉成 `409` 的既有處理不變（FR-006、FR-009、FR-013、US1 情境 9、12、SC-002）
   - **Must Read**
     - `contracts/openapi.yaml` → `createReservation`、`CreateReservationConflict` — Why：交易內鎖定設備列的時機與 `EQUIPMENT_UNAVAILABLE` 的訊息
     - `research.md` → §3 — Why：`FOR SHARE` 與 `FOR UPDATE` 互斥的序列化做法，以及 `createReservation` 改成單一交易
     - `spec.md` → FR-006、FR-009 — Why：非可用設備拒絕新預約，同時發生時設備不留下未結束預約
-- [ ] T020 [US1] 在 `backend/src/services/reservationService.ts` 的 `approveReservation`，交易第一個語句改為 `SELECT status, requires_approval FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR SHARE`；取得鎖之後，申請已非 `pending_approval` 時回 `409 INVALID_RESERVATION_STATUS`，若是因設備送修或停用被取消，訊息寫出取消時間與原因；設備 `status` 不是 `available` 時回 `409 EQUIPMENT_UNAVAILABLE`（FR-002、FR-009、Edge Cases 待審核的預約）
+- [X] T020 [US1] 在 `backend/src/services/reservationService.ts` 的 `approveReservation`，交易第一個語句改為 `SELECT status, requires_approval FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR SHARE`；取得鎖之後，申請已非 `pending_approval` 時回 `409 INVALID_RESERVATION_STATUS`，若是因設備送修或停用被取消，訊息寫出取消時間與原因；設備 `status` 不是 `available` 時回 `409 EQUIPMENT_UNAVAILABLE`（FR-002、FR-009、Edge Cases 待審核的預約）
   - **Must Read**
     - `contracts/openapi.yaml` → `approveReservation`、`ApproveReservationConflict` — Why：鎖定順序與兩種 409 的判斷
     - `research.md` → §3 — Why：核准待審預約也要先以 `FOR SHARE` 鎖定設備列
     - `ui/plan.md` → §5 `admin.html` 的「核准時預約已取消」 — Why：錯誤訊息要寫出取消時間與原因
-- [ ] T021 [US1] 在 `backend/src/services/reservationService.ts` 的 `pickupReservationByAdmin` 與 `rejectReservation`，預約已因設備送修或停用被取消時回 `409 INVALID_RESERVATION_STATUS`，訊息寫出取消時間與取消原因；登記領取被拒時說明不能領取這台設備（FR-003、Edge Cases 時段進行中但尚未領取）
+- [X] T021 [US1] 在 `backend/src/services/reservationService.ts` 的 `pickupReservationByAdmin` 與 `rejectReservation`，預約已因設備送修或停用被取消時回 `409 INVALID_RESERVATION_STATUS`，訊息寫出取消時間與取消原因；登記領取被拒時說明不能領取這台設備（FR-003、Edge Cases 時段進行中但尚未領取）
   - **Must Read**
     - `contracts/openapi.yaml` → `pickupReservationByAdmin`、`rejectReservation` — Why：已因設備送修或停用取消時的 409 與訊息內容
     - `spec.md` → FR-003 — Why：時段已開始但尚未領取的預約被取消後不能再領取
     - `ui/plan.md` → §5 `admin.html` 的「登記領取時預約已取消」 — Why：登記領取被拒時的提示文字
-- [ ] T022 [P] [US1] 在 `backend/src/services/rescheduleService.ts` 的 `createRescheduleRequest` 即時改期路徑（設備 `requires_approval` 為 false）與 `approveRescheduleRequest`，交易第一個語句改為 `SELECT status, requires_approval FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR SHARE`，取得鎖之後設備 `status` 不是 `available` 時回 `409 EQUIPMENT_UNAVAILABLE`，訊息依狀態寫「設備送修中」或「設備已停用」；改期申請已因原預約被取消而 `expired` 時維持回 `409 INVALID_RESCHEDULE_STATUS`；需人工審核設備送出改期申請的路徑依合約不鎖設備列（見 Notes 待確認 4）（FR-004、FR-009）
+- [X] T022 [P] [US1] 在 `backend/src/services/rescheduleService.ts` 的 `createRescheduleRequest` 即時改期路徑（設備 `requires_approval` 為 false）與 `approveRescheduleRequest`，交易第一個語句改為 `SELECT status, requires_approval FROM equipments WHERE id = $1 AND deleted_at IS NULL FOR SHARE`，取得鎖之後設備 `status` 不是 `available` 時回 `409 EQUIPMENT_UNAVAILABLE`，訊息依狀態寫「設備送修中」或「設備已停用」；改期申請已因原預約被取消而 `expired` 時維持回 `409 INVALID_RESCHEDULE_STATUS`；需人工審核設備送出改期申請的路徑依合約不鎖設備列（見 Notes 待確認 4）（FR-004、FR-009）
   - **Must Read**
     - `contracts/openapi.yaml` → `createRescheduleRequest`、`approveRescheduleRequest` — Why：哪些路徑要先鎖定設備列，以及 `EQUIPMENT_UNAVAILABLE`、`INVALID_RESCHEDULE_STATUS` 的情況
     - `research.md` → §3 — Why：即時改期與核准改期申請的鎖定順序
@@ -211,17 +211,17 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 ### 前端（F4、F5）
 
-- [ ] T023 [US1] 在 `frontend/src/api/client.ts` 新增 `getEquipmentStatusChangePreview(equipmentId, targetStatus)`（`GET /admin/equipments/{equipmentId}/status-change-preview`）與 `updateEquipmentStatus(equipmentId, body)`（`PATCH /admin/equipments/{equipmentId}/status`，`body` 型別為 `UpdateEquipmentStatusRequest`），以及 `EquipmentStatusChangePreview`、`CheckedOutReservationSummary`、`EquipmentStatusChangeResult`、`EquipmentStatusChange` 型別；`AdminEquipmentSetting` 加入 `lastStatusChange`，`AdminEquipmentPage` 加入 `statusCounts`，`Reservation` 與 `AdminReservationItem` 加入 `cancelReason`（FR-007、FR-008、FR-020）
+- [X] T023 [US1] 在 `frontend/src/api/client.ts` 新增 `getEquipmentStatusChangePreview(equipmentId, targetStatus)`（`GET /admin/equipments/{equipmentId}/status-change-preview`）與 `updateEquipmentStatus(equipmentId, body)`（`PATCH /admin/equipments/{equipmentId}/status`，`body` 型別為 `UpdateEquipmentStatusRequest`），以及 `EquipmentStatusChangePreview`、`CheckedOutReservationSummary`、`EquipmentStatusChangeResult`、`EquipmentStatusChange` 型別；`AdminEquipmentSetting` 加入 `lastStatusChange`，`AdminEquipmentPage` 加入 `statusCounts`，`Reservation` 與 `AdminReservationItem` 加入 `cancelReason`（FR-007、FR-008、FR-020）
   - **Must Read**
     - `contracts/openapi.yaml` → `getEquipmentStatusChangePreview`、`updateEquipmentStatus` — Why：呼叫的路徑、參數與回應
     - `contracts/openapi.yaml` → `EquipmentStatusChangePreview`、`UpdateEquipmentStatusRequest`、`EquipmentStatusChangeResult` — Why：預覽、請求與結果的前端型別
     - `contracts/openapi.yaml` → `LastEquipmentStatusChange`、`EquipmentStatusCounts`、`ReservationCancelReason` — Why：設備清單與預約清單新增欄位的型別
-- [ ] T024 [US1] 在 `frontend/src/text/zh-TW.ts` 新增取消原因標籤（`equipment_maintenance` 設備送修、`equipment_retired` 設備停用、`member_cancelled` 成員取消，見 Notes 待確認 2）、確認視窗與設備操作文字（「設為送修」「設為停用」「確認設為送修」「確認設為停用」「設定中…」、「將取消 N 筆預約、M 筆改期申請將失效」），以及錯誤碼 `EQUIPMENT_ON_LOAN`、`EQUIPMENT_STATUS_UNCHANGED`、`EQUIPMENT_STATE_CHANGED` 的說明（NFR-001、FR-005、FR-019）
+- [X] T024 [US1] 在 `frontend/src/text/zh-TW.ts` 新增取消原因標籤（`equipment_maintenance` 設備送修、`equipment_retired` 設備停用、`member_cancelled` 成員取消，見 Notes 待確認 2）、確認視窗與設備操作文字（「設為送修」「設為停用」「確認設為送修」「確認設為停用」「設定中…」、「將取消 N 筆預約、M 筆改期申請將失效」），以及錯誤碼 `EQUIPMENT_ON_LOAN`、`EQUIPMENT_STATUS_UNCHANGED`、`EQUIPMENT_STATE_CHANGED` 的說明（NFR-001、FR-005、FR-019）
   - **Must Read**
     - `ui/plan.md` → §4 `equipment-status.html` 的「設為送修確認視窗」「狀態變更處理中」「已設為送修」 — Why：確認視窗、處理中與完成橫幅的文字
     - `ui/plan.md` → §5 `equipment-status.html` 的「設備借用中」「設備狀態已被變更」 — Why：兩種拒絕情況的提示文字
     - `spec.md` → NFR-001 — Why：新增文字與錯誤提示使用臺灣繁體中文並說明失敗原因
-- [ ] T025 [US1] 新增 `frontend/src/components/EquipmentStatusDialog.tsx`，沿用 `RescheduleDialog.tsx` 的自製對話框寫法：開啟時呼叫 `getEquipmentStatusChangePreview`，計算中顯示轉圈與「正在計算將取消的預約與將失效的改期申請…」並停用確認按鈕；預覽完成後顯示標題「設為送修：<設備編號> <設備名稱>」、狀態「可用 → 送修中」、大字「將取消 N 筆預約、M 筆改期申請將失效」、取消範圍與已結束紀錄不變、恢復後不會自動復原的說明，目標為停用時加上「停用後，這台設備會從成員的設備清單隱藏。」；按鈕「取消」與「確認設為送修」或「確認設為停用」；確認時把 `currentStatus`、`cancelCount`、`expireCount` 原樣放入 `expectedCurrentStatus`、`expectedCancelCount`、`expectedExpireCount`；送出中兩個按鈕都停用，確認按鈕改為「設定中…」；`hasCheckedOutReservation` 為 true 時不顯示數量，改為紅框「設備借用中，請先登記歸還」並列出每筆借用（逾期時說明已超過歸還時間），停用確認按鈕並提供「前往登記歸還」；收到 `EQUIPMENT_STATE_CHANGED` 時關閉視窗並把錯誤交給上層顯示；手機寬度改為全螢幕（FR-005、FR-007、FR-019、US1 情境 3、4、8、15）
+- [X] T025 [US1] 新增 `frontend/src/components/EquipmentStatusDialog.tsx`，沿用 `RescheduleDialog.tsx` 的自製對話框寫法：開啟時呼叫 `getEquipmentStatusChangePreview`，計算中顯示轉圈與「正在計算將取消的預約與將失效的改期申請…」並停用確認按鈕；預覽完成後顯示標題「設為送修：<設備編號> <設備名稱>」、狀態「可用 → 送修中」、大字「將取消 N 筆預約、M 筆改期申請將失效」、取消範圍與已結束紀錄不變、恢復後不會自動復原的說明，目標為停用時加上「停用後，這台設備會從成員的設備清單隱藏。」；按鈕「取消」與「確認設為送修」或「確認設為停用」；確認時把 `currentStatus`、`cancelCount`、`expireCount` 原樣放入 `expectedCurrentStatus`、`expectedCancelCount`、`expectedExpireCount`；送出中兩個按鈕都停用，確認按鈕改為「設定中…」；`hasCheckedOutReservation` 為 true 時不顯示數量，改為紅框「設備借用中，請先登記歸還」並列出每筆借用（逾期時說明已超過歸還時間），停用確認按鈕並提供「前往登記歸還」；收到 `EQUIPMENT_STATE_CHANGED` 時關閉視窗並把錯誤交給上層顯示；手機寬度改為全螢幕（FR-005、FR-007、FR-019、US1 情境 3、4、8、15）
   - **Must Read**
     - `research.md` → §4 — Why：確認視窗先呼叫預覽、確認時帶入預覽結果、收到 409 時關閉視窗的處理
     - `ui/plan.md` → §3.3 A10、A11、A12 — Why：開啟、確認與取消確認視窗的使用者操作
@@ -229,20 +229,20 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
     - `ui/plan.md` → §5 `equipment-status.html` 的「設備借用中」「設備狀態已被變更」「取消確認視窗」 — Why：拒絕與取消時的回饋
     - `ui/equipment-status.html` → 雛形狀態「計算受影響預約中」「設為送修確認視窗」「設備借用中」 — Why：視窗版面與大字數量的實際樣子
     - `contracts/openapi.yaml` → `EquipmentStatusChangePreview` — Why：確認時要原樣帶入的 3 個值
-- [ ] T026 [US1] 在 `frontend/src/views/AdminOverviewView.tsx` 的設備區塊（「設備狀態管理」頁籤，見 Notes 待確認 1）顯示摘要「可用 N｜送修中 N｜停用 N」（取自 `statusCounts`）；每列顯示狀態徽章、審核設定與最近變更（`changedByDisplayName` 與依 `Asia/Taipei` 顯示的 `changedAt`，`lastStatusChange` 為 null 時顯示「尚無狀態變更」）；「可用」列提供「設為送修」「設為停用」，「送修中」列提供「設為停用」，「停用」列提供「設為送修」，點擊後開啟 `EquipmentStatusDialog`；成功後重新拉取設備清單，頁頂綠色橫幅「已將 <設備> 設為「送修中」，取消 N 筆預約，M 筆改期申請已失效。」與「查看受影響的預約」，送修中改為停用時改寫成「從「送修中」改為「停用」」的句型；收到 `EQUIPMENT_STATE_CHANGED` 時頁頂紅色橫幅「設備狀態已被變更，請重新確認。」並重新拉取清單；720px 以下改為一台設備一張卡片；一般成員開啟時顯示「權限不足」卡片（FR-001、FR-007、FR-008、FR-010、FR-019、US1 情境 1、10、11）
+- [X] T026 [US1] 在 `frontend/src/views/AdminOverviewView.tsx` 的設備區塊（「設備狀態管理」頁籤，見 Notes 待確認 1）顯示摘要「可用 N｜送修中 N｜停用 N」（取自 `statusCounts`）；每列顯示狀態徽章、審核設定與最近變更（`changedByDisplayName` 與依 `Asia/Taipei` 顯示的 `changedAt`，`lastStatusChange` 為 null 時顯示「尚無狀態變更」）；「可用」列提供「設為送修」「設為停用」，「送修中」列提供「設為停用」，「停用」列提供「設為送修」，點擊後開啟 `EquipmentStatusDialog`；成功後重新拉取設備清單，頁頂綠色橫幅「已將 <設備> 設為「送修中」，取消 N 筆預約，M 筆改期申請已失效。」與「查看受影響的預約」，送修中改為停用時改寫成「從「送修中」改為「停用」」的句型；收到 `EQUIPMENT_STATE_CHANGED` 時頁頂紅色橫幅「設備狀態已被變更，請重新確認。」並重新拉取清單；720px 以下改為一台設備一張卡片；一般成員開啟時顯示「權限不足」卡片（FR-001、FR-007、FR-008、FR-010、FR-019、US1 情境 1、10、11）
   - **Must Read**
     - `ui/plan.md` → §4 `equipment-status.html` 的「載入中」「設備清單」「已設為送修」「已改為停用」 — Why：設備清單、最近變更與完成橫幅的呈現
     - `ui/plan.md` → §5 `equipment-status.html` 的「設備狀態已被變更」「權限不足」 — Why：確認被拒後的橫幅與一般成員開啟時的畫面
     - `ui/equipment-status.html` → 雛形狀態「設備清單」「已設為送修」「已改為停用」 — Why：列的欄位、按鈕配置與橫幅的實際樣子
     - `research.md` → §4 — Why：各狀態顯示的操作按鈕與操作後重新拉取清單
     - `contracts/openapi.yaml` → `AdminEquipmentPage` — Why：`statusCounts` 與 `lastStatusChange` 的來源
-- [ ] T027 [US1] 在 `frontend/src/views/AdminOverviewView.tsx` 的待審清單與全體預約區塊（「審核與借用管理」頁籤）：全體預約新增取消原因欄，`cancelReason` 為 `equipment_maintenance` 顯示琥珀色「設備送修」、`equipment_retired` 顯示灰色「設備停用」、`member_cancelled` 顯示「成員取消」（見 Notes 待確認 2），並顯示取消時間；核准申請、核准改期或登記領取收到 `INVALID_RESERVATION_STATUS`、`INVALID_RESCHEDULE_STATUS`、`EQUIPMENT_UNAVAILABLE` 時，頁頂紅色橫幅顯示後端訊息，並重新拉取待審清單與全體預約；登記歸還完成的橫幅加上「前往設備狀態管理」（FR-020、FR-003、FR-004、FR-009、US1 情境 17）
+- [X] T027 [US1] 在 `frontend/src/views/AdminOverviewView.tsx` 的待審清單與全體預約區塊（「審核與借用管理」頁籤）：全體預約新增取消原因欄，`cancelReason` 為 `equipment_maintenance` 顯示琥珀色「設備送修」、`equipment_retired` 顯示灰色「設備停用」、`member_cancelled` 顯示「成員取消」（見 Notes 待確認 2），並顯示取消時間；核准申請、核准改期或登記領取收到 `INVALID_RESERVATION_STATUS`、`INVALID_RESCHEDULE_STATUS`、`EQUIPMENT_UNAVAILABLE` 時，頁頂紅色橫幅顯示後端訊息，並重新拉取待審清單與全體預約；登記歸還完成的橫幅加上「前往設備狀態管理」（FR-020、FR-003、FR-004、FR-009、US1 情境 17）
   - **Must Read**
     - `ui/plan.md` → §4 `admin.html` 的「設備送修後的總覽」「篩選已取消的預約」「登記歸還完成」 — Why：取消原因欄、篩選結果與登記歸還後的連結
     - `ui/plan.md` → §5 `admin.html` 的「因設備送修或停用取消的預約」「核准時預約已取消」「核准改期時申請已失效」「登記領取時預約已取消」 — Why：取消原因樣式與 3 種被拒情況的回饋
     - `ui/admin.html` → 雛形狀態「設備送修後的總覽」「核准時預約已取消」「登記領取時預約已取消」 — Why：表格欄位與紅色橫幅的實際樣子
     - `spec.md` → FR-020 — Why：全體預約管理頁必須顯示「設備送修」或「設備停用」
-- [ ] T028 [US1] 在 `frontend/src/App.tsx` 串接 US1 的頁籤切換：設備狀態管理的「查看受影響的預約」切到「審核與借用管理」並把全體預約篩選設為「已取消」；確認視窗的「前往登記歸還」切到「審核與借用管理」；登記歸還完成橫幅的「前往設備狀態管理」切回「設備狀態管理」（見 Notes 待確認 1）（FR-005、FR-020）
+- [X] T028 [US1] 在 `frontend/src/App.tsx` 串接 US1 的頁籤切換：設備狀態管理的「查看受影響的預約」切到「審核與借用管理」並把全體預約篩選設為「已取消」；確認視窗的「前往登記歸還」切到「審核與借用管理」；登記歸還完成橫幅的「前往設備狀態管理」切回「設備狀態管理」（見 Notes 待確認 1）（FR-005、FR-020）
   - **Must Read**
     - `ui/plan.md` → §3.2 — Why：設備狀態管理與審核與借用管理之間的轉換
   - **Optional**
