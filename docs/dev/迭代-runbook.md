@@ -268,6 +268,7 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
 3. 到期後由 **Claude Code** 接手執行（使用者 2026-11-08 決定），步驟與紀錄方式不變，迭代紀錄的「執行者」改寫 Claude Code 與模型名稱。
 4. 第四題 A/B 比較的 A、B 兩組要用同一個模型。B 組一定在到期後才跑，所以 **A 組的步驟 6～7 也由 Claude Code 跑**，不由 Argon 跑。兩組使用同一個 Claude 模型與 effort，開跑時記進迭代紀錄。
 5. 通知迭代之前的迭代與通知迭代的執行模型不同。Skill 表現的差異可能來自模型，不一定來自 Skill。整理流程不足時要標出這一點。
+6. **2026-11-10 使用者決定：第 5 次迭代起，全部改由 Claude Code 執行，不再用 Argon。** 本節第 1～4 點的期限與分工不再適用。第 4 次迭代步驟 2 中途已改由 Claude Code＋Opus 5.5（effort high）執行，之後沿用同一個模型與 effort，P0 記進迭代紀錄的「固定環境」。本 runbook 寫「Argon」或「OpenCode」的地方，改成 Claude Code；OpenCode 專屬的說明（第 2 節）不適用。第 5 點的提醒照樣適用：第 1～3 次迭代（Argon）和第 5 次起（Claude Code）的 Skill 表現不能直接比較。
 
 ## 7. 樣板
 
