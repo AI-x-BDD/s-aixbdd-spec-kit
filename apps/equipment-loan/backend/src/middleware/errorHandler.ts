@@ -21,7 +21,8 @@ export type ErrorCode =
   | "RESERVATION_ALREADY_CHECKED_OUT"
   | "RESERVATION_ALREADY_STARTED"
   | "RESERVATION_ALREADY_CANCELLED"
-  | RescheduleErrorCode;
+  | RescheduleErrorCode
+  | EquipmentStatusErrorCode;
 
 export type RescheduleErrorCode =
   | "RESCHEDULE_NOT_ALLOWED"
@@ -56,6 +57,31 @@ export function rescheduleError(code: RescheduleErrorCode, message?: string): Ap
     code,
     RESCHEDULE_ERROR_STATUS[code],
     message ?? RESCHEDULE_ERROR_MESSAGE[code],
+  );
+}
+
+export type EquipmentStatusErrorCode =
+  "EQUIPMENT_ON_LOAN" | "EQUIPMENT_STATUS_UNCHANGED" | "EQUIPMENT_STATE_CHANGED";
+
+/** 設備狀態變更錯誤碼對應的 HTTP 狀態碼（contracts/openapi.yaml 的 UpdateEquipmentStatusConflict、EquipmentStatusUnchanged）。 */
+export const EQUIPMENT_STATUS_ERROR_STATUS: Record<EquipmentStatusErrorCode, number> = {
+  EQUIPMENT_ON_LOAN: 409,
+  EQUIPMENT_STATUS_UNCHANGED: 409,
+  EQUIPMENT_STATE_CHANGED: 409,
+};
+
+/** 設備狀態變更錯誤碼的預設繁體中文訊息（FR-005、FR-019、NFR-001）。 */
+export const EQUIPMENT_STATUS_ERROR_MESSAGE: Record<EquipmentStatusErrorCode, string> = {
+  EQUIPMENT_ON_LOAN: "設備借用中，請先登記歸還",
+  EQUIPMENT_STATUS_UNCHANGED: "設備已經是這個狀態，不需要變更。",
+  EQUIPMENT_STATE_CHANGED: "設備狀態已被變更，請重新確認",
+};
+
+export function equipmentStatusError(code: EquipmentStatusErrorCode, message?: string): AppError {
+  return new AppError(
+    code,
+    EQUIPMENT_STATUS_ERROR_STATUS[code],
+    message ?? EQUIPMENT_STATUS_ERROR_MESSAGE[code],
   );
 }
 

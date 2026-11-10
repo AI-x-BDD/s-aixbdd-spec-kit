@@ -4,12 +4,29 @@ import {
   ApiError,
   apiRequest,
   type EquipmentAvailabilityPageDto,
+  type EquipmentStatus,
   type EquipmentWithSlotsDto,
   type ReservationDto,
   type SlotAvailabilityDto,
 } from "../api/client";
 import { SlotStatusBadge } from "../components/SlotStatusBadge";
 import { UI_TEXT } from "../text/zh-TW";
+
+/** 設備狀態徽章：可用為綠色、送修中為琥珀色實心（暫時性）、停用為中性灰（長期）（ui/plan.md §2）。 */
+const EQUIPMENT_STATUS_BADGE_CLASS: Record<EquipmentStatus, string> = {
+  available: "badge-available",
+  maintenance: "badge-pending",
+  retired: "badge-occupied",
+};
+const EQUIPMENT_STATUS_BADGE_STYLE: Record<EquipmentStatus, React.CSSProperties | undefined> = {
+  available: undefined,
+  maintenance: {
+    background: "var(--pending-soft)",
+    color: "var(--pending)",
+    border: "1px solid var(--pending)",
+  },
+  retired: { background: "var(--occupied-soft)", color: "var(--occupied)" },
+};
 
 export type EquipmentSlotItem = SlotAvailabilityDto;
 export type EquipmentAvailabilityItem = EquipmentWithSlotsDto;
@@ -507,8 +524,11 @@ export function EquipmentBookingView({
                         ? UI_TEXT.approvalModes.requiresApproval
                         : UI_TEXT.approvalModes.noApproval}
                     </span>
-                    <span className="badge badge-available">
-                      {eq.isActive ? "可供借用" : "暫停借用"}
+                    <span
+                      className={`badge ${EQUIPMENT_STATUS_BADGE_CLASS[eq.status]}`}
+                      style={EQUIPMENT_STATUS_BADGE_STYLE[eq.status]}
+                    >
+                      {UI_TEXT.equipmentStatus[eq.status]}
                     </span>
                   </div>
                   <h2 style={{ margin: "6px 0 2px", fontSize: "17px" }}>{eq.name}</h2>

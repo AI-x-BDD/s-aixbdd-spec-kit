@@ -9,6 +9,7 @@ import {
   apiRequest,
   approveRescheduleRequest,
   approveReservationApi,
+  type EquipmentStatus,
   fetchAdminEquipments,
   fetchPendingReservations,
   listRescheduleRequests,
@@ -20,6 +21,22 @@ import {
   updateEquipmentApprovalModeApi,
 } from "../api/client";
 import { UI_TEXT } from "../text/zh-TW";
+
+/** 設備狀態徽章：可用為綠色、送修中為琥珀色實心（暫時性）、停用為中性灰（長期）（ui/plan.md §2）。 */
+const EQUIPMENT_STATUS_BADGE_CLASS: Record<EquipmentStatus, string> = {
+  available: "badge-available",
+  maintenance: "badge-pending",
+  retired: "badge-occupied",
+};
+const EQUIPMENT_STATUS_BADGE_STYLE: Record<EquipmentStatus, React.CSSProperties | undefined> = {
+  available: undefined,
+  maintenance: {
+    background: "var(--pending-soft)",
+    color: "var(--pending)",
+    border: "1px solid var(--pending)",
+  },
+  retired: { background: "var(--occupied-soft)", color: "var(--occupied)" },
+};
 
 export type AdminReservationItem = AdminReservationItemDto;
 export type AdminReservationPage = AdminReservationPageDto;
@@ -119,14 +136,19 @@ function extractOccupantNumber(message: string): string | null {
   return match ? match[1] : null;
 }
 
+/** 管理員畫面拆成兩個頁籤，共用本 view（tasks.md Notes 待確認 1）：equipment 只顯示設備區塊，review 只顯示待審清單與全體預約。 */
+export type AdminOverviewSection = "equipment" | "review";
+
 interface AdminOverviewViewProps {
   currentUser: AuthenticatedUser;
+  section: AdminOverviewSection;
   onGoToBooking: () => void;
   onSwitchAccount: () => void;
 }
 
 export function AdminOverviewView({
   currentUser,
+  section,
   onGoToBooking,
   onSwitchAccount,
 }: AdminOverviewViewProps): React.ReactElement {
@@ -517,740 +539,775 @@ export function AdminOverviewView({
         </div>
       )}
 
-      <h2>預建單件獨立設備清單（共 {equipments.length} 台）</h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: "14px",
-          marginBottom: "24px",
-        }}
-      >
-        {equipments.map((eq) => (
+      {section === "equipment" && (
+        <>
+          <h2>預建單件獨立設備清單（共 {equipments.length} 台）</h2>
           <div
-            key={eq.id}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: "14px",
+              marginBottom: "24px",
+            }}
+          >
+            {equipments.map((eq) => (
+              <div
+                key={eq.id}
+                className="card"
+                data-testid={`admin-eq-card-${eq.equipmentCode}`}
+                style={{ padding: "16px", display: "grid", gap: "8px" }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    className="mono"
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "var(--primary)",
+                    }}
+                  >
+                    {eq.equipmentCode}
+                  </span>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    <span
+                      className={`badge ${eq.requiresApproval ? "badge-pending" : "badge-available"}`}
+                      data-testid={`admin-eq-mode-${eq.equipmentCode}`}
+                    >
+                      {eq.requiresApproval
+                        ? UI_TEXT.approvalModes.requiresApproval
+                        : UI_TEXT.approvalModes.noApproval}
+                    </span>
+                    <span
+                      className={`badge ${EQUIPMENT_STATUS_BADGE_CLASS[eq.status]}`}
+                      style={EQUIPMENT_STATUS_BADGE_STYLE[eq.status]}
+                    >
+                      {UI_TEXT.equipmentStatus[eq.status]}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ fontSize: "14px", fontWeight: 700 }}>{eq.name}</div>
+                <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  分類：{eq.category}｜更新：
+                  <span className="mono">{formatIsoToTaipeiDateTime(eq.updatedAt)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={togglingEqId === eq.id}
+                  data-testid={`toggle-approval-btn-${eq.equipmentCode}`}
+                  onClick={() => void handleToggleApprovalMode(eq)}
+                  style={{ marginTop: "4px" }}
+                >
+                  {togglingEqId === eq.id
+                    ? "儲存設定中…"
+                    : eq.requiresApproval
+                      ? "切換為免審核"
+                      : "切換為需人工審核"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {section === "review" && (
+        <>
+          <section
             className="card"
-            data-testid={`admin-eq-card-${eq.equipmentCode}`}
-            style={{ padding: "16px", display: "grid", gap: "8px" }}
+            data-testid="admin-pending-section"
+            style={{ padding: "20px", marginBottom: "24px" }}
+          >
+            <h2 style={{ margin: "0 0 12px", fontSize: "18px" }}>待審清單</h2>
+            <div
+              role="tablist"
+              aria-label="待審清單分頁"
+              style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}
+            >
+              {(
+                [
+                  ["reschedule", `改期申請（${rescheduleList.length}）`],
+                  ["reservation", `預約申請（${pendingList.length}）`],
+                ] as const
+              ).map(([key, label]) => {
+                const selected = reviewTab === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    data-testid={`review-tab-${key}`}
+                    onClick={() => setReviewTab(key)}
+                    style={{
+                      height: "36px",
+                      padding: "0 14px",
+                      border: `1px solid ${selected ? "var(--primary)" : "var(--line)"}`,
+                      borderRadius: "8px",
+                      background: selected ? "var(--primary-soft)" : "var(--surface)",
+                      color: selected ? "var(--primary)" : "var(--ink)",
+                      font: "inherit",
+                      fontSize: "14px",
+                      fontWeight: selected ? 700 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {reviewTab === "reschedule" ? (
+              loading && rescheduleList.length === 0 ? (
+                <div style={{ padding: "16px 0", color: "var(--muted)" }}>
+                  正在載入待審改期申請…
+                </div>
+              ) : rescheduleList.length === 0 ? (
+                <div
+                  style={{
+                    padding: "24px",
+                    textAlign: "center",
+                    background: "var(--surface-muted)",
+                    borderRadius: "10px",
+                    color: "var(--muted)",
+                  }}
+                  data-testid="reschedule-pending-empty"
+                >
+                  <h3 style={{ margin: "0 0 6px", color: "var(--ink)" }}>目前沒有待審的改期申請</h3>
+                  <p style={{ margin: 0 }}>成員對需人工審核設備送出改期後，申請會出現在這裡。</p>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "10px" }} data-testid="reschedule-pending-list">
+                  {rescheduleList.map((rr) => {
+                    const isConflict = rescheduleConflict?.id === rr.id;
+                    const isApproving = approvingRescheduleId === rr.id;
+                    return (
+                      <div
+                        key={rr.id}
+                        data-testid={`rr-item-${rr.requestNumber}`}
+                        data-conflict={isConflict ? "true" : undefined}
+                        style={{
+                          padding: "14px 16px",
+                          border: `1px solid ${isConflict ? "var(--danger)" : "var(--line)"}`,
+                          background: isConflict ? "var(--danger-soft)" : undefined,
+                          borderRadius: "10px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "12px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ display: "grid", gap: "4px", fontSize: "14px" }}>
+                          <div>
+                            <span className="badge" style={RESCHEDULE_BADGE_STYLE}>
+                              改期申請
+                            </span>{" "}
+                            <span className="mono">{rr.requestNumber}</span>｜{rr.userDisplayName}
+                            ｜預約 <span className="mono">{rr.reservationNumber}</span>
+                          </div>
+                          <div>
+                            <span className="mono">{rr.equipmentCode}</span> {rr.equipmentName}
+                          </div>
+                          <div className="mono" style={{ fontSize: "13px" }}>
+                            原 {slotRangeText(rr.fromReservationDate, rr.fromSlot)} → 新{" "}
+                            {slotRangeText(rr.toReservationDate, rr.toSlot)}
+                          </div>
+                          <div className="mono" style={{ fontSize: "12px", color: "var(--muted)" }}>
+                            申請時間 {formatIsoToTaipeiDateTime(rr.createdAt)}
+                            {isConflict &&
+                              `｜新時段已被${rescheduleConflict?.occupantNumber ? `預約 ${rescheduleConflict.occupantNumber} ` : ""}占用`}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            disabled={isApproving}
+                            data-testid={`rr-approve-btn-${rr.requestNumber}`}
+                            onClick={() => void handleApproveReschedule(rr)}
+                          >
+                            {isApproving ? "核准中…" : "核准改期"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            disabled={isApproving}
+                            data-testid={`rr-reject-btn-${rr.requestNumber}`}
+                            onClick={() => handleOpenRescheduleReject(rr)}
+                          >
+                            駁回
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: "18px" }}>
+                      待審核申請清單（共 {pendingList.length} 筆待審）
+                    </h2>
+                    <p className="muted" style={{ margin: "4px 0 0", fontSize: "13px" }}>
+                      預設依預約日期由近到遠、固定時段順序及申請建立時間由早到晚排序；核准時系統將即時重檢時段衝突並正式鎖定時段。
+                    </p>
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div style={{ padding: "16px 0", color: "var(--muted)" }}>
+                    正在載入待審核申請清單…
+                  </div>
+                ) : pendingList.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "24px",
+                      textAlign: "center",
+                      background: "var(--surface-muted)",
+                      borderRadius: "10px",
+                      color: "var(--muted)",
+                    }}
+                    data-testid="pending-empty"
+                  >
+                    目前沒有待審核的預約申請紀錄。
+                  </div>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table
+                      data-testid="admin-pending-table"
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "14px",
+                        textAlign: "left",
+                      }}
+                    >
+                      <thead>
+                        <tr
+                          style={{
+                            background: "var(--surface-muted)",
+                            color: "var(--muted)",
+                            fontSize: "13px",
+                          }}
+                        >
+                          <th
+                            style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}
+                          >
+                            預約編號
+                          </th>
+                          <th
+                            style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}
+                          >
+                            申請成員
+                          </th>
+                          <th
+                            style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}
+                          >
+                            申請設備
+                          </th>
+                          <th
+                            style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}
+                          >
+                            預約日期與時段
+                          </th>
+                          <th
+                            style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}
+                          >
+                            申請建立時間
+                          </th>
+                          <th
+                            style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}
+                          >
+                            審核操作
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingList.map((item) => {
+                          const isBusy = reviewingId === item.id;
+                          return (
+                            <tr
+                              key={item.id}
+                              data-testid={`pending-row-${item.reservationNumber}`}
+                              style={{ borderBottom: "1px solid var(--line)" }}
+                            >
+                              <td
+                                className="mono"
+                                style={{ padding: "12px 14px", fontWeight: 600 }}
+                              >
+                                {item.reservationNumber}
+                              </td>
+                              <td style={{ padding: "12px 14px" }}>
+                                <strong>{item.userDisplayName}</strong>{" "}
+                                <span className="muted mono" style={{ fontSize: "12px" }}>
+                                  ({item.username})
+                                </span>
+                              </td>
+                              <td style={{ padding: "12px 14px" }}>
+                                <span
+                                  className="mono"
+                                  style={{ color: "var(--primary)", fontWeight: 600 }}
+                                >
+                                  {item.equipmentCode}
+                                </span>{" "}
+                                {item.equipmentName}
+                              </td>
+                              <td className="mono" style={{ padding: "12px 14px" }}>
+                                {item.reservationDate} {item.slotName} {item.slotStartTime}–
+                                {item.slotEndTime}
+                              </td>
+                              <td className="mono" style={{ padding: "12px 14px" }}>
+                                {formatIsoToTaipeiDateTime(item.createdAt)}
+                              </td>
+                              <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                                <div
+                                  style={{
+                                    display: "inline-flex",
+                                    gap: "8px",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-primary"
+                                    disabled={isBusy}
+                                    data-testid={`approve-btn-${item.reservationNumber}`}
+                                    onClick={() => void handleApprove(item)}
+                                  >
+                                    {isBusy ? "審核處理中…" : "核准申請"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-danger"
+                                    disabled={isBusy}
+                                    data-testid={`reject-btn-${item.reservationNumber}`}
+                                    onClick={() => handleOpenRejectModal(item)}
+                                  >
+                                    {isBusy ? "審核處理中…" : "駁回申請"}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          <div
+            className="card"
+            style={{
+              padding: "16px 20px",
+              marginBottom: "16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
           >
             <div
               style={{
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
-                gap: "8px",
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                className="mono"
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  color: "var(--primary)",
-                }}
-              >
-                {eq.equipmentCode}
-              </span>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                <span
-                  className={`badge ${eq.requiresApproval ? "badge-pending" : "badge-available"}`}
-                  data-testid={`admin-eq-mode-${eq.equipmentCode}`}
-                >
-                  {eq.requiresApproval
-                    ? UI_TEXT.approvalModes.requiresApproval
-                    : UI_TEXT.approvalModes.noApproval}
-                </span>
-                <span className="badge badge-available">
-                  {eq.isActive ? "可供借用" : "暫停借用"}
-                </span>
-              </div>
-            </div>
-            <div style={{ fontSize: "14px", fontWeight: 700 }}>{eq.name}</div>
-            <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-              分類：{eq.category}｜更新：
-              <span className="mono">{formatIsoToTaipeiDateTime(eq.updatedAt)}</span>
-            </div>
-            <button
-              type="button"
-              className="btn btn-sm"
-              disabled={togglingEqId === eq.id}
-              data-testid={`toggle-approval-btn-${eq.equipmentCode}`}
-              onClick={() => void handleToggleApprovalMode(eq)}
-              style={{ marginTop: "4px" }}
-            >
-              {togglingEqId === eq.id
-                ? "儲存設定中…"
-                : eq.requiresApproval
-                  ? "切換為免審核"
-                  : "切換為需人工審核"}
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <section
-        className="card"
-        data-testid="admin-pending-section"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
-        <h2 style={{ margin: "0 0 12px", fontSize: "18px" }}>待審清單</h2>
-        <div
-          role="tablist"
-          aria-label="待審清單分頁"
-          style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}
-        >
-          {(
-            [
-              ["reschedule", `改期申請（${rescheduleList.length}）`],
-              ["reservation", `預約申請（${pendingList.length}）`],
-            ] as const
-          ).map(([key, label]) => {
-            const selected = reviewTab === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                data-testid={`review-tab-${key}`}
-                onClick={() => setReviewTab(key)}
-                style={{
-                  height: "36px",
-                  padding: "0 14px",
-                  border: `1px solid ${selected ? "var(--primary)" : "var(--line)"}`,
-                  borderRadius: "8px",
-                  background: selected ? "var(--primary-soft)" : "var(--surface)",
-                  color: selected ? "var(--primary)" : "var(--ink)",
-                  font: "inherit",
-                  fontSize: "14px",
-                  fontWeight: selected ? 700 : 400,
-                  cursor: "pointer",
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        {reviewTab === "reschedule" ? (
-          loading && rescheduleList.length === 0 ? (
-            <div style={{ padding: "16px 0", color: "var(--muted)" }}>正在載入待審改期申請…</div>
-          ) : rescheduleList.length === 0 ? (
-            <div
-              style={{
-                padding: "24px",
-                textAlign: "center",
-                background: "var(--surface-muted)",
-                borderRadius: "10px",
-                color: "var(--muted)",
-              }}
-              data-testid="reschedule-pending-empty"
-            >
-              <h3 style={{ margin: "0 0 6px", color: "var(--ink)" }}>目前沒有待審的改期申請</h3>
-              <p style={{ margin: 0 }}>成員對需人工審核設備送出改期後，申請會出現在這裡。</p>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: "10px" }} data-testid="reschedule-pending-list">
-              {rescheduleList.map((rr) => {
-                const isConflict = rescheduleConflict?.id === rr.id;
-                const isApproving = approvingRescheduleId === rr.id;
-                return (
-                  <div
-                    key={rr.id}
-                    data-testid={`rr-item-${rr.requestNumber}`}
-                    data-conflict={isConflict ? "true" : undefined}
-                    style={{
-                      padding: "14px 16px",
-                      border: `1px solid ${isConflict ? "var(--danger)" : "var(--line)"}`,
-                      background: isConflict ? "var(--danger-soft)" : undefined,
-                      borderRadius: "10px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "12px",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div style={{ display: "grid", gap: "4px", fontSize: "14px" }}>
-                      <div>
-                        <span className="badge" style={RESCHEDULE_BADGE_STYLE}>
-                          改期申請
-                        </span>{" "}
-                        <span className="mono">{rr.requestNumber}</span>｜{rr.userDisplayName}
-                        ｜預約 <span className="mono">{rr.reservationNumber}</span>
-                      </div>
-                      <div>
-                        <span className="mono">{rr.equipmentCode}</span> {rr.equipmentName}
-                      </div>
-                      <div className="mono" style={{ fontSize: "13px" }}>
-                        原 {slotRangeText(rr.fromReservationDate, rr.fromSlot)} → 新{" "}
-                        {slotRangeText(rr.toReservationDate, rr.toSlot)}
-                      </div>
-                      <div className="mono" style={{ fontSize: "12px", color: "var(--muted)" }}>
-                        申請時間 {formatIsoToTaipeiDateTime(rr.createdAt)}
-                        {isConflict &&
-                          `｜新時段已被${rescheduleConflict?.occupantNumber ? `預約 ${rescheduleConflict.occupantNumber} ` : ""}占用`}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        disabled={isApproving}
-                        data-testid={`rr-approve-btn-${rr.requestNumber}`}
-                        onClick={() => void handleApproveReschedule(rr)}
-                      >
-                        {isApproving ? "核准中…" : "核准改期"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
-                        disabled={isApproving}
-                        data-testid={`rr-reject-btn-${rr.requestNumber}`}
-                        onClick={() => handleOpenRescheduleReject(rr)}
-                      >
-                        駁回
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
-        ) : (
-          <>
-            <div
-              style={{
-                display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
-                gap: "12px",
+                gap: "14px",
                 flexWrap: "wrap",
-                marginBottom: "14px",
               }}
             >
               <div>
-                <h2 style={{ margin: 0, fontSize: "18px" }}>
-                  待審核申請清單（共 {pendingList.length} 筆待審）
-                </h2>
-                <p className="muted" style={{ margin: "4px 0 0", fontSize: "13px" }}>
-                  預設依預約日期由近到遠、固定時段順序及申請建立時間由早到晚排序；核准時系統將即時重檢時段衝突並正式鎖定時段。
-                </p>
+                <strong>全體預約與借用管理清單（現場登記領取／登記歸還）</strong>
+                <span className="muted" style={{ fontSize: "13px", marginLeft: "8px" }}>
+                  共 {reservations.length} 筆紀錄
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <label htmlFor="admin-status-filter" className="muted" style={{ fontSize: "13px" }}>
+                  預約狀態：
+                </label>
+                <select
+                  id="admin-status-filter"
+                  data-testid="admin-status-filter"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as "ALL" | ReservationStatus)}
+                  style={{
+                    height: "36px",
+                    padding: "0 10px",
+                    border: "1px solid var(--line)",
+                    borderRadius: "8px",
+                    background: "var(--surface)",
+                    color: "var(--ink)",
+                    font: "inherit",
+                    fontSize: "13px",
+                  }}
+                >
+                  <option value="ALL">全部狀態（6 種狀態）</option>
+                  <option value="pending_approval">待審核 (pending_approval)</option>
+                  <option value="confirmed">已核准／有效 — 待領取 (confirmed)</option>
+                  <option value="checked_out">借用中 — 待歸還 (checked_out)</option>
+                  <option value="returned">已歸還 (returned)</option>
+                  <option value="rejected">已駁回 (rejected)</option>
+                  <option value="cancelled">已取消 (cancelled)</option>
+                </select>
+
+                <label htmlFor="admin-eq-filter" className="muted" style={{ fontSize: "13px" }}>
+                  單件設備：
+                </label>
+                <select
+                  id="admin-eq-filter"
+                  data-testid="admin-eq-filter"
+                  value={equipmentFilter}
+                  onChange={(e) => setEquipmentFilter(e.target.value)}
+                  style={{
+                    height: "36px",
+                    padding: "0 10px",
+                    border: "1px solid var(--line)",
+                    borderRadius: "8px",
+                    background: "var(--surface)",
+                    color: "var(--ink)",
+                    font: "inherit",
+                    fontSize: "13px",
+                  }}
+                >
+                  <option value="ALL">全部預建設備</option>
+                  {equipments.map((eq) => (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.equipmentCode} {eq.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {loading ? (
-              <div style={{ padding: "16px 0", color: "var(--muted)" }}>
-                正在載入待審核申請清單…
-              </div>
-            ) : pendingList.length === 0 ? (
-              <div
-                style={{
-                  padding: "24px",
-                  textAlign: "center",
-                  background: "var(--surface-muted)",
-                  borderRadius: "10px",
-                  color: "var(--muted)",
-                }}
-                data-testid="pending-empty"
-              >
-                目前沒有待審核的預約申請紀錄。
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table
-                  data-testid="admin-pending-table"
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "14px",
-                    textAlign: "left",
-                  }}
-                >
-                  <thead>
-                    <tr
-                      style={{
-                        background: "var(--surface-muted)",
-                        color: "var(--muted)",
-                        fontSize: "13px",
-                      }}
-                    >
-                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                        預約編號
-                      </th>
-                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                        申請成員
-                      </th>
-                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                        申請設備
-                      </th>
-                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                        預約日期與時段
-                      </th>
-                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                        申請建立時間
-                      </th>
-                      <th style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-                        審核操作
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingList.map((item) => {
-                      const isBusy = reviewingId === item.id;
-                      return (
-                        <tr
-                          key={item.id}
-                          data-testid={`pending-row-${item.reservationNumber}`}
-                          style={{ borderBottom: "1px solid var(--line)" }}
-                        >
-                          <td className="mono" style={{ padding: "12px 14px", fontWeight: 600 }}>
-                            {item.reservationNumber}
-                          </td>
-                          <td style={{ padding: "12px 14px" }}>
-                            <strong>{item.userDisplayName}</strong>{" "}
-                            <span className="muted mono" style={{ fontSize: "12px" }}>
-                              ({item.username})
-                            </span>
-                          </td>
-                          <td style={{ padding: "12px 14px" }}>
-                            <span
-                              className="mono"
-                              style={{ color: "var(--primary)", fontWeight: 600 }}
-                            >
-                              {item.equipmentCode}
-                            </span>{" "}
-                            {item.equipmentName}
-                          </td>
-                          <td className="mono" style={{ padding: "12px 14px" }}>
-                            {item.reservationDate} {item.slotName} {item.slotStartTime}–
-                            {item.slotEndTime}
-                          </td>
-                          <td className="mono" style={{ padding: "12px 14px" }}>
-                            {formatIsoToTaipeiDateTime(item.createdAt)}
-                          </td>
-                          <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                            <div
-                              style={{
-                                display: "inline-flex",
-                                gap: "8px",
-                                alignItems: "center",
-                              }}
-                            >
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary"
-                                disabled={isBusy}
-                                data-testid={`approve-btn-${item.reservationNumber}`}
-                                onClick={() => void handleApprove(item)}
-                              >
-                                {isBusy ? "審核處理中…" : "核准申請"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-danger"
-                                disabled={isBusy}
-                                data-testid={`reject-btn-${item.reservationNumber}`}
-                                onClick={() => handleOpenRejectModal(item)}
-                              >
-                                {isBusy ? "審核處理中…" : "駁回申請"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </section>
-
-      <div
-        className="card"
-        style={{
-          padding: "16px 20px",
-          marginBottom: "16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "14px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <strong>全體預約與借用管理清單（現場登記領取／登記歸還）</strong>
-            <span className="muted" style={{ fontSize: "13px", marginLeft: "8px" }}>
-              共 {reservations.length} 筆紀錄
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
-            <label htmlFor="admin-status-filter" className="muted" style={{ fontSize: "13px" }}>
-              預約狀態：
-            </label>
-            <select
-              id="admin-status-filter"
-              data-testid="admin-status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "ALL" | ReservationStatus)}
-              style={{
-                height: "36px",
-                padding: "0 10px",
-                border: "1px solid var(--line)",
-                borderRadius: "8px",
-                background: "var(--surface)",
-                color: "var(--ink)",
-                font: "inherit",
-                fontSize: "13px",
-              }}
+            <div
+              role="group"
+              aria-label="6 態快速篩選"
+              style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}
             >
-              <option value="ALL">全部狀態（6 種狀態）</option>
-              <option value="pending_approval">待審核 (pending_approval)</option>
-              <option value="confirmed">已核准／有效 — 待領取 (confirmed)</option>
-              <option value="checked_out">借用中 — 待歸還 (checked_out)</option>
-              <option value="returned">已歸還 (returned)</option>
-              <option value="rejected">已駁回 (rejected)</option>
-              <option value="cancelled">已取消 (cancelled)</option>
-            </select>
-
-            <label htmlFor="admin-eq-filter" className="muted" style={{ fontSize: "13px" }}>
-              單件設備：
-            </label>
-            <select
-              id="admin-eq-filter"
-              data-testid="admin-eq-filter"
-              value={equipmentFilter}
-              onChange={(e) => setEquipmentFilter(e.target.value)}
-              style={{
-                height: "36px",
-                padding: "0 10px",
-                border: "1px solid var(--line)",
-                borderRadius: "8px",
-                background: "var(--surface)",
-                color: "var(--ink)",
-                font: "inherit",
-                fontSize: "13px",
-              }}
-            >
-              <option value="ALL">全部預建設備</option>
-              {equipments.map((eq) => (
-                <option key={eq.id} value={eq.id}>
-                  {eq.equipmentCode} {eq.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div
-          role="group"
-          aria-label="6 態快速篩選"
-          style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}
-        >
-          {[
-            { value: "ALL", label: "全部狀態" },
-            { value: "confirmed", label: "已核准／有效（待領取）" },
-            { value: "checked_out", label: "借用中（待歸還）" },
-            { value: "returned", label: "已歸還" },
-            { value: "pending_approval", label: "待審核" },
-            { value: "rejected", label: "已駁回" },
-            { value: "cancelled", label: "已取消" },
-          ].map((tab) => {
-            const active = statusFilter === tab.value;
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                data-testid={`admin-tab-${tab.value}`}
-                onClick={() => setStatusFilter(tab.value as "ALL" | ReservationStatus)}
-                style={{
-                  padding: "6px 12px",
-                  border: `1px solid ${active ? "var(--primary)" : "var(--line)"}`,
-                  borderRadius: "8px",
-                  background: active ? "var(--primary)" : "var(--surface)",
-                  color: active ? "#ffffff" : "var(--muted)",
-                  font: "inherit",
-                  fontSize: "13px",
-                  fontWeight: active ? 600 : 400,
-                  cursor: "pointer",
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="card" style={{ padding: "24px", color: "var(--muted)" }}>
-          正在載入设备審核設定、待審核申請清單與全體預約紀錄…
-        </div>
-      ) : reservations.length === 0 ? (
-        <div className="card" style={{ padding: "44px 24px", textAlign: "center" }}>
-          <h2>目前沒有符合篩選條件的預約申請紀錄</h2>
-          <p className="muted">請調整上方狀態或設備篩選條件，重新檢視全體成員預約紀錄。</p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setStatusFilter("ALL");
-              setEquipmentFilter("ALL");
-            }}
-          >
-            重設篩選條件
-          </button>
-        </div>
-      ) : (
-        <div className="card" style={{ overflowX: "auto" }}>
-          <table
-            data-testid="admin-reservations-table"
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "14px",
-              textAlign: "left",
-            }}
-          >
-            <thead>
-              <tr
-                style={{
-                  background: "var(--surface-muted)",
-                  color: "var(--muted)",
-                  fontSize: "13px",
-                }}
-              >
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  預約編號
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  預約成員
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  單件設備
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  預約日期與時段
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  預約狀態
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  領取時間／經手管理員
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  歸還時間／經手管理員
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  審核資訊／駁回原因
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  建立／取消時間
-                </th>
-                <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
-                  現場管理操作
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {reservations.map((r) => {
-                const todayStr = getTaipeiTodayStr();
-                const overdue = isOverdueCheckedOut(r);
-                const badgeClass =
-                  r.status === "confirmed"
-                    ? "badge-mine"
-                    : r.status === "checked_out"
-                      ? "badge-loan"
-                      : r.status === "returned"
-                        ? "badge-returned"
-                        : r.status === "pending_approval"
-                          ? "badge-pending"
-                          : r.status === "rejected"
-                            ? "badge-cancelled"
-                            : "badge-occupied";
-
+              {[
+                { value: "ALL", label: "全部狀態" },
+                { value: "confirmed", label: "已核准／有效（待領取）" },
+                { value: "checked_out", label: "借用中（待歸還）" },
+                { value: "returned", label: "已歸還" },
+                { value: "pending_approval", label: "待審核" },
+                { value: "rejected", label: "已駁回" },
+                { value: "cancelled", label: "已取消" },
+              ].map((tab) => {
+                const active = statusFilter === tab.value;
                 return (
-                  <tr
-                    key={r.id}
-                    data-testid={`admin-row-${r.reservationNumber}`}
-                    style={{ borderBottom: "1px solid var(--line)" }}
+                  <button
+                    key={tab.value}
+                    type="button"
+                    data-testid={`admin-tab-${tab.value}`}
+                    onClick={() => setStatusFilter(tab.value as "ALL" | ReservationStatus)}
+                    style={{
+                      padding: "6px 12px",
+                      border: `1px solid ${active ? "var(--primary)" : "var(--line)"}`,
+                      borderRadius: "8px",
+                      background: active ? "var(--primary)" : "var(--surface)",
+                      color: active ? "#ffffff" : "var(--muted)",
+                      font: "inherit",
+                      fontSize: "13px",
+                      fontWeight: active ? 600 : 400,
+                      cursor: "pointer",
+                    }}
                   >
-                    <td className="mono" style={{ padding: "13px 16px" }}>
-                      {r.reservationNumber}
-                    </td>
-                    <td style={{ padding: "13px 16px" }}>
-                      <strong>{r.userDisplayName}</strong>{" "}
-                      <span className="muted mono" style={{ fontSize: "12px" }}>
-                        ({r.username})
-                      </span>
-                    </td>
-                    <td style={{ padding: "13px 16px" }}>
-                      <span className="mono" style={{ color: "var(--primary)", fontWeight: 600 }}>
-                        {r.equipmentCode}
-                      </span>{" "}
-                      {r.equipmentName}
-                    </td>
-                    <td className="mono" style={{ padding: "13px 16px" }}>
-                      {r.reservationDate} {r.slotName} {r.slotStartTime}–{r.slotEndTime}
-                    </td>
-                    <td style={{ padding: "13px 16px" }}>
-                      <span
-                        className={`badge ${badgeClass}`}
-                        data-testid={`admin-status-${r.reservationNumber}`}
-                      >
-                        {overdue ? "借用中（逾時未還）" : UI_TEXT.reservationStatus[r.status]}
-                      </span>
-                      {r.pendingRescheduleRequest && (
-                        <div style={{ marginTop: "4px" }}>
-                          <span
-                            className="badge"
-                            style={RESCHEDULE_BADGE_STYLE}
-                            data-testid={`admin-reschedule-pending-${r.reservationNumber}`}
-                          >
-                            改期審核中 {r.pendingRescheduleRequest.requestNumber}
-                          </span>
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: "13px 16px", fontSize: "13px" }}>
-                      {r.checkedOutAt ? (
-                        <div>
-                          <div className="mono">{formatIsoToTaipeiDateTime(r.checkedOutAt)}</div>
-                          <div className="muted" style={{ fontSize: "11px" }}>
-                            經手：{r.checkedOutByName ?? "管理員"}
-                            {r.checkedOutByUsername ? ` (${r.checkedOutByUsername})` : ""}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td style={{ padding: "13px 16px", fontSize: "13px" }}>
-                      {r.returnedAt ? (
-                        <div>
-                          <div className="mono">{formatIsoToTaipeiDateTime(r.returnedAt)}</div>
-                          <div className="muted" style={{ fontSize: "11px" }}>
-                            經手：{r.returnedByName ?? "管理員"}
-                            {r.returnedByUsername ? ` (${r.returnedByUsername})` : ""}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td style={{ padding: "13px 16px", fontSize: "13px" }}>
-                      {r.reviewedAt ? (
-                        <div>
-                          <div>
-                            {r.reviewedByDisplayName ?? "管理員"}（
-                            <span className="mono">{formatIsoToTaipeiDateTime(r.reviewedAt)}</span>
-                            ）
-                          </div>
-                          {r.rejectReason && (
-                            <div
-                              style={{ color: "var(--danger)", marginTop: "2px" }}
-                              data-testid={`admin-reject-reason-${r.reservationNumber}`}
-                            >
-                              原因：{r.rejectReason}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td className="mono" style={{ padding: "13px 16px", fontSize: "12px" }}>
-                      <div>建立：{formatIsoToTaipeiDateTime(r.createdAt)}</div>
-                      {r.cancelledAt && (
-                        <div className="muted">
-                          取消：{formatIsoToTaipeiDateTime(r.cancelledAt)}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
-                      {r.canPickup ? (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-loan"
-                          disabled={pickupProcessingId === r.id}
-                          data-testid={`pickup-btn-${r.reservationNumber}`}
-                          onClick={() => void handlePickup(r)}
-                        >
-                          {pickupProcessingId === r.id
-                            ? UI_TEXT.actions.pickupProcessing
-                            : UI_TEXT.actions.pickup}
-                        </button>
-                      ) : r.canReturn ? (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-returned"
-                          disabled={returnProcessingId === r.id}
-                          data-testid={`return-btn-${r.reservationNumber}`}
-                          onClick={() => void handleReturn(r)}
-                        >
-                          {returnProcessingId === r.id
-                            ? UI_TEXT.actions.returnProcessing
-                            : UI_TEXT.actions.returnEquipment}
-                        </button>
-                      ) : r.status === "confirmed" && r.reservationDate > todayStr ? (
-                        <span
-                          className="muted"
-                          style={{ fontSize: "12px" }}
-                          data-testid={`pickup-hint-${r.reservationNumber}`}
-                        >
-                          非當日預約（限當日領取）
-                        </span>
-                      ) : r.status === "confirmed" ? (
-                        <span
-                          className="muted"
-                          style={{ fontSize: "12px" }}
-                          data-testid={`pickup-hint-${r.reservationNumber}`}
-                        >
-                          時段已結束未領（逾期不可領取）
-                        </span>
-                      ) : r.status === "returned" ? (
-                        <span
-                          className="muted"
-                          style={{ fontSize: "12px" }}
-                          data-testid={`return-hint-${r.reservationNumber}`}
-                        >
-                          已完成歸還結案
-                        </span>
-                      ) : r.status === "pending_approval" ? (
-                        <span className="muted" style={{ fontSize: "12px" }}>
-                          請先於上方待審清單審核
-                        </span>
-                      ) : (
-                        <span className="muted" style={{ fontSize: "12px" }}>
-                          無可用操作
-                        </span>
-                      )}
-                    </td>
-                  </tr>
+                    {tab.label}
+                  </button>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="card" style={{ padding: "24px", color: "var(--muted)" }}>
+              正在載入设备審核設定、待審核申請清單與全體預約紀錄…
+            </div>
+          ) : reservations.length === 0 ? (
+            <div className="card" style={{ padding: "44px 24px", textAlign: "center" }}>
+              <h2>目前沒有符合篩選條件的預約申請紀錄</h2>
+              <p className="muted">請調整上方狀態或設備篩選條件，重新檢視全體成員預約紀錄。</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setStatusFilter("ALL");
+                  setEquipmentFilter("ALL");
+                }}
+              >
+                重設篩選條件
+              </button>
+            </div>
+          ) : (
+            <div className="card" style={{ overflowX: "auto" }}>
+              <table
+                data-testid="admin-reservations-table"
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "14px",
+                  textAlign: "left",
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      background: "var(--surface-muted)",
+                      color: "var(--muted)",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      預約編號
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      預約成員
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      單件設備
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      預約日期與時段
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      預約狀態
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      領取時間／經手管理員
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      歸還時間／經手管理員
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      審核資訊／駁回原因
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      建立／取消時間
+                    </th>
+                    <th style={{ padding: "13px 16px", borderBottom: "1px solid var(--line)" }}>
+                      現場管理操作
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reservations.map((r) => {
+                    const todayStr = getTaipeiTodayStr();
+                    const overdue = isOverdueCheckedOut(r);
+                    const badgeClass =
+                      r.status === "confirmed"
+                        ? "badge-mine"
+                        : r.status === "checked_out"
+                          ? "badge-loan"
+                          : r.status === "returned"
+                            ? "badge-returned"
+                            : r.status === "pending_approval"
+                              ? "badge-pending"
+                              : r.status === "rejected"
+                                ? "badge-cancelled"
+                                : "badge-occupied";
+
+                    return (
+                      <tr
+                        key={r.id}
+                        data-testid={`admin-row-${r.reservationNumber}`}
+                        style={{ borderBottom: "1px solid var(--line)" }}
+                      >
+                        <td className="mono" style={{ padding: "13px 16px" }}>
+                          {r.reservationNumber}
+                        </td>
+                        <td style={{ padding: "13px 16px" }}>
+                          <strong>{r.userDisplayName}</strong>{" "}
+                          <span className="muted mono" style={{ fontSize: "12px" }}>
+                            ({r.username})
+                          </span>
+                        </td>
+                        <td style={{ padding: "13px 16px" }}>
+                          <span
+                            className="mono"
+                            style={{ color: "var(--primary)", fontWeight: 600 }}
+                          >
+                            {r.equipmentCode}
+                          </span>{" "}
+                          {r.equipmentName}
+                        </td>
+                        <td className="mono" style={{ padding: "13px 16px" }}>
+                          {r.reservationDate} {r.slotName} {r.slotStartTime}–{r.slotEndTime}
+                        </td>
+                        <td style={{ padding: "13px 16px" }}>
+                          <span
+                            className={`badge ${badgeClass}`}
+                            data-testid={`admin-status-${r.reservationNumber}`}
+                          >
+                            {overdue ? "借用中（逾時未還）" : UI_TEXT.reservationStatus[r.status]}
+                          </span>
+                          {r.pendingRescheduleRequest && (
+                            <div style={{ marginTop: "4px" }}>
+                              <span
+                                className="badge"
+                                style={RESCHEDULE_BADGE_STYLE}
+                                data-testid={`admin-reschedule-pending-${r.reservationNumber}`}
+                              >
+                                改期審核中 {r.pendingRescheduleRequest.requestNumber}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "13px 16px", fontSize: "13px" }}>
+                          {r.checkedOutAt ? (
+                            <div>
+                              <div className="mono">
+                                {formatIsoToTaipeiDateTime(r.checkedOutAt)}
+                              </div>
+                              <div className="muted" style={{ fontSize: "11px" }}>
+                                經手：{r.checkedOutByName ?? "管理員"}
+                                {r.checkedOutByUsername ? ` (${r.checkedOutByUsername})` : ""}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "13px 16px", fontSize: "13px" }}>
+                          {r.returnedAt ? (
+                            <div>
+                              <div className="mono">{formatIsoToTaipeiDateTime(r.returnedAt)}</div>
+                              <div className="muted" style={{ fontSize: "11px" }}>
+                                經手：{r.returnedByName ?? "管理員"}
+                                {r.returnedByUsername ? ` (${r.returnedByUsername})` : ""}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "13px 16px", fontSize: "13px" }}>
+                          {r.reviewedAt ? (
+                            <div>
+                              <div>
+                                {r.reviewedByDisplayName ?? "管理員"}（
+                                <span className="mono">
+                                  {formatIsoToTaipeiDateTime(r.reviewedAt)}
+                                </span>
+                                ）
+                              </div>
+                              {r.rejectReason && (
+                                <div
+                                  style={{ color: "var(--danger)", marginTop: "2px" }}
+                                  data-testid={`admin-reject-reason-${r.reservationNumber}`}
+                                >
+                                  原因：{r.rejectReason}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td className="mono" style={{ padding: "13px 16px", fontSize: "12px" }}>
+                          <div>建立：{formatIsoToTaipeiDateTime(r.createdAt)}</div>
+                          {r.cancelledAt && (
+                            <div className="muted">
+                              取消：{formatIsoToTaipeiDateTime(r.cancelledAt)}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+                          {r.canPickup ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-loan"
+                              disabled={pickupProcessingId === r.id}
+                              data-testid={`pickup-btn-${r.reservationNumber}`}
+                              onClick={() => void handlePickup(r)}
+                            >
+                              {pickupProcessingId === r.id
+                                ? UI_TEXT.actions.pickupProcessing
+                                : UI_TEXT.actions.pickup}
+                            </button>
+                          ) : r.canReturn ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-returned"
+                              disabled={returnProcessingId === r.id}
+                              data-testid={`return-btn-${r.reservationNumber}`}
+                              onClick={() => void handleReturn(r)}
+                            >
+                              {returnProcessingId === r.id
+                                ? UI_TEXT.actions.returnProcessing
+                                : UI_TEXT.actions.returnEquipment}
+                            </button>
+                          ) : r.status === "confirmed" && r.reservationDate > todayStr ? (
+                            <span
+                              className="muted"
+                              style={{ fontSize: "12px" }}
+                              data-testid={`pickup-hint-${r.reservationNumber}`}
+                            >
+                              非當日預約（限當日領取）
+                            </span>
+                          ) : r.status === "confirmed" ? (
+                            <span
+                              className="muted"
+                              style={{ fontSize: "12px" }}
+                              data-testid={`pickup-hint-${r.reservationNumber}`}
+                            >
+                              時段已結束未領（逾期不可領取）
+                            </span>
+                          ) : r.status === "returned" ? (
+                            <span
+                              className="muted"
+                              style={{ fontSize: "12px" }}
+                              data-testid={`return-hint-${r.reservationNumber}`}
+                            >
+                              已完成歸還結案
+                            </span>
+                          ) : r.status === "pending_approval" ? (
+                            <span className="muted" style={{ fontSize: "12px" }}>
+                              請先於上方待審清單審核
+                            </span>
+                          ) : (
+                            <span className="muted" style={{ fontSize: "12px" }}>
+                              無可用操作
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {rejectTarget && (

@@ -77,6 +77,7 @@ export const UI_TEXT = {
     login: "登入",
     booking: "設備預約",
     myReservations: "我的預約",
+    equipmentStatus: "設備狀態管理",
     admin: "審核與借用管理",
     logout: "登出",
     darkMode: "深色模式",
@@ -86,6 +87,11 @@ export const UI_TEXT = {
     member: "一般成員",
     admin: "管理員",
     guest: "尚未登入",
+  },
+  equipmentStatus: {
+    available: "可用",
+    maintenance: "送修中",
+    retired: "停用",
   },
   approvalModes: {
     requiresApproval: "需人工審核",

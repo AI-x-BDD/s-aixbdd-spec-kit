@@ -69,21 +69,21 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 ### 資料庫（D1–D3 共用）
 
-- [ ] T003 在 `backend/prisma/schema.prisma` 更新資料模型：`enum equipment_status` 依序為 `available`、`maintenance`、`retired`；新增 `enum reservation_cancel_reason`（`member_cancelled`、`equipment_maintenance`、`equipment_retired`）；`reservations` 新增可為空的 `cancel_reason`，並新增索引 `idx_reservations_equipment_status_date`（`equipment_id, status, reservation_date`）；新增 `model equipment_status_changes`：`id`（`@db.Uuid`）、`equipment_id`、`from_status`、`to_status`、`changed_by`、`changed_at`（`@db.Timestamptz(6)`）、`cancelled_reservation_count`（`Int`，預設 0），以及 `created_at`、`updated_at`、`updated_by`、`deleted_at`，關聯到 `equipments` 與 `users`，索引 `idx_equipment_status_changes_equipment_changed`（`equipment_id, changed_at`）；`previewFeatures = ["partialIndexes"]` 與其餘 model、Enum、索引都不變（FR-001、FR-008、FR-015、FR-018）
+- [X] T003 在 `backend/prisma/schema.prisma` 更新資料模型：`enum equipment_status` 依序為 `available`、`maintenance`、`retired`；新增 `enum reservation_cancel_reason`（`member_cancelled`、`equipment_maintenance`、`equipment_retired`）；`reservations` 新增可為空的 `cancel_reason`，並新增索引 `idx_reservations_equipment_status_date`（`equipment_id, status, reservation_date`）；新增 `model equipment_status_changes`：`id`（`@db.Uuid`）、`equipment_id`、`from_status`、`to_status`、`changed_by`、`changed_at`（`@db.Timestamptz(6)`）、`cancelled_reservation_count`（`Int`，預設 0），以及 `created_at`、`updated_at`、`updated_by`、`deleted_at`，關聯到 `equipments` 與 `users`，索引 `idx_equipment_status_changes_equipment_changed`（`equipment_id, changed_at`）；`previewFeatures = ["partialIndexes"]` 與其餘 model、Enum、索引都不變（FR-001、FR-008、FR-015、FR-018）
   - **Must Read**
     - `data/data-model.dbml` → `Enum equipment_status`、`Enum reservation_cancel_reason` — Why：兩個 Enum 的值、順序與每個值代表的狀態
     - `data/data-model.dbml` → `Table equipment_status_changes` — Why：紀錄表的欄位、預設值、索引與只新增不修改的約束
     - `data/data-model.dbml` → `Table reservations` 的 `cancel_reason`、`idx_reservations_equipment_status_date` — Why：新增欄位的可為空規則與新增的索引
     - `data/data-model.dbml` → `Ref: equipment_status_changes.equipment_id > equipments.id`、`Ref: equipment_status_changes.changed_by > users.id` — Why：紀錄表的兩個外鍵
     - `research.md` → §1 — Why：Prisma schema 的 Enum 順序寫成 `available`、`maintenance`、`retired`
-- [ ] T004 在 `backend/` 以 `npx prisma migrate dev --create-only --name equipment_maintenance_retire` 產生 007 的 Migration（不套用），把自動產生的 SQL 改寫為：`ALTER TYPE "equipment_status" RENAME VALUE 'unavailable' TO 'retired'`、`ALTER TYPE "equipment_status" ADD VALUE 'maintenance' BEFORE 'retired'`（同一支 Migration 不使用 `maintenance`）；建立 `reservation_cancel_reason` 型別並新增 `reservations.cancel_reason`；以 `UPDATE reservations SET cancel_reason = 'member_cancelled' WHERE status = 'cancelled'` 補上既有取消紀錄；建立 `equipment_status_changes`、兩個外鍵與 `idx_equipment_status_changes_equipment_changed`；建立 `idx_reservations_equipment_status_date`；不改寫任何既有欄位值；最後執行 `npm run db:migrate` 確認套用成功（FR-018、US1 情境 13）
+- [X] T004 在 `backend/` 以 `npx prisma migrate dev --create-only --name equipment_maintenance_retire` 產生 007 的 Migration（不套用），把自動產生的 SQL 改寫為：`ALTER TYPE "equipment_status" RENAME VALUE 'unavailable' TO 'retired'`、`ALTER TYPE "equipment_status" ADD VALUE 'maintenance' BEFORE 'retired'`（同一支 Migration 不使用 `maintenance`）；建立 `reservation_cancel_reason` 型別並新增 `reservations.cancel_reason`；以 `UPDATE reservations SET cancel_reason = 'member_cancelled' WHERE status = 'cancelled'` 補上既有取消紀錄；建立 `equipment_status_changes`、兩個外鍵與 `idx_equipment_status_changes_equipment_changed`；建立 `idx_reservations_equipment_status_date`；不改寫任何既有欄位值；最後執行 `npm run db:migrate` 確認套用成功（FR-018、US1 情境 13）
   - **Must Read**
     - `research.md` → §1 — Why：`RENAME VALUE`、`ADD VALUE` 的寫法，同一支 Migration 不能使用新值，以及不直接套用自動產生 SQL 的原因
     - `data/data-model.dbml` → `Project "equipment-maintenance-retire"` — Why：本次增量遷移要完成的 4 件事與無損遷移的範圍
     - `spec.md` → FR-018、US1 情境 13 — Why：既有不可用設備轉為停用，既有預約、借用與改期申請的狀態與內容都不得改變
   - **Optional**
     - `data/data-model.dbml` → `Enum reschedule_expire_reason` — Why：需要確認改期失效原因沿用 `reservation_cancelled`、不新增 Enum 值時
-- [ ] T005 在 `backend/prisma/seed.ts` 擴充 demo seed：重設方式見 Notes 待確認 5，沿用既有的 `deleteMany` 順序重設 006 的資料表；新增管理員黃詩涵（`huang.shihan`）；依執行當下的 `Asia/Taipei` 日期動態建立 6 台設備 `EQ-101`～`EQ-106`（`EQ-105 桌上型冷凍離心機 Eppendorf 5430R` 為 `maintenance` 且需人工審核，`EQ-106 紫外光可見光分光光譜儀 Hitachi U-2900` 為 `retired` 且免審核）；`EQ-101` 為可示範設為送修的「可用」設備，有未來的 `confirmed` 預約（含一筆 `pending_approval` 改期申請）與 `pending_approval` 預約；`EQ-105` 有因送修被取消的預約（`cancel_reason` 為 `equipment_maintenance`，`cancelled_at` 等於狀態變更時間）；`EQ-106` 有成員的 `returned` 紀錄與因停用被取消的預約（`equipment_retired`）；`EQ-102` 保留一筆逾期未還的 `checked_out`；既有 `cancelled` 範例補上 `member_cancelled`；新增 `EQ-105`（吳承翰）、`EQ-106`（黃詩涵）、`EQ-104`（黃詩涵）的 `equipment_status_changes`；保留 006 的帳號、時段、6 態預約與 5 態改期申請範例；執行 `npm run db:seed` 確認成功（FR-018、US1 情境 14）
+- [X] T005 在 `backend/prisma/seed.ts` 擴充 demo seed：重設方式見 Notes 待確認 5，沿用既有的 `deleteMany` 順序重設 006 的資料表；新增管理員黃詩涵（`huang.shihan`）；依執行當下的 `Asia/Taipei` 日期動態建立 6 台設備 `EQ-101`～`EQ-106`（`EQ-105 桌上型冷凍離心機 Eppendorf 5430R` 為 `maintenance` 且需人工審核，`EQ-106 紫外光可見光分光光譜儀 Hitachi U-2900` 為 `retired` 且免審核）；`EQ-101` 為可示範設為送修的「可用」設備，有未來的 `confirmed` 預約（含一筆 `pending_approval` 改期申請）與 `pending_approval` 預約；`EQ-105` 有因送修被取消的預約（`cancel_reason` 為 `equipment_maintenance`，`cancelled_at` 等於狀態變更時間）；`EQ-106` 有成員的 `returned` 紀錄與因停用被取消的預約（`equipment_retired`）；`EQ-102` 保留一筆逾期未還的 `checked_out`；既有 `cancelled` 範例補上 `member_cancelled`；新增 `EQ-105`（吳承翰）、`EQ-106`（黃詩涵）、`EQ-104`（黃詩涵）的 `equipment_status_changes`；保留 006 的帳號、時段、6 態預約與 5 態改期申請範例；執行 `npm run db:seed` 確認成功（FR-018、US1 情境 14）
   - **Must Read**
     - `research.md` → §5 — Why：demo seed 依執行當下日期動態建立的範例內容
     - `research.md` → §1 — Why：demo seed 以 `deleteMany` 重設全部資料的做法（見 Notes 待確認 5）
@@ -98,39 +98,39 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 ### 後端（B1–B5 共用）
 
-- [ ] T006 [P] 在 `backend/src/middleware/errorHandler.ts` 的 `ErrorCode` 新增 `EQUIPMENT_ON_LOAN`、`EQUIPMENT_STATUS_UNCHANGED`、`EQUIPMENT_STATE_CHANGED`，三者都回 `409`；`EQUIPMENT_ON_LOAN` 的訊息為「設備借用中，請先登記歸還」，`EQUIPMENT_STATE_CHANGED` 的訊息為「設備狀態已被變更，請重新確認」，`EQUIPMENT_STATUS_UNCHANGED` 的訊息說明設備已經是目標狀態（FR-005、FR-019、NFR-001）
+- [X] T006 [P] 在 `backend/src/middleware/errorHandler.ts` 的 `ErrorCode` 新增 `EQUIPMENT_ON_LOAN`、`EQUIPMENT_STATUS_UNCHANGED`、`EQUIPMENT_STATE_CHANGED`，三者都回 `409`；`EQUIPMENT_ON_LOAN` 的訊息為「設備借用中，請先登記歸還」，`EQUIPMENT_STATE_CHANGED` 的訊息為「設備狀態已被變更，請重新確認」，`EQUIPMENT_STATUS_UNCHANGED` 的訊息說明設備已經是目標狀態（FR-005、FR-019、NFR-001）
   - **Must Read**
     - `contracts/openapi.yaml` → `Error`、`UpdateEquipmentStatusConflict`、`EquipmentStatusUnchanged` — Why：新增的 3 個錯誤碼、HTTP 狀態碼與各自的觸發情況
     - `spec.md` → FR-005、FR-019、NFR-001 — Why：借用中與狀態已變更的提示文字，以及錯誤提示要說明失敗原因
-- [ ] T007 [P] 在 `backend/src/middleware/authMiddleware.ts` 更新 `requireAdmin` 回傳 `403 FORBIDDEN` 的繁體中文訊息，寫明「設定送修、停用與恢復可用只限管理員操作」，並保留原本列出的審核與登記領取歸還操作（FR-017、NFR-001）
+- [X] T007 [P] 在 `backend/src/middleware/authMiddleware.ts` 更新 `requireAdmin` 回傳 `403 FORBIDDEN` 的繁體中文訊息，寫明「設定送修、停用與恢復可用只限管理員操作」，並保留原本列出的審核與登記領取歸還操作（FR-017、NFR-001）
   - **Must Read**
     - `contracts/openapi.yaml` → `Forbidden` — Why：一般成員呼叫設定送修、停用與恢復可用時回 `FORBIDDEN`
     - `spec.md` → FR-017 — Why：只允許管理員操作，一般成員要收到權限不足的提示
   - **Optional**
     - `ui/plan.md` → §5 `equipment-status.html` 的「權限不足」 — Why：需要對齊畫面上權限不足說明的用詞時
-- [ ] T008 在 `backend/src/services/equipmentService.ts` 把 `EquipmentWithSlotAvailabilityDto` 與 `AdminEquipmentSettingDto` 的 `isActive` 換成 `status`（型別為 `available`、`maintenance`、`retired`），`toAdminEquipmentSettingDto` 的參數型別改為三態；`isBookable` 維持只在設備 `status` 為 `available` 時才可能為 true；確認 Migration 後的 Prisma Client 可以通過 `tsc --noEmit`（research §2、FR-006）
+- [X] T008 在 `backend/src/services/equipmentService.ts` 把 `EquipmentWithSlotAvailabilityDto` 與 `AdminEquipmentSettingDto` 的 `isActive` 換成 `status`（型別為 `available`、`maintenance`、`retired`），`toAdminEquipmentSettingDto` 的參數型別改為三態；`isBookable` 維持只在設備 `status` 為 `available` 時才可能為 true；確認 Migration 後的 Prisma Client 可以通過 `tsc --noEmit`（research §2、FR-006）
   - **Must Read**
     - `research.md` → §2 — Why：設備 DTO 以 `status` 取代 `isActive` 布林值的決策
     - `contracts/openapi.yaml` → `EquipmentStatus`、`AdminEquipmentSetting`、`EquipmentWithSlotAvailability` — Why：`status` 欄位的型別與兩種 DTO 的欄位
-- [ ] T009 在 `backend/src/services/reservationService.ts` 的 `cancelReservation`，取消時同時寫入 `cancel_reason` 為 `member_cancelled`，讓 Migration 後成員新取消的紀錄也有取消原因（FR-015、research §1）
+- [X] T009 在 `backend/src/services/reservationService.ts` 的 `cancelReservation`，取消時同時寫入 `cancel_reason` 為 `member_cancelled`，讓 Migration 後成員新取消的紀錄也有取消原因（FR-015、research §1）
   - **Must Read**
     - `contracts/openapi.yaml` → `cancelReservation` — Why：成員本人取消時 `cancelReason` 記為 `member_cancelled`
     - `data/data-model.dbml` → `Table reservations` 的 `cancel_reason` — Why：`status` 為 `cancelled` 時必填的規則與三種值
 
 ### 前端（F1、F2、F4、F5 共用）
 
-- [ ] T010 在 `frontend/src/api/client.ts` 新增 `EquipmentStatus`（`available`、`maintenance`、`retired`）與 `ReservationCancelReason` 型別，並把 `EquipmentWithSlotAvailability`、`AdminEquipmentSetting` 的 `isActive` 換成 `status`（research §2）
+- [X] T010 在 `frontend/src/api/client.ts` 新增 `EquipmentStatus`（`available`、`maintenance`、`retired`）與 `ReservationCancelReason` 型別，並把 `EquipmentWithSlotAvailability`、`AdminEquipmentSetting` 的 `isActive` 換成 `status`（research §2）
   - **Must Read**
     - `contracts/openapi.yaml` → `EquipmentStatus`、`ReservationCancelReason` — Why：兩個新型別的值
     - `contracts/openapi.yaml` → `EquipmentWithSlotAvailability`、`AdminEquipmentSetting` — Why：`status` 取代 `isActive` 後的欄位
-- [ ] T011 在 `frontend/src/text/zh-TW.ts` 新增設備 3 態標籤（`available` 可用、`maintenance` 送修中、`retired` 停用），並新增頁首導覽「設備狀態管理」，「審核與借用管理」維持原文字（見 Notes 待確認 1）（NFR-001）
+- [X] T011 在 `frontend/src/text/zh-TW.ts` 新增設備 3 態標籤（`available` 可用、`maintenance` 送修中、`retired` 停用），並新增頁首導覽「設備狀態管理」，「審核與借用管理」維持原文字（見 Notes 待確認 1）（NFR-001）
   - **Must Read**
     - `spec.md` → NFR-001 — Why：設備狀態標籤必須使用臺灣繁體中文
     - `ui/plan.md` → §3.1 — Why：頁首 5 個頁面導覽的名稱與對應畫面（見 Notes 待確認 1）
-- [ ] T012 在 `frontend/src/views/EquipmentBookingView.tsx` 與 `frontend/src/views/AdminOverviewView.tsx`，把 `eq.isActive ? "可供借用" : "暫停借用"` 換成依 `status` 顯示的狀態徽章：「送修中」為琥珀色實心徽章（`--pending`、`--pending-soft`），「停用」為中性灰徽章（`--occupied`、`--occupied-soft`），文字取自 `zh-TW.ts`（NFR-001）
+- [X] T012 在 `frontend/src/views/EquipmentBookingView.tsx` 與 `frontend/src/views/AdminOverviewView.tsx`，把 `eq.isActive ? "可供借用" : "暫停借用"` 換成依 `status` 顯示的狀態徽章：「送修中」為琥珀色實心徽章（`--pending`、`--pending-soft`），「停用」為中性灰徽章（`--occupied`、`--occupied-soft`），文字取自 `zh-TW.ts`（NFR-001）
   - **Must Read**
     - `ui/plan.md` → §2 — Why：「送修中」與「停用」徽章的配色與樣式
-- [ ] T013 在 `frontend/src/App.tsx` 把管理員畫面拆成「設備狀態管理」與「審核與借用管理」兩個頁籤，兩者都沿用 `AdminOverviewView.tsx`，以傳入的區塊參數決定只顯示設備區塊或待審清單與全體預約區塊（見 Notes 待確認 1）；管理員登入後進入「設備狀態管理」，`frontend/src/views/LoginView.tsx` 的管理員登入成功卡片按鈕改為「前往設備狀態管理」；未登入時的提示改為「請先登入，才能查看設備預約、我的預約、設備狀態管理或審核與借用管理。」（FR-018）
+- [X] T013 在 `frontend/src/App.tsx` 把管理員畫面拆成「設備狀態管理」與「審核與借用管理」兩個頁籤，兩者都沿用 `AdminOverviewView.tsx`，以傳入的區塊參數決定只顯示設備區塊或待審清單與全體預約區塊（見 Notes 待確認 1）；管理員登入後進入「設備狀態管理」，`frontend/src/views/LoginView.tsx` 的管理員登入成功卡片按鈕改為「前往設備狀態管理」；未登入時的提示改為「請先登入，才能查看設備預約、我的預約、設備狀態管理或審核與借用管理。」（FR-018）
   - **Must Read**
     - `ui/plan.md` → §3.1、§3.2 — Why：5 個頁面的進入方式，以及管理員登入後進入設備狀態管理的流程
     - `ui/plan.md` → §4 `index.html` 的「管理員登入成功」 — Why：管理員登入成功卡片的文字與按鈕

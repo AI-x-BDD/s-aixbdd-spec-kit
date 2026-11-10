@@ -15,6 +15,12 @@ function getTaipeiDateOffset(daysOffset: number): Date {
   return new Date(Date.UTC(y, m - 1, d + daysOffset));
 }
 
+// 依執行當下的 Asia/Taipei 日期加上偏移天數與時分，取得 UTC 時間點（demo seed 的狀態變更與取消時間）
+function getTaipeiDateTimeOffset(daysOffset: number, hhmm: string): Date {
+  const ymd = getTaipeiDateOffset(daysOffset).toISOString().slice(0, 10);
+  return new Date(`${ymd}T${hhmm}:00+08:00`);
+}
+
 // 改期申請編號：RR- 加申請當下的 Asia/Taipei 日期 yyyyMMdd 加隨機碼（tasks.md Notes 待確認 1）
 function generateRescheduleRequestNo(appliedAt: Date): string {
   const compactDate = new Intl.DateTimeFormat("en-CA", {
@@ -30,6 +36,8 @@ function generateRescheduleRequestNo(appliedAt: Date): string {
 }
 
 export async function seedDatabase(): Promise<void> {
+  // 007：設備狀態變更紀錄只在 demo seed 重設時清除，必須排在 equipments、users 之前（tasks.md Notes 待確認 5）
+  await prisma.equipment_status_changes.deleteMany();
   await prisma.reschedule_requests.deleteMany();
   await prisma.reservations.deleteMany();
   await prisma.sessions.deleteMany();
@@ -67,6 +75,17 @@ export async function seedDatabase(): Promise<void> {
       username: "wu.chenghan",
       password_hash: adminHash,
       display_name: "吳承翰",
+      role: "admin",
+    },
+  });
+
+  // 007：第二位管理員，負責 EQ-104、EQ-106 的狀態變更紀錄
+  const huangShihan = await prisma.users.create({
+    data: {
+      id: "11111111-1111-4111-8111-111111111104",
+      username: "huang.shihan",
+      password_hash: adminHash,
+      display_name: "黃詩涵",
       role: "admin",
     },
   });
@@ -114,6 +133,31 @@ export async function seedDatabase(): Promise<void> {
       category: "生醫分析",
       status: "available",
       requires_approval: false,
+    },
+  });
+
+  // 007：送修中設備（需人工審核）與停用設備（免審核），FR-018、US1 情境 14
+  const eq105 = await prisma.equipments.create({
+    data: {
+      id: "22222222-2222-4222-8222-222222222105",
+      equipment_code: "EQ-105",
+      name: "桌上型冷凍離心機 Eppendorf 5430R",
+      category: "生醫分析",
+      status: "maintenance",
+      requires_approval: true,
+      updated_by: wuChenghan.id,
+    },
+  });
+
+  const eq106 = await prisma.equipments.create({
+    data: {
+      id: "22222222-2222-4222-8222-222222222106",
+      equipment_code: "EQ-106",
+      name: "紫外光可見光分光光譜儀 Hitachi U-2900",
+      category: "光學檢測",
+      status: "retired",
+      requires_approval: false,
+      updated_by: huangShihan.id,
     },
   });
 
@@ -279,6 +323,7 @@ export async function seedDatabase(): Promise<void> {
         reservation_date: tomorrow,
         slot_id: slotMorning.id,
         status: "cancelled",
+        cancel_reason: "member_cancelled",
         cancelled_at: new Date("2026-11-08T11:30:00Z"),
         created_at: new Date("2026-11-07T03:05:00Z"),
         updated_at: new Date("2026-11-08T11:30:00Z"),
@@ -550,6 +595,141 @@ export async function seedDatabase(): Promise<void> {
         created_at: eveningPendingAppliedAt,
         updated_at: eveningPendingAppliedAt,
         updated_by: linYating.id,
+      },
+    ],
+  });
+
+  // ---------- 007：送修中、停用與逾期未還的展示資料（FR-018、US1 情境 14） ----------
+  // 狀態變更時間依執行當下的 Asia/Taipei 日期動態計算；因送修或停用取消的預約，cancelled_at 等於狀態變更時間
+  const eq105MaintenanceAt = getTaipeiDateTimeOffset(-1, "16:20");
+  const eq106RetiredAt = getTaipeiDateTimeOffset(-7, "10:05");
+  const eq104RestoredAt = getTaipeiDateTimeOffset(-11, "09:12");
+  const twoWeeksAgo = getTaipeiDateOffset(-14);
+  const fiveDaysAgo = getTaipeiDateOffset(-5);
+
+  await prisma.reservations.createMany({
+    data: [
+      // EQ-105 送修時被取消的預約（設備送修）
+      {
+        id: "44444444-4444-4444-8444-444444444018",
+        reservation_no: "RV-20261108-14",
+        user_id: linYating.id,
+        equipment_id: eq105.id,
+        reservation_date: tomorrow,
+        slot_id: slotAfternoon.id,
+        status: "cancelled",
+        cancel_reason: "equipment_maintenance",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T05:00:00Z"),
+        cancelled_at: eq105MaintenanceAt,
+        created_at: new Date("2026-11-08T04:10:00Z"),
+        updated_at: eq105MaintenanceAt,
+        updated_by: wuChenghan.id,
+      },
+      {
+        id: "44444444-4444-4444-8444-444444444019",
+        reservation_no: "RV-20261108-15",
+        user_id: chenGuanting.id,
+        equipment_id: eq105.id,
+        reservation_date: dayAfterTomorrow,
+        slot_id: slotMorning.id,
+        status: "cancelled",
+        cancel_reason: "equipment_maintenance",
+        cancelled_at: eq105MaintenanceAt,
+        created_at: new Date("2026-11-08T04:40:00Z"),
+        updated_at: eq105MaintenanceAt,
+        updated_by: wuChenghan.id,
+      },
+      // EQ-106 停用前的已歸還紀錄（停用設備的歷史紀錄仍可查詢，FR-016）
+      {
+        id: "44444444-4444-4444-8444-444444444020",
+        reservation_no: "RV-20261027-02",
+        user_id: linYating.id,
+        equipment_id: eq106.id,
+        reservation_date: twoWeeksAgo,
+        slot_id: slotMorning.id,
+        status: "returned",
+        checked_out_by: huangShihan.id,
+        checked_out_at: getTaipeiDateTimeOffset(-14, "09:05"),
+        returned_by: huangShihan.id,
+        returned_at: getTaipeiDateTimeOffset(-14, "11:50"),
+        created_at: getTaipeiDateTimeOffset(-15, "10:00"),
+        updated_at: getTaipeiDateTimeOffset(-14, "11:50"),
+        updated_by: huangShihan.id,
+      },
+      // EQ-106 停用時被取消的預約（設備停用）
+      {
+        id: "44444444-4444-4444-8444-444444444021",
+        reservation_no: "RV-20261102-04",
+        user_id: chenGuanting.id,
+        equipment_id: eq106.id,
+        reservation_date: fiveDaysAgo,
+        slot_id: slotAfternoon.id,
+        status: "cancelled",
+        cancel_reason: "equipment_retired",
+        cancelled_at: eq106RetiredAt,
+        created_at: getTaipeiDateTimeOffset(-8, "14:30"),
+        updated_at: eq106RetiredAt,
+        updated_by: huangShihan.id,
+      },
+      // EQ-102 逾期未還的借用（昨天晚間已結束仍未歸還），設為送修或停用時回 EQUIPMENT_ON_LOAN
+      {
+        id: "44444444-4444-4444-8444-444444444022",
+        reservation_no: "RV-20261109-19",
+        user_id: chenGuanting.id,
+        equipment_id: eq102.id,
+        reservation_date: yesterday,
+        slot_id: slotEvening.id,
+        status: "checked_out",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T09:00:00Z"),
+        checked_out_by: wuChenghan.id,
+        checked_out_at: getTaipeiDateTimeOffset(-1, "18:05"),
+        created_at: new Date("2026-11-08T08:30:00Z"),
+        updated_at: getTaipeiDateTimeOffset(-1, "18:05"),
+        updated_by: wuChenghan.id,
+      },
+    ],
+  });
+
+  // 設備狀態變更紀錄（只新增，設備清單顯示最近一次變更，FR-008）
+  await prisma.equipment_status_changes.createMany({
+    data: [
+      {
+        id: "66666666-6666-4666-8666-666666666001",
+        equipment_id: eq104.id,
+        from_status: "maintenance",
+        to_status: "available",
+        changed_by: huangShihan.id,
+        changed_at: eq104RestoredAt,
+        cancelled_reservation_count: 0,
+        created_at: eq104RestoredAt,
+        updated_at: eq104RestoredAt,
+        updated_by: huangShihan.id,
+      },
+      {
+        id: "66666666-6666-4666-8666-666666666002",
+        equipment_id: eq106.id,
+        from_status: "available",
+        to_status: "retired",
+        changed_by: huangShihan.id,
+        changed_at: eq106RetiredAt,
+        cancelled_reservation_count: 1,
+        created_at: eq106RetiredAt,
+        updated_at: eq106RetiredAt,
+        updated_by: huangShihan.id,
+      },
+      {
+        id: "66666666-6666-4666-8666-666666666003",
+        equipment_id: eq105.id,
+        from_status: "available",
+        to_status: "maintenance",
+        changed_by: wuChenghan.id,
+        changed_at: eq105MaintenanceAt,
+        cancelled_reservation_count: 2,
+        created_at: eq105MaintenanceAt,
+        updated_at: eq105MaintenanceAt,
+        updated_by: wuChenghan.id,
       },
     ],
   });

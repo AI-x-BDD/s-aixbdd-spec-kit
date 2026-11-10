@@ -722,6 +722,8 @@ export async function cancelReservation(params: {
       where: { id: existing.id },
       data: {
         status: "cancelled",
+        // 成員本人取消，「我的預約」不顯示設備原因（FR-015）
+        cancel_reason: "member_cancelled",
         cancelled_at: now,
         updated_at: now,
         updated_by: params.userId,

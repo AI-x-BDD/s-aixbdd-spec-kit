@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { apiRequest, clearStoredToken, getStoredToken } from "./api/client";
-import { ERROR_MESSAGES, UI_TEXT } from "./text/zh-TW";
+import { UI_TEXT } from "./text/zh-TW";
 import { AdminOverviewView } from "./views/AdminOverviewView";
 import { EquipmentBookingView } from "./views/EquipmentBookingView";
 import { LoginView } from "./views/LoginView";
 import { MyReservationsView } from "./views/MyReservationsView";
 
-export type ViewName = "login" | "booking" | "my-reservations" | "admin";
+export type ViewName = "login" | "booking" | "my-reservations" | "equipment-status" | "admin";
+
+/** 未登入時開啟受保護頁面的提示（ui/plan.md §5 未登入存取受保護頁面）。 */
+const LOGIN_REQUIRED_MESSAGE =
+  "請先登入，才能查看設備預約、我的預約、設備狀態管理或審核與借用管理。";
 
 export interface AuthenticatedUser {
   id: string;
@@ -57,7 +61,7 @@ export function App(): React.ReactElement {
     apiRequest<AuthenticatedUser>("/auth/me")
       .then((user) => {
         setCurrentUser(user);
-        setActiveView(user.role === "admin" ? "admin" : "booking");
+        setActiveView(user.role === "admin" ? "equipment-status" : "booking");
       })
       .catch(() => {
         clearStoredToken();
@@ -81,7 +85,7 @@ export function App(): React.ReactElement {
     if (!currentUser) {
       setLoginBanner({
         tone: "danger",
-        text: ERROR_MESSAGES.UNAUTHORIZED,
+        text: LOGIN_REQUIRED_MESSAGE,
       });
       setActiveView("login");
       return;
@@ -92,7 +96,7 @@ export function App(): React.ReactElement {
   const handleLoginSuccess = (user: AuthenticatedUser): void => {
     setCurrentUser(user);
     setLoginBanner(null);
-    setActiveView(user.role === "admin" ? "admin" : "booking");
+    setActiveView(user.role === "admin" ? "equipment-status" : "booking");
   };
 
   const handleLogout = async (): Promise<void> => {
@@ -176,6 +180,15 @@ export function App(): React.ReactElement {
             <button
               type="button"
               className="nav-tab"
+              aria-current={activeView === "equipment-status" ? "page" : undefined}
+              onClick={() => handleNavigate("equipment-status")}
+              data-testid="nav-equipment-status"
+            >
+              {UI_TEXT.nav.equipmentStatus}
+            </button>
+            <button
+              type="button"
+              className="nav-tab"
               aria-current={activeView === "admin" ? "page" : undefined}
               onClick={() => handleNavigate("admin")}
               data-testid="nav-admin"
@@ -229,9 +242,11 @@ export function App(): React.ReactElement {
               setActiveView("booking");
             }}
           />
-        ) : activeView === "admin" ? (
+        ) : activeView === "equipment-status" || activeView === "admin" ? (
           <AdminOverviewView
+            key={activeView}
             currentUser={currentUser}
+            section={activeView === "equipment-status" ? "equipment" : "review"}
             onGoToBooking={() => setActiveView("booking")}
             onSwitchAccount={() => void handleLogout()}
           />

@@ -23,6 +23,13 @@ export type SlotAvailabilityStatus =
 export type ReservationStatus =
   "pending_approval" | "confirmed" | "checked_out" | "returned" | "rejected" | "cancelled";
 
+/** 設備 3 種狀態（contracts EquipmentStatus）；只有 available 可以被預約。 */
+export type EquipmentStatus = "available" | "maintenance" | "retired";
+
+/** 預約取消原因（contracts ReservationCancelReason）。 */
+export type ReservationCancelReason =
+  "member_cancelled" | "equipment_maintenance" | "equipment_retired";
+
 export type RescheduleRequestStatus =
   "pending_approval" | "approved" | "rejected" | "withdrawn" | "expired";
 
@@ -98,7 +105,7 @@ export interface EquipmentWithSlotsDto {
   equipmentCode: string;
   name: string;
   category: string;
-  isActive: boolean;
+  status: EquipmentStatus;
   requiresApproval: boolean;
   reservationDate: string;
   slots: SlotAvailabilityDto[];
@@ -226,7 +233,7 @@ export interface AdminEquipmentSettingDto {
   equipmentCode: string;
   name: string;
   category: string;
-  isActive: boolean;
+  status: EquipmentStatus;
   requiresApproval: boolean;
   updatedAt: string;
 }

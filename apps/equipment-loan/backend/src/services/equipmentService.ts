@@ -9,6 +9,9 @@ import {
 } from "../utils/taipeiTime.js";
 import { expireDueRescheduleRequests, type TimeSlotSummaryDto } from "./rescheduleService.js";
 
+/** 設備 3 種狀態（contracts/openapi.yaml EquipmentStatus）；只有 available 可以被預約（FR-006）。 */
+export type EquipmentStatus = "available" | "maintenance" | "retired";
+
 export type SlotStatus =
   | "AVAILABLE"
   | "MY_PENDING"
@@ -56,7 +59,7 @@ export interface EquipmentWithSlotAvailabilityDto {
   equipmentCode: string;
   name: string;
   category: string;
-  isActive: boolean;
+  status: EquipmentStatus;
   requiresApproval: boolean;
   reservationDate: string;
   slots: EquipmentSlotAvailabilityDto[];
@@ -192,7 +195,7 @@ export async function listEquipments(params: {
     const inOpenWindow = isWithinOpenDateWindow(params.date, now);
 
     const items: EquipmentWithSlotAvailabilityDto[] = equipments.map((eq) => {
-      const isActive = eq.status === "available";
+      const isAvailable = eq.status === "available";
       const slots: EquipmentSlotAvailabilityDto[] = timeSlots.map((slot) => {
         const key = `${eq.id}|${slot.id}`;
         const occupied = occupiedByEqAndSlot.get(key);
@@ -232,7 +235,7 @@ export async function listEquipments(params: {
 
         const started = hasSlotStarted(params.date, slot.start_time, now);
         const isBookable =
-          isActive && inOpenWindow && !started && availabilityStatus === "available";
+          isAvailable && inOpenWindow && !started && availabilityStatus === "available";
 
         return {
           slotId: slot.id,
@@ -254,7 +257,7 @@ export async function listEquipments(params: {
         equipmentCode: eq.equipment_code,
         name: eq.name,
         category: eq.category,
-        isActive,
+        status: eq.status,
         requiresApproval: eq.requires_approval,
         reservationDate: params.date,
         slots,
@@ -276,7 +279,7 @@ export interface AdminEquipmentSettingDto {
   equipmentCode: string;
   name: string;
   category: string;
-  isActive: boolean;
+  status: EquipmentStatus;
   requiresApproval: boolean;
   updatedAt: string;
 }
@@ -294,7 +297,7 @@ function toAdminEquipmentSettingDto(eq: {
   equipment_code: string;
   name: string;
   category: string;
-  status: "available" | "unavailable";
+  status: EquipmentStatus;
   requires_approval: boolean;
   updated_at: Date;
 }): AdminEquipmentSettingDto {
@@ -303,7 +306,7 @@ function toAdminEquipmentSettingDto(eq: {
     equipmentCode: eq.equipment_code,
     name: eq.name,
     category: eq.category,
-    isActive: eq.status === "available",
+    status: eq.status,
     requiresApproval: eq.requires_approval,
     updatedAt: eq.updated_at.toISOString(),
   };
