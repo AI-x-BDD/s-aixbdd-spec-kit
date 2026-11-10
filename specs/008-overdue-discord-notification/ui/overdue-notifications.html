@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>逾期通知紀錄｜精密實驗設備借用中心</title>
+<style>
+  /* 視覺風格（ui/plan.md 第 2 節） */
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-muted: #F1F5F9;
+    --ink: #0F172A;
+    --muted: #475569;
+    --line: #E2E8F0;
+    --primary: #2563EB;
+    --primary-soft: #DBEAFE;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+    --pending: #D97706;
+    --pending-soft: #FEF3C7;
+    --success: #16A34A;
+    --success-soft: #DCFCE7;
+    --occupied: #64748B;
+    --occupied-soft: #F1F5F9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+    --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  /* 共用外觀（每頁相同） */
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-muted: #162032;
+    --ink: #F8FAFC;
+    --muted: #94A3B8;
+    --line: #334155;
+    --primary: #3B82F6;
+    --primary-soft: #1E3A8A;
+    --danger: #EF4444;
+    --danger-soft: #7F1D1D;
+    --pending: #F59E0B;
+    --pending-soft: #78350F;
+    --success: #22C55E;
+    --success-soft: #14532D;
+    --occupied: #94A3B8;
+    --occupied-soft: #334155;
+    --shadow: 0 1px 3px rgba(15, 23, 42, .35), 0 6px 20px rgba(15, 23, 42, .35);
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font); transition: background-color .15s, color .15s; }
+  a { color: inherit; }
+  code, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .site-header .inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .04em; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .brand-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #FFFFFF; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+  .site-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .site-nav a { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .site-nav a[aria-current="page"] { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  [data-theme="dark"] .site-nav a[aria-current="page"] { color: var(--ink); }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .user-pill { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .btn-theme, .btn-logout { height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-theme:hover, .btn-logout:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 720px) { .user-pill { display: none; } .site-header .inner { padding: 8px 12px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 96px; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.3; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  h3 { margin: 0 0 8px; font-size: 15px; }
+  .page-lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .section-card { margin-bottom: 20px; padding: 20px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .section-head h2 { margin: 0; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, background-color .15s; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--primary); }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFFFFF; }
+  .btn-pending { background: var(--pending); border-color: var(--pending); color: #FFFFFF; }
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; }
+  .banner-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .banner-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .banner-pending { background: var(--pending-soft); color: var(--pending); border-color: var(--pending); }
+  .banner-info { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+  [data-theme="dark"] .banner { color: var(--ink); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+  .badge-member { background: var(--success-soft); color: var(--success); }
+  .badge-admin { background: var(--primary-soft); color: var(--primary); }
+  .badge-sending { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+  .badge-sent { background: var(--success-soft); color: var(--success); }
+  .badge-failed { background: var(--danger-soft); color: var(--danger); }
+  .badge-unknown { background: var(--pending-soft); color: var(--pending); border-color: var(--pending); }
+  .badge-loan { background: var(--primary); color: #FFFFFF; }
+  .badge-returned { background: var(--occupied-soft); color: var(--occupied); border-color: var(--line); }
+  [data-theme="dark"] .badge-member, [data-theme="dark"] .badge-admin, [data-theme="dark"] .badge-sending, [data-theme="dark"] .badge-sent, [data-theme="dark"] .badge-failed, [data-theme="dark"] .badge-unknown { color: var(--ink); }
+
+  .spinner { width: 20px; height: 20px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+  .spinner-sm { width: 12px; height: 12px; border-width: 2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { background: var(--surface-muted); border-radius: 8px; min-height: 20px; border: 1px dashed var(--line); }
+  .loading-line { display: flex; align-items: center; gap: 10px; color: var(--muted); margin-bottom: 14px; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+  .field .req { margin-left: 2px; color: var(--danger); }
+  .field input, .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+  .field input { height: 42px; }
+  .field input:focus, .field select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
+  .field input:disabled { background: var(--surface-muted); color: var(--muted); }
+  .field.has-error input { border-color: var(--danger); outline-color: var(--danger-soft); }
+  .field .hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
+  .field .error { margin-top: 4px; color: var(--danger); font-size: 13px; font-weight: 500; }
+
+  .dialog-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(15, 23, 42, .45); display: grid; place-items: center; padding: 16px; }
+  .dialog { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .notice { margin: 12px 0; padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); background: var(--surface-muted); }
+  .notice-pending { background: var(--pending-soft); border-color: var(--pending); }
+  [data-theme="dark"] .notice-pending { color: var(--ink); }
+  @media (max-width: 640px) { .dialog-backdrop { padding: 0; } .dialog { width: 100%; min-height: 100vh; max-height: 100vh; border-radius: 0; } }
+  .detail-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
+  .detail-list dt { color: var(--muted); }
+  .detail-list dd { margin: 0; font-weight: 600; }
+  .empty-state { padding: 36px 20px; text-align: center; }
+  .forbidden-card { max-width: 560px; margin: 24px auto; padding: 28px; text-align: center; border-color: var(--danger); }
+  .forbidden-card .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+
+  /* 雛形狀態面板 */
+  .proto-panel { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; font-size: 13px; }
+  .proto-toggle { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font: inherit; cursor: pointer; box-shadow: var(--shadow); }
+  .proto-body { width: 220px; max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .proto-body p { margin: 0 0 6px; color: var(--muted); }
+  .proto-body label { display: flex; gap: 8px; padding: 3px 0; cursor: pointer; }
+  @media (max-width: 640px) { .proto-panel { top: 68px; bottom: auto; flex-direction: column-reverse; } }
+
+  /* 逾期通知紀錄頁 */
+  .toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .toolbar .field { margin: 0; min-width: 200px; }
+  .toolbar .field select { height: 40px; }
+  .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .count-text { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .table-wrap { overflow-x: auto; transition: opacity .15s; }
+  .table-wrap.is-refreshing { opacity: .45; pointer-events: none; }
+  .refresh-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .data-table th, .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .data-table th { color: var(--muted); font-size: 12px; font-weight: 600; background: var(--surface-muted); white-space: nowrap; }
+  .data-table tr.is-new td { background: var(--primary-soft); }
+  [data-theme="dark"] .data-table tr.is-new td { background: var(--surface-muted); }
+  .eq-cell .mono { color: var(--primary); margin-right: 6px; font-weight: 600; }
+  .eq-cell .rv { display: block; font-size: 12px; color: var(--muted); }
+  .slot-cell .mono { display: block; font-size: 13px; }
+  .status-cell { min-width: 200px; }
+  .status-cell .meta { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .reason-line { margin-top: 6px; padding: 4px 10px; border-left: 4px solid var(--danger); border-radius: 0 8px 8px 0; background: var(--danger-soft); font-size: 13px; color: var(--danger); }
+  [data-theme="dark"] .reason-line { color: var(--ink); }
+  .sent-line { margin-top: 6px; font-size: 13px; color: var(--success); }
+  [data-theme="dark"] .sent-line { color: var(--ink); }
+  .loan-cell .meta { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .action-note { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .dialog-title { display: flex; align-items: center; gap: 8px; }
+  .dialog .detail-list { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: var(--surface-muted); }
+  @media (max-width: 720px) {
+    .data-table thead { display: none; }
+    .data-table tr { display: block; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .data-table td { display: block; padding: 4px 0; border: 0; }
+    .data-table td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
+    .toolbar .field { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="brand-mark">EL</span>精密實驗設備借用中心</a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="index.html">登入</a>
+      <a href="overdue-notifications.html" aria-current="page">逾期通知紀錄</a>
+    </nav>
+    <div class="header-actions">
+      <span id="header-user" class="user-pill">尚未登入</span>
+      <button id="theme-toggle" class="btn-theme" type="button" aria-label="切換深淺色主題">深色模式</button>
+      <a id="header-logout" class="btn-logout" href="index.html?state=logged-out">登出</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>逾期通知紀錄</h1>
+  <p class="page-lead">借用中的設備超過時段結束時間還沒歸還時，系統會發 Discord 通知到管理員頻道。這裡列出每則通知的送出結果；送出失敗或結果不明的通知可以重送。</p>
+
+  <div id="page-banner" class="banner" role="alert" hidden>
+    <span id="page-banner-text"></span>
+  </div>
+
+  <section id="view-loading" hidden>
+    <div class="loading-line"><span class="spinner" aria-hidden="true"></span><span>正在載入逾期通知紀錄…</span></div>
+    <div class="skeleton" style="height:40px;margin-bottom:12px;"></div>
+    <div class="skeleton" style="height:320px;"></div>
+  </section>
+
+  <section id="view-forbidden" class="card forbidden-card" hidden>
+    <h2 style="color:var(--danger);">權限不足</h2>
+    <p style="margin:0;">逾期通知紀錄、重送通知與立即檢查逾期只限管理員操作。您目前登入的身分是一般成員（林雅婷）。</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="index.html">切換管理員帳號登入</a>
+    </div>
+  </section>
+
+  <section id="view-main" class="card section-card">
+    <div class="section-head">
+      <h2>通知清單</h2>
+      <div class="toolbar-actions">
+        <button id="refresh-btn" class="btn btn-sm" type="button">重新整理</button>
+        <button id="check-btn" class="btn btn-sm btn-primary" type="button">立即檢查逾期</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="field">
+        <label for="status-filter">通知狀態</label>
+        <select id="status-filter">
+          <option value="all">全部</option>
+          <option value="sending">送出中</option>
+          <option value="sent">送出成功</option>
+          <option value="failed">送出失敗</option>
+          <option value="unknown">結果不明</option>
+        </select>
+      </div>
+      <span class="muted" style="font-size:13px;">依通知建立時間由新到舊排列</span>
+    </div>
+    <div id="refresh-line" class="refresh-line" hidden><span class="spinner spinner-sm" aria-hidden="true"></span><span>正在重新整理…</span></div>
+    <div id="count-text" class="count-text"></div>
+    <div id="table-wrap" class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>設備</th><th>借用成員</th><th>預約日期與時段</th><th>通知狀態</th><th>嘗試次數</th><th>最後嘗試時間</th><th>借用</th><th>操作</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="empty-filter" class="empty-state" hidden>
+      <h3 id="empty-filter-title"></h3>
+      <button id="show-all-btn" class="btn btn-sm" type="button">顯示全部通知</button>
+    </div>
+    <div id="empty-all" class="empty-state" hidden>
+      <h3>目前沒有逾期通知</h3>
+      <p class="muted" style="margin:0;">借用中的設備超過時段結束時間還沒歸還時，系統會發 Discord 通知並列在這裡。</p>
+    </div>
+  </section>
+</main>
+
+<div id="resend-dialog" class="dialog-backdrop" hidden>
+  <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="resend-title">
+    <h2 id="resend-title" class="dialog-title">重送「結果不明」的通知？</h2>
+    <dl id="resend-detail" class="detail-list"></dl>
+    <div class="notice notice-pending">
+      <strong>請先到 Discord 確認</strong>
+      <div>系統上次送出這則通知後沒有收到 Discord 回應，Discord 頻道可能已經收到。請先到 Discord 通知頻道確認沒有收到這則通知再重送，重送可能造成頻道出現兩則相同的通知。</div>
+    </div>
+    <div class="dialog-actions">
+      <button id="resend-cancel-btn" class="btn" type="button">取消</button>
+      <button id="resend-confirm-btn" class="btn btn-pending" type="button">已確認沒收到，重送</button>
+    </div>
+  </div>
+</div>
+
+<aside class="proto-panel" aria-label="雛形狀態">
+  <div class="proto-body" hidden></div>
+  <button class="proto-toggle" type="button" aria-expanded="false"></button>
+</aside>
+
+<script>
+  // 假資料：與登入頁共用同一批預建帳號；目前時間 2026-11-11（三）17:01，登入的管理員為吳承翰
+  const MOCK = {
+    admin: { displayName: '吳承翰', roleLabel: '管理員' },
+    member: { displayName: '林雅婷', roleLabel: '一般成員' },
+    refreshedAt: '2026-11-11 17:02',
+    members: { 'lin.yating': '林雅婷', 'chen.guanting': '陳冠廷' },
+    equipments: {
+      'EQ-101': '高解析度光學顯微鏡 Olympus BX53',
+      'EQ-102': '四通道數位示波器 Keysight DSOX3024T',
+      'EQ-103': '高精度工業熱像儀 FLIR E86',
+      'EQ-104': '微量分光光度計 Thermo NanoDrop One',
+      'EQ-105': '桌上型冷凍離心機 Eppendorf 5430R',
+      'EQ-106': '紫外光可見光分光光譜儀 Hitachi U-2900'
+    },
+    slots: {
+      AM: { name: '上午', time: '09:00–12:00' },
+      PM: { name: '下午', time: '13:00–17:00' },
+      EV: { name: '晚間', time: '18:00–21:00' }
+    },
+    weekdays: { '2026-11-08': '日', '2026-11-09': '一', '2026-11-10': '二', '2026-11-11': '三' },
+    statusLabels: { sending: '送出中', sent: '送出成功', failed: '送出失敗', unknown: '結果不明' },
+    failureReasons: {
+      rate_limited: 'Discord 請求太頻繁',
+      discord_server_error: 'Discord 伺服器錯誤',
+      connection_failed: '無法連線到 Discord',
+      webhook_invalid: '通知設定有誤：Webhook 已失效',
+      webhook_not_configured: '通知設定有誤：沒有設定 Webhook',
+      message_rejected: 'Discord 拒絕這則訊息的內容'
+    },
+    notifications: [
+      { id: 'RV-20261110-13', member: 'lin.yating', eq: 'EQ-103', date: '2026-11-10', slot: 'EV', status: 'sending', attempts: 5, lastAttemptAt: '2026-11-11 17:00', sentAt: null, failureReason: null, returnedAt: null, createdAt: '2026-11-10 21:01' },
+      { id: 'RV-20261110-12', member: 'chen.guanting', eq: 'EQ-102', date: '2026-11-10', slot: 'EV', status: 'failed', attempts: 4, lastAttemptAt: '2026-11-10 21:01', sentAt: null, failureReason: 'discord_server_error', returnedAt: null, createdAt: '2026-11-10 21:01' },
+      { id: 'RV-20261110-09', member: 'lin.yating', eq: 'EQ-104', date: '2026-11-10', slot: 'PM', status: 'unknown', attempts: 1, lastAttemptAt: '2026-11-10 17:01', sentAt: null, failureReason: null, returnedAt: null, createdAt: '2026-11-10 17:01' },
+      { id: 'RV-20261110-05', member: 'chen.guanting', eq: 'EQ-106', date: '2026-11-10', slot: 'PM', status: 'failed', attempts: 1, lastAttemptAt: '2026-11-10 17:01', sentAt: null, failureReason: 'rate_limited', returnedAt: '2026-11-10 18:12', createdAt: '2026-11-10 17:01' },
+      { id: 'RV-20261110-02', member: 'lin.yating', eq: 'EQ-101', date: '2026-11-10', slot: 'AM', status: 'sent', attempts: 1, lastAttemptAt: '2026-11-10 12:01', sentAt: '2026-11-10 12:01', failureReason: null, returnedAt: '2026-11-10 13:10', createdAt: '2026-11-10 12:01' },
+      { id: 'RV-20261109-10', member: 'chen.guanting', eq: 'EQ-105', date: '2026-11-09', slot: 'EV', status: 'sent', attempts: 2, lastAttemptAt: '2026-11-09 21:01', sentAt: '2026-11-09 21:01', failureReason: null, returnedAt: null, createdAt: '2026-11-09 21:01' },
+      { id: 'RV-20261109-04', member: 'lin.yating', eq: 'EQ-104', date: '2026-11-09', slot: 'PM', status: 'unknown', attempts: 3, lastAttemptAt: '2026-11-09 17:01', sentAt: null, failureReason: null, returnedAt: '2026-11-10 09:20', createdAt: '2026-11-09 17:01' },
+      { id: 'RV-20261108-07', member: 'chen.guanting', eq: 'EQ-106', date: '2026-11-08', slot: 'EV', status: 'failed', attempts: 1, lastAttemptAt: '2026-11-08 21:01', sentAt: null, failureReason: 'webhook_invalid', returnedAt: '2026-11-09 09:05', createdAt: '2026-11-08 21:01' }
+    ],
+    createdByCheck: { id: 'RV-20261111-05', member: 'chen.guanting', eq: 'EQ-101', date: '2026-11-11', slot: 'PM', status: 'sending', attempts: 0, lastAttemptAt: null, sentAt: null, failureReason: null, returnedAt: null, createdAt: '2026-11-11 17:01', isNew: true },
+    messages: {
+      resent: id => `已重新送出 ${id} 的通知，目前為「送出中」。請稍後按「重新整理」查看送出結果。`,
+      created: n => `這次建立 ${n} 則逾期通知`,
+      none: '沒有新的逾期借用',
+      returned: '借用已歸還，不需要重送：RV-20261110-12（陳冠廷，EQ-102 四通道數位示波器 Keysight DSOX3024T）已在 2026-11-11 17:02 登記歸還。',
+      alreadySending: '無法重送：RV-20261110-12 的通知目前為「送出中」，系統正在送出，請稍後按「重新整理」查看結果。',
+      alreadySent: '無法重送：RV-20261110-09 的通知已「送出成功」（送出時間 2026-11-11 17:02），Discord 頻道已收到這則通知。'
+    }
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const clone = items => items.map(item => Object.assign({}, item));
+
+  let timers = [];
+  let list = clone(MOCK.notifications);
+  let filter = 'all';
+  let dialogTarget = null;
+
+  function initTheme() {
+    let saved = 'light';
+    try { saved = localStorage.getItem('el-theme') || 'light'; } catch (err) { saved = 'light'; }
+    applyTheme(saved);
+    $('#theme-toggle').addEventListener('click', () => {
+      applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      $('#theme-toggle').textContent = '淺色模式';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      $('#theme-toggle').textContent = '深色模式';
+    }
+    try { localStorage.setItem('el-theme', theme); } catch (err) { /* 瀏覽器不允許儲存時只切換本次畫面 */ }
+  }
+
+  function showBanner(tone, text) {
+    $('#page-banner').className = `banner banner-${tone}`;
+    $('#page-banner-text').textContent = text;
+    $('#page-banner').hidden = false;
+  }
+
+  function hideBanner() {
+    $('#page-banner').hidden = true;
+  }
+
+  function showView(view) {
+    $('#view-loading').hidden = view !== 'loading';
+    $('#view-forbidden').hidden = view !== 'forbidden';
+    $('#view-main').hidden = view !== 'main';
+    $('#header-user').textContent = view === 'forbidden'
+      ? `${MOCK.member.displayName}（${MOCK.member.roleLabel}）`
+      : `${MOCK.admin.displayName}（${MOCK.admin.roleLabel}）`;
+  }
+
+  function find(id) {
+    return list.find(n => n.id === id);
+  }
+
+  function canResend(n) {
+    return (n.status === 'failed' || n.status === 'unknown') && !n.returnedAt;
+  }
+
+  function slotText(n) {
+    const slot = MOCK.slots[n.slot];
+    return `${n.date}（${MOCK.weekdays[n.date]}）${slot.name} ${slot.time}`;
+  }
+
+  function statusCell(n) {
+    const label = MOCK.statusLabels[n.status];
+    const spinner = n.status === 'sending' ? '<span class="spinner spinner-sm" aria-hidden="true"></span>' : '';
+    let extra = '';
+    if (n.status === 'sent') extra = `<div class="sent-line">送出時間 <span class="mono">${n.sentAt}</span></div>`;
+    if (n.status === 'failed') extra = `<div class="reason-line">失敗原因：${MOCK.failureReasons[n.failureReason]}</div>`;
+    return `<span class="badge badge-${n.status}">${spinner}${label}</span>${extra}<span class="meta">通知建立 <span class="mono">${n.createdAt}</span></span>`;
+  }
+
+  function loanCell(n) {
+    if (n.returnedAt) return `<span class="badge badge-returned">已歸還</span><span class="meta">歸還 <span class="mono">${n.returnedAt}</span></span>`;
+    return '<span class="badge badge-loan">借用中</span>';
+  }
+
+  function actionCell(n) {
+    if (canResend(n)) return `<button class="btn btn-sm${n.status === 'unknown' ? ' btn-pending' : ''}" type="button" data-resend="${n.id}">重送</button>`;
+    if (n.returnedAt && (n.status === 'failed' || n.status === 'unknown')) return '<span class="action-note">借用已歸還</span>';
+    return '<span class="action-note">—</span>';
+  }
+
+  function render() {
+    $('#status-filter').value = filter;
+    const rows = list.filter(n => filter === 'all' || n.status === filter);
+    $('#empty-all').hidden = list.length !== 0;
+    $('#empty-filter').hidden = !(list.length !== 0 && rows.length === 0);
+    $('#empty-filter-title').textContent = `目前沒有「${MOCK.statusLabels[filter] || ''}」的通知`;
+    $('#table-wrap').hidden = rows.length === 0;
+    $('#count-text').hidden = rows.length === 0;
+    $('#count-text').textContent = `共 ${rows.length} 則通知`;
+    $('#rows').innerHTML = rows.map(n => `
+      <tr class="${n.isNew ? 'is-new' : ''}">
+        <td class="eq-cell" data-label="設備"><span class="mono">${n.eq}</span>${MOCK.equipments[n.eq]}<span class="rv">預約編號 <span class="mono">${n.id}</span></span></td>
+        <td data-label="借用成員">${MOCK.members[n.member]}</td>
+        <td class="slot-cell" data-label="預約日期與時段"><span class="mono">${slotText(n)}</span></td>
+        <td class="status-cell" data-label="通知狀態">${statusCell(n)}</td>
+        <td data-label="嘗試次數"><span class="mono">${n.attempts}</span> 次</td>
+        <td data-label="最後嘗試時間"><span class="mono">${n.lastAttemptAt || '—'}</span></td>
+        <td class="loan-cell" data-label="借用">${loanCell(n)}</td>
+        <td data-label="操作">${actionCell(n)}</td>
+      </tr>`).join('');
+  }
+
+  function resetControls() {
+    $('#refresh-btn').disabled = false;
+    $('#refresh-btn').textContent = '重新整理';
+    $('#check-btn').disabled = false;
+    $('#check-btn').textContent = '立即檢查逾期';
+    $('#status-filter').disabled = false;
+    $('#table-wrap').classList.remove('is-refreshing');
+    $('#refresh-line').hidden = true;
+    $('#resend-dialog').hidden = true;
+  }
+
+  function setList(items, nextFilter) {
+    list = items;
+    filter = nextFilter || 'all';
+    resetControls();
+    showView('main');
+    render();
+  }
+
+  // 依操作推導清單內容
+  function initialList() {
+    return clone(MOCK.notifications);
+  }
+
+  function withResent(items, id) {
+    const n = items.find(item => item.id === id);
+    n.status = 'sending';
+    n.failureReason = null;
+    return items;
+  }
+
+  function withRefreshed(items) {
+    items.forEach(n => {
+      if (n.status !== 'sending') return;
+      n.status = 'sent';
+      n.attempts += 1;
+      n.lastAttemptAt = MOCK.refreshedAt;
+      n.sentAt = MOCK.refreshedAt;
+    });
+    return items;
+  }
+
+  function withChecked(items) {
+    if (!items.some(n => n.id === MOCK.createdByCheck.id)) items.unshift(Object.assign({}, MOCK.createdByCheck));
+    return items;
+  }
+
+  function setResendBusy(id) {
+    const btn = document.querySelector(`[data-resend="${id}"]`);
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = '重送中…';
+  }
+
+  function doResend(id) {
+    hideBanner();
+    setResendBusy(id);
+    markState('resending');
+    timers.push(setTimeout(() => {
+      withResent(list, id);
+      render();
+      showBanner('info', MOCK.messages.resent(id));
+      markState('resent');
+    }, 700));
+  }
+
+  function openDialog(id) {
+    const n = find(id);
+    dialogTarget = id;
+    $('#resend-detail').innerHTML = `
+      <dt>設備</dt><dd><span class="mono">${n.eq}</span> ${MOCK.equipments[n.eq]}</dd>
+      <dt>借用成員</dt><dd>${MOCK.members[n.member]}</dd>
+      <dt>預約日期與時段</dt><dd class="mono">${slotText(n)}</dd>
+      <dt>最後嘗試時間</dt><dd class="mono">${n.lastAttemptAt}</dd>`;
+    $('#resend-dialog').hidden = false;
+  }
+
+  function setRefreshing() {
+    $('#refresh-btn').disabled = true;
+    $('#refresh-btn').textContent = '重新整理中…';
+    $('#check-btn').disabled = true;
+    $('#status-filter').disabled = true;
+    $('#table-wrap').classList.add('is-refreshing');
+    $('#refresh-line').hidden = false;
+  }
+
+  function setChecking() {
+    $('#check-btn').disabled = true;
+    $('#check-btn').textContent = '檢查中…';
+    $('#refresh-btn').disabled = true;
+  }
+
+  $('#rows').addEventListener('click', event => {
+    const btn = event.target.closest('[data-resend]');
+    if (!btn) return;
+    const n = find(btn.dataset.resend);
+    if (n.status === 'unknown') {
+      openDialog(n.id);
+      markState('confirm-unknown');
+    } else {
+      doResend(n.id);
+    }
+  });
+
+  $('#resend-cancel-btn').addEventListener('click', () => {
+    $('#resend-dialog').hidden = true;
+    dialogTarget = null;
+    markState('list');
+  });
+
+  $('#resend-confirm-btn').addEventListener('click', () => {
+    $('#resend-dialog').hidden = true;
+    doResend(dialogTarget);
+  });
+
+  $('#status-filter').addEventListener('change', event => {
+    filter = event.target.value;
+    render();
+    const visible = list.filter(n => filter === 'all' || n.status === filter).length;
+    if (visible === 0) markState('filter-empty');
+    else if (filter === 'failed') markState('filter-failed');
+  });
+
+  $('#show-all-btn').addEventListener('click', () => {
+    filter = 'all';
+    render();
+  });
+
+  $('#refresh-btn').addEventListener('click', () => {
+    hideBanner();
+    setRefreshing();
+    markState('refreshing');
+    timers.push(setTimeout(() => {
+      withRefreshed(list);
+      resetControls();
+      render();
+      markState('refreshed');
+    }, 900));
+  });
+
+  $('#check-btn').addEventListener('click', () => {
+    hideBanner();
+    setChecking();
+    markState('checking');
+    timers.push(setTimeout(() => {
+      const created = !list.some(n => n.id === MOCK.createdByCheck.id);
+      withChecked(list);
+      resetControls();
+      filter = 'all';
+      render();
+      if (created) {
+        showBanner('success', MOCK.messages.created(1));
+        markState('check-created');
+      } else {
+        showBanner('info', MOCK.messages.none);
+        markState('check-none');
+      }
+    }, 600));
+  });
+
+  // 雛形狀態（ui/plan.md 第 4、5 節）
+  const STATES = [
+    { key: 'loading', label: '載入中', apply: () => { hideBanner(); resetControls(); showView('loading'); } },
+    { key: 'list', label: '通知清單', apply: () => { hideBanner(); setList(initialList()); } },
+    { key: 'filter-failed', label: '篩選送出失敗', apply: () => { hideBanner(); setList(initialList(), 'failed'); } },
+    { key: 'filter-empty', label: '沒有符合篩選的通知', apply: () => {
+      hideBanner(); setList(withRefreshed(withResent(initialList(), 'RV-20261110-12')), 'sending');
+    } },
+    { key: 'no-notifications', label: '沒有逾期通知', apply: () => { hideBanner(); setList([]); } },
+    { key: 'resending', label: '重送處理中', apply: () => { hideBanner(); setList(initialList()); setResendBusy('RV-20261110-12'); } },
+    { key: 'resent', label: '已重送，送出中', apply: () => {
+      setList(withResent(initialList(), 'RV-20261110-12')); showBanner('info', MOCK.messages.resent('RV-20261110-12'));
+    } },
+    { key: 'confirm-unknown', label: '重送結果不明確認視窗', apply: () => { hideBanner(); setList(initialList()); openDialog('RV-20261110-09'); } },
+    { key: 'refreshing', label: '重新整理中', apply: () => {
+      hideBanner(); setList(withResent(initialList(), 'RV-20261110-12')); setRefreshing();
+    } },
+    { key: 'refreshed', label: '重新整理後', apply: () => {
+      hideBanner(); setList(withRefreshed(withResent(initialList(), 'RV-20261110-12')));
+    } },
+    { key: 'checking', label: '檢查逾期中', apply: () => { hideBanner(); setList(initialList()); setChecking(); } },
+    { key: 'check-created', label: '已建立逾期通知', apply: () => {
+      setList(withChecked(initialList())); showBanner('success', MOCK.messages.created(1));
+    } },
+    { key: 'check-none', label: '沒有新的逾期借用', apply: () => {
+      setList(withChecked(initialList())); showBanner('info', MOCK.messages.none);
+    } },
+    { key: 'resend-returned', label: '重送時借用已歸還', apply: () => {
+      const items = initialList();
+      items.find(n => n.id === 'RV-20261110-12').returnedAt = '2026-11-11 17:02';
+      setList(items); showBanner('danger', MOCK.messages.returned);
+    } },
+    { key: 'resend-sending', label: '重送時通知已在送出中', apply: () => {
+      setList(withResent(initialList(), 'RV-20261110-12')); showBanner('danger', MOCK.messages.alreadySending);
+    } },
+    { key: 'resend-sent', label: '重送時通知已送出成功', apply: () => {
+      setList(withRefreshed(withResent(initialList(), 'RV-20261110-09')).map(n =>
+        n.id === 'RV-20261110-13' ? Object.assign(n, { status: 'sending', attempts: 5, lastAttemptAt: '2026-11-11 17:00', sentAt: null }) : n));
+      showBanner('danger', MOCK.messages.alreadySent);
+    } },
+    { key: 'forbidden', label: '權限不足', apply: () => { hideBanner(); resetControls(); showView('forbidden'); } }
+  ];
+
+  const protoBody = $('.proto-body');
+  const protoToggle = $('.proto-toggle');
+  protoBody.innerHTML = '<p>切換畫面狀態</p>' + STATES.map(s =>
+    `<label><input type="radio" name="proto-state" value="${s.key}">${s.label}</label>`).join('');
+  protoToggle.addEventListener('click', () => {
+    protoBody.hidden = !protoBody.hidden;
+    protoToggle.setAttribute('aria-expanded', String(!protoBody.hidden));
+  });
+  protoBody.addEventListener('change', event => applyState(event.target.value));
+
+  function markState(key) {
+    protoBody.querySelector(`input[value="${key}"]`).checked = true;
+    protoToggle.textContent = '雛形狀態：' + STATES.find(s => s.key === key).label;
+  }
+
+  function applyState(key) {
+    timers.forEach(clearTimeout);
+    timers = [];
+    STATES.find(s => s.key === key).apply();
+    markState(key);
+  }
+
+  initTheme();
+  const params = new URLSearchParams(window.location.search);
+  const initial = STATES.some(s => s.key === params.get('state')) ? params.get('state') : 'list';
+  applyState(initial);
+</script>
+</body>
+</html>
