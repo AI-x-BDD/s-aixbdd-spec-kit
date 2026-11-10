@@ -125,43 +125,128 @@ paths:
                     type: string
 ```
 
-# Rule 3 - 合約不得改寫上游決策，上游問題必須記為上游衝突
+# Rule 3 - 合約必須依上游決策與 spec 撰寫，上游問題必須記為上游衝突
 
-- 合約中的規則（`info.description`、operation 的 `description`、request 與 response 欄位、錯誤碼與狀態碼）必須與 `research.md` 各主題的 `Decision` 及 spec 的需求一致，不得寫出相反的規則或另一種做法。
-- 判定 `research.md` 的 `Decision` 有缺陷、`research.md` 與 spec 無法同時滿足，或前面 Wave 的產出與 `research.md`／spec 不一致時，合約必須保留上游的寫法（`research.md` 與 spec 不一致時依 spec），並把這件事記為一項上游衝突。
-- 每項上游衝突必須寫出四件事：衝突內容、上游位置（`research.md` 的 § 編號、spec 的需求編號或前面 Wave 產出的檔案與位置）、合約中受影響的 `operationId`，以及建議的處理 Skill（`research.md` 為 `technical-research`，spec 為 `clarify-over-specs`，前面 Wave 的產出為產出它的 Planner）。
-- 補上上游沒有規定的細節（例如新增欄位或錯誤碼），且沒有與上游相反時，不算上游衝突。
+- 合約中的規則（`info.description`、operation 的 `description`、request 與 response 欄位、錯誤碼與狀態碼）必須與 `research.md` 各主題的 `Decision` 及 spec 的需求一致，不得寫出相反的規則，也不得把 `Decision` 採用的機制換成另一種機制（例如把資料庫鎖換成樂觀鎖重試）。
+- 合約為了滿足 spec 的必須／不得規則而寫出的每一項操作、檢查、執行路徑或鎖，必須和 `research.md` 對應主題的 `Decision` 比對。`Decision` 已列出清單（例如鎖定清單、檢查項目、適用路徑），清單卻沒有這個 operation，或對同一個 operation 沒有這一項時；或照 `Decision` 的寫法會讓該規則無法滿足時，合約中受影響的 operation 必須依 spec 寫出滿足該規則的行為，並把這件事記為一項上游衝突。補上的行為必須優先沿用 `Decision` 已採用的機制；沒有可沿用的機制時，只寫出 spec 要求的結果，不自行選定新技術。依本點補上的行為不算第 1 點的另一種機制。
+- 前面 Wave 的產出與 `research.md`／spec 不一致時，合約必須依第 1、2 點處理，不沿用前面 Wave 的寫法，並把這件事記為一項上游衝突。
+- 每項上游衝突必須寫出四件事：衝突內容、上游位置（`research.md` 的 § 編號、spec 的需求編號或前面 Wave 產出的檔案與位置；第 2 點的情況必須同時寫出 `research.md` 的 § 編號與 spec 的需求編號）、合約中受影響的 `operationId`，以及建議的處理 Skill（`research.md` 為 `technical-research`，spec 為 `clarify-over-specs`，前面 Wave 的產出為產出它的 Planner）。
+- 補上 `research.md` 與 spec 都沒有規定的細節（例如欄位、錯誤碼、檢查先後），且沒有與上游相反時，不算上游衝突。spec 的必須／不得規則要求、`Decision` 卻漏列的操作、檢查、執行路徑或鎖不算細節，必須依第 2 點處理。
 
 ## Good Example
 
-- 圖書館借閱的 `research.md` §2 決定「借閱上限在應用層先查詢已借數量再寫入」。設計時發現兩個請求同時送出會都通過查詢；合約仍照 §2 描述，並記一項上游衝突。
+### Example 1
+
+- 圖書館借閱的 `research.md` §3 決定「借閱在交易第一個語句以 `SELECT … FOR UPDATE` 鎖定借書證列，再計算已借冊數」，清單沒有列出「預約取書轉為借閱」。spec FR-005 規定每張借書證最多同時借 5 本，預約取書也會增加借閱冊數；照 §3 寫時，預約取書和借閱同時送出可能都通過檢查。比對 §3 清單和 FR-005：合約為了 FR-005 在預約取書也要鎖借書證列，§3 清單沒有這個 operation，所以是第 2 點的情況。合約照 §3 寫借閱，預約取書沿用 §3 的鎖補上，並記一項上游衝突。
 
 ```yaml
 paths:
   /loans:
     post:
       operationId: createLoan
-      description: 依 FR-005 每張借書證最多同時借 5 本；依 research §2，後端先查詢已借數量，達上限時回 409 LOAN_LIMIT。
+      description: 依 FR-005 每張借書證最多同時借 5 本；依 research §3，交易第一個語句以 SELECT … FOR UPDATE 鎖定借書證列，再計算已借冊數，達上限時回 409 LOAN_LIMIT_REACHED。
+  /holds/{holdId}/checkout:
+    post:
+      operationId: checkoutHold
+      description: 依 FR-009 把到館預約轉為借閱；依 FR-005，和借閱相同，交易第一個語句以 SELECT … FOR UPDATE 鎖定借書證列，再計算已借冊數，達上限時回 409 LOAN_LIMIT_REACHED。
 ```
 
 ```markdown
 上游衝突：
-1. 內容：research §2 先查詢再寫入，兩個請求同時送出時可能都通過，超過 FR-005 的 5 本上限。
-   上游位置：research.md §2；受影響 operation：createLoan；建議處理 Skill：technical-research。
+1. 內容：research §3 的鎖定清單沒有預約取書；照 §3 寫時，預約取書和借閱同時送出可能都通過檢查，超過 FR-005 的 5 本上限。合約依 FR-005 在 checkoutHold 沿用 §3 的鎖。
+   上游位置：research.md §3、spec FR-005；受影響 operation：checkoutHold；建議處理 Skill：technical-research。
 ```
 
-## Bad Example
+### Example 2
 
-- 同一情境，合約自行寫出與 research §2 相反的做法，只在回報結尾提醒，沒有指出上游位置與處理 Skill；之後依 research 實作的程式與合約不符。
+- 同一份 research 的借閱與 FR-005 一致。合約照 §3 寫，自行補上錯誤碼 `LOAN_LIMIT_REACHED`，以及「先檢查借書證停權，再計算已借冊數」的先後，沒有和上游相反，不記為上游衝突。
 
 ```yaml
 paths:
   /loans:
     post:
       operationId: createLoan
-      description: 依 FR-005 每張借書證最多同時借 5 本；借閱上限由資料庫鎖保證，同時送出時一律只成功一筆。
+      description: 依 FR-006 先檢查借書證是否停權，停權時回 403 CARD_SUSPENDED；再依 FR-005 與 research §3，交易第一個語句以 SELECT … FOR UPDATE 鎖定借書證列，計算已借冊數，達上限時回 409 LOAN_LIMIT_REACHED。
 ```
 
 ```markdown
-提醒：research §2 的做法有並發問題，實作時請改用資料庫鎖。
+上游衝突：無
+```
+
+## Bad Example
+
+### Example 1
+
+- 同 Good Example 1 的 research，合約只在借閱寫鎖，預約取書照 §3 沒有寫鎖；回報已判定違反 FR-005，合約仍照 research 寫，上游位置也只寫 research §3。
+
+```yaml
+paths:
+  /holds/{holdId}/checkout:
+    post:
+      operationId: checkoutHold
+      description: 依 FR-009 把到館預約轉為借閱，計算已借冊數，達上限時回 409 LOAN_LIMIT_REACHED。
+```
+
+```markdown
+上游衝突：
+1. 內容：research §3 沒有鎖定預約取書，會違反 FR-005。合約照 research 寫。
+   上游位置：research.md §3；受影響 operation：checkoutHold；建議處理 Skill：technical-research。
+```
+
+### Example 2
+
+- 同 Good Example 2 的情境，research §3 與 FR-005 一致，合約卻把 §3 的資料庫鎖換成另一種機制；之後依 research 實作的程式與合約不符。
+
+```yaml
+paths:
+  /loans:
+    post:
+      operationId: createLoan
+      description: 依 FR-005 每張借書證最多同時借 5 本；借書證以 version 欄位做樂觀鎖，版本衝突時重試 3 次。
+```
+
+# Rule 4 - 同一 operation 的同一分支不得寫出相反的行為
+
+- 同一份合約中，`info.description`、operation 的 `description` 與 response 的 `description` 對同一個 operation 的同一個分支（同一種請求條件、狀態值或回應）描述的行為必須一致，不得一處寫要做、另一處寫不做，也不得寫出兩種不同結果。
+- 適用於多個 operation 或多個分支的總述（例如「所有寫入操作都先…」），視為描述它涵蓋的每一個分支；某個分支不適用時，總述必須寫出例外，或改為列出適用的 operation 或分支。
+- 發現相反的描述時，必須依 Rule 3 決定該分支的正確行為，修改所有相關描述，只留下一種行為。
+
+## Good Example
+
+- 圖書館借閱 spec FR-006 規定借閱與續借前檢查借書證是否停權，FR-008 規定停權的借書證仍可歸還。總述寫出歸還是例外，各 operation 與 response 的描述和總述一致。
+
+```yaml
+info:
+  description: 借閱與續借都先檢查借書證是否停權（FR-006）；歸還不檢查停權（FR-008）。
+paths:
+  /loans/{loanId}/renew:
+    post:
+      operationId: renewLoan
+      description: 依 FR-007 延長到期日 14 天；依 FR-006 先檢查借書證是否停權。
+      responses:
+        '200':
+          description: 借書證未停權，到期日已延長 14 天
+        '403':
+          $ref: '#/components/responses/CardSuspended'
+  /loans/{loanId}/return:
+    post:
+      operationId: returnBook
+      description: 依 FR-008 登記歸還；停權的借書證仍可歸還，不檢查停權。
+```
+
+## Bad Example
+
+- 同一份需求中，總述寫所有借閱寫入都先檢查停權，續借的 200 回應卻寫不檢查；同一個分支有兩種相反的行為。
+
+```yaml
+info:
+  description: 所有借閱寫入操作都先檢查借書證是否停權。
+paths:
+  /loans/{loanId}/renew:
+    post:
+      operationId: renewLoan
+      description: 依 FR-007 延長到期日 14 天。
+      responses:
+        '200':
+          description: 續借不檢查借書證狀態，直接延長到期日 14 天
 ```
