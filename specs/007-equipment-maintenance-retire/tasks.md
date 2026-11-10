@@ -49,13 +49,13 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 在 `apps/equipment-loan/` 以 `docker compose up -d` 啟動 PostgreSQL 18，在根目錄、`backend/` 與 `frontend/` 執行 `npm install`，再執行 `npm run db:migrate` 套用 003～006 的既有 Migration、`npm run db:seed` 重設展示資料，確認 006 版本可以正常啟動；本次不新增任何套件（research §1）
+- [X] T001 在 `apps/equipment-loan/` 以 `docker compose up -d` 啟動 PostgreSQL 18，在根目錄、`backend/` 與 `frontend/` 執行 `npm install`，再執行 `npm run db:migrate` 套用 003～006 的既有 Migration、`npm run db:seed` 重設展示資料，確認 006 版本可以正常啟動；本次不新增任何套件（research §1）
   - **Must Read**
     - `techstack.md` → 技術堆疊總覽 — Why：本次沿用的前後端套件與版本，不新增相依
     - `research.md` → §1 — Why：沿用 PostgreSQL 18、Prisma ORM 7.10 與 Docker Compose 的開發資料庫
   - **Optional**
     - `techstack.md` → 本次開發不引入的技術 — Why：想加入對話框、路由、狀態管理或排程套件時，確認不得引入的技術
-- [ ] T002 在 `apps/equipment-loan/` 執行 `npm run check`、`npm run test:backend` 與 `npm run test:frontend`，記錄 006 版本的基準結果，作為之後前四版回歸比對的起點（research §5）
+- [X] T002 在 `apps/equipment-loan/` 執行 `npm run check`、`npm run test:backend` 與 `npm run test:frontend`，記錄 006 版本的基準結果，作為之後前四版回歸比對的起點（research §5）
   - **Must Read**
     - `research.md` → §5 — Why：本次沿用的測試工具，以及要重跑 003～006 全套整合測試的回歸做法
 
