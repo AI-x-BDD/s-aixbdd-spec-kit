@@ -182,6 +182,16 @@ export interface SetEquipmentUnavailableParams {
   expectedExpireCount: number;
 }
 
+/** 把送修中或停用的設備恢復成可用的請求（contracts/openapi.yaml RestoreEquipmentRequest）。 */
+export interface RestoreEquipmentParams {
+  adminUserId: string;
+  equipmentId: string;
+  targetStatus: "available";
+}
+
+/** 設備狀態變更請求（contracts/openapi.yaml UpdateEquipmentStatusRequest）。 */
+export type UpdateEquipmentStatusParams = SetEquipmentUnavailableParams | RestoreEquipmentParams;
+
 const CANCEL_REASON_BY_TARGET = {
   maintenance: "equipment_maintenance",
   retired: "equipment_retired",
@@ -194,7 +204,7 @@ const CANCEL_REASON_BY_TARGET = {
  * 通過後批次取消預約、批次讓改期申請失效、更新設備狀態並新增一筆狀態變更紀錄。
  */
 export async function updateEquipmentStatus(
-  params: SetEquipmentUnavailableParams,
+  params: UpdateEquipmentStatusParams,
 ): Promise<EquipmentStatusChangeResultDto> {
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<Array<{ status: EquipmentStatus }>>`
@@ -206,6 +216,10 @@ export async function updateEquipmentStatus(
       throw new AppError("RESOURCE_NOT_FOUND", 404, "指定的單件設備不存在。");
     }
     const currentStatus = locked[0]!.status;
+
+    if (params.targetStatus === "available") {
+      return restoreEquipmentInTx(tx, params, currentStatus);
+    }
 
     const now = new Date();
     await expireDueRescheduleRequests(tx, now);
@@ -271,55 +285,105 @@ export async function updateEquipmentStatus(
           });
 
     // (6) FR-001、FR-008：更新設備狀態（不改 requires_approval），新增一筆狀態變更紀錄
-    const equipment = await tx.equipments.update({
-      where: { id: params.equipmentId },
-      data: { status: params.targetStatus, updated_at: now, updated_by: params.adminUserId },
-    });
-    const change = await tx.equipment_status_changes.create({
-      data: {
-        equipment_id: params.equipmentId,
-        from_status: currentStatus,
-        to_status: params.targetStatus,
-        changed_by: params.adminUserId,
-        changed_at: now,
-        cancelled_reservation_count: cancelledIds.length,
-        created_at: now,
-        updated_at: now,
-        updated_by: params.adminUserId,
-      },
-      include: { changer: { select: { display_name: true } } },
-    });
-
-    const statusChange: EquipmentStatusChangeDto = {
-      id: change.id,
-      equipmentId: change.equipment_id,
-      fromStatus: change.from_status,
-      toStatus: change.to_status,
-      changedBy: change.changed_by,
-      changedByDisplayName: change.changer.display_name,
-      changedAt: change.changed_at.toISOString(),
-      cancelledReservationCount: change.cancelled_reservation_count,
-    };
-
-    return {
-      equipment: {
-        id: equipment.id,
-        equipmentCode: equipment.equipment_code,
-        name: equipment.name,
-        category: equipment.category,
-        status: equipment.status,
-        requiresApproval: equipment.requires_approval,
-        lastStatusChange: {
-          changedBy: statusChange.changedBy,
-          changedByDisplayName: statusChange.changedByDisplayName,
-          changedAt: statusChange.changedAt,
-          fromStatus: statusChange.fromStatus,
-          toStatus: statusChange.toStatus,
-        },
-        updatedAt: equipment.updated_at.toISOString(),
-      },
-      statusChange,
+    return writeStatusChange(tx, {
+      adminUserId: params.adminUserId,
+      equipmentId: params.equipmentId,
+      fromStatus: currentStatus,
+      toStatus: params.targetStatus,
+      now,
+      cancelledReservationCount: cancelledIds.length,
       expiredRescheduleRequestCount: expired.count,
-    };
+    });
   });
+}
+
+/**
+ * 恢復可用（FR-011～FR-013、US2 情境 1–4、SC-004）：在已以 FOR UPDATE 鎖定設備列的同一交易內，
+ * 目前狀態已是 available 時回 EQUIPMENT_STATUS_UNCHANGED；否則只更新設備狀態並新增一筆
+ * cancelled_reservation_count 為 0 的狀態變更紀錄，不讀取也不修改任何預約與改期申請，
+ * requires_approval 保持不變。
+ */
+async function restoreEquipmentInTx(
+  tx: Prisma.TransactionClient,
+  params: RestoreEquipmentParams,
+  currentStatus: EquipmentStatus,
+): Promise<EquipmentStatusChangeResultDto> {
+  if (currentStatus === "available") {
+    throw equipmentStatusError("EQUIPMENT_STATUS_UNCHANGED");
+  }
+  return writeStatusChange(tx, {
+    adminUserId: params.adminUserId,
+    equipmentId: params.equipmentId,
+    fromStatus: currentStatus,
+    toStatus: "available",
+    now: new Date(),
+    cancelledReservationCount: 0,
+    expiredRescheduleRequestCount: 0,
+  });
+}
+
+/** 更新設備狀態（只改 status、updated_at、updated_by）並新增一筆狀態變更紀錄，組出回應（FR-008）。 */
+async function writeStatusChange(
+  tx: Prisma.TransactionClient,
+  input: {
+    adminUserId: string;
+    equipmentId: string;
+    fromStatus: EquipmentStatus;
+    toStatus: EquipmentStatus;
+    now: Date;
+    cancelledReservationCount: number;
+    expiredRescheduleRequestCount: number;
+  },
+): Promise<EquipmentStatusChangeResultDto> {
+  const { adminUserId, equipmentId, now } = input;
+  const equipment = await tx.equipments.update({
+    where: { id: equipmentId },
+    data: { status: input.toStatus, updated_at: now, updated_by: adminUserId },
+  });
+  const change = await tx.equipment_status_changes.create({
+    data: {
+      equipment_id: equipmentId,
+      from_status: input.fromStatus,
+      to_status: input.toStatus,
+      changed_by: adminUserId,
+      changed_at: now,
+      cancelled_reservation_count: input.cancelledReservationCount,
+      created_at: now,
+      updated_at: now,
+      updated_by: adminUserId,
+    },
+    include: { changer: { select: { display_name: true } } },
+  });
+
+  const statusChange: EquipmentStatusChangeDto = {
+    id: change.id,
+    equipmentId: change.equipment_id,
+    fromStatus: change.from_status,
+    toStatus: change.to_status,
+    changedBy: change.changed_by,
+    changedByDisplayName: change.changer.display_name,
+    changedAt: change.changed_at.toISOString(),
+    cancelledReservationCount: change.cancelled_reservation_count,
+  };
+
+  return {
+    equipment: {
+      id: equipment.id,
+      equipmentCode: equipment.equipment_code,
+      name: equipment.name,
+      category: equipment.category,
+      status: equipment.status,
+      requiresApproval: equipment.requires_approval,
+      lastStatusChange: {
+        changedBy: statusChange.changedBy,
+        changedByDisplayName: statusChange.changedByDisplayName,
+        changedAt: statusChange.changedAt,
+        fromStatus: statusChange.fromStatus,
+        toStatus: statusChange.toStatus,
+      },
+      updatedAt: equipment.updated_at.toISOString(),
+    },
+    statusChange,
+    expiredRescheduleRequestCount: input.expiredRescheduleRequestCount,
+  };
 }

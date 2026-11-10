@@ -103,7 +103,7 @@ const statusChangePreviewQuerySchema = z.object({
 
 const setEquipmentUnavailableBodySchema = z.object({
   targetStatus: z.enum(["maintenance", "retired"], {
-    message: "請求欄位 targetStatus 必須為 maintenance 或 retired。",
+    message: "請求欄位 targetStatus 必須為 available、maintenance 或 retired。",
   }),
   expectedCurrentStatus: z.enum(["available", "maintenance", "retired"], {
     message:
@@ -118,6 +118,27 @@ const setEquipmentUnavailableBodySchema = z.object({
     .int("請求欄位 expectedExpireCount 必須為大於或等於 0 的整數。")
     .min(0, "請求欄位 expectedExpireCount 必須為大於或等於 0 的整數。"),
 });
+
+const restoreEquipmentBodySchema = z.object({
+  targetStatus: z.literal("available", {
+    message: "請求欄位 targetStatus 必須為 available、maintenance 或 retired。",
+  }),
+});
+
+/**
+ * UpdateEquipmentStatusRequest（contracts/openapi.yaml）：targetStatus 為 available 時是
+ * RestoreEquipmentRequest（不需要 expected 欄位），否則是 SetEquipmentUnavailableRequest。
+ */
+function parseUpdateEquipmentStatusBody(body: unknown) {
+  const targetStatus =
+    typeof body === "object" && body !== null
+      ? (body as { targetStatus?: unknown }).targetStatus
+      : undefined;
+  if (targetStatus === "available") {
+    return restoreEquipmentBodySchema.parse(body);
+  }
+  return setEquipmentUnavailableBodySchema.parse(body);
+}
 
 adminRouter.get(
   "/equipments/:equipmentId/status-change-preview",
@@ -140,16 +161,23 @@ adminRouter.patch(
   requireAdmin,
   async (req, res) => {
     const { equipmentId } = equipmentIdParamsSchema.parse(req.params);
-    const body = setEquipmentUnavailableBodySchema.parse(req.body);
+    const body = parseUpdateEquipmentStatusBody(req.body);
 
-    const result = await updateEquipmentStatus({
-      adminUserId: req.authUser!.id,
-      equipmentId,
-      targetStatus: body.targetStatus,
-      expectedCurrentStatus: body.expectedCurrentStatus,
-      expectedCancelCount: body.expectedCancelCount,
-      expectedExpireCount: body.expectedExpireCount,
-    });
+    const result =
+      body.targetStatus === "available"
+        ? await updateEquipmentStatus({
+            adminUserId: req.authUser!.id,
+            equipmentId,
+            targetStatus: "available",
+          })
+        : await updateEquipmentStatus({
+            adminUserId: req.authUser!.id,
+            equipmentId,
+            targetStatus: body.targetStatus,
+            expectedCurrentStatus: body.expectedCurrentStatus,
+            expectedCancelCount: body.expectedCancelCount,
+            expectedExpireCount: body.expectedExpireCount,
+          });
 
     res.status(200).json(result);
   },

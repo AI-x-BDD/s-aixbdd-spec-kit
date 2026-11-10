@@ -262,20 +262,20 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 > D2 的 `equipment_status_changes` 已在 Foundational 建立，本故事沒有資料庫任務。
 
-- [ ] T029 [US2] 在 `backend/src/services/equipmentStatusService.ts` 的 `updateEquipmentStatus` 新增恢復可用路徑（`targetStatus` 為 `available`）：沿用同一個交易與 `FOR UPDATE` 鎖定；目前狀態已是 `available` 時回 `409 EQUIPMENT_STATUS_UNCHANGED`；否則只更新 `equipments.status`、`updated_at`、`updated_by`，不改 `requires_approval`；新增一筆 `equipment_status_changes`，`cancelled_reservation_count` 為 0；不讀取也不修改任何預約與改期申請；回傳 `EquipmentStatusChangeResult`，`expiredRescheduleRequestCount` 為 0（FR-011、FR-012、FR-013、US2 情境 1–4、SC-004）
+- [X] T029 [US2] 在 `backend/src/services/equipmentStatusService.ts` 的 `updateEquipmentStatus` 新增恢復可用路徑（`targetStatus` 為 `available`）：沿用同一個交易與 `FOR UPDATE` 鎖定；目前狀態已是 `available` 時回 `409 EQUIPMENT_STATUS_UNCHANGED`；否則只更新 `equipments.status`、`updated_at`、`updated_by`，不改 `requires_approval`；新增一筆 `equipment_status_changes`，`cancelled_reservation_count` 為 0；不讀取也不修改任何預約與改期申請；回傳 `EquipmentStatusChangeResult`，`expiredRescheduleRequestCount` 為 0（FR-011、FR-012、FR-013、US2 情境 1–4、SC-004）
   - **Must Read**
     - `contracts/openapi.yaml` → `updateEquipmentStatus`、`RestoreEquipmentRequest` — Why：恢復可用的處理範圍、回應與 `EQUIPMENT_STATUS_UNCHANGED` 的情況
     - `research.md` → §2 — Why：恢復可用只更新狀態並新增紀錄，不讀取也不修改預約與改期申請
     - `data/data-model.dbml` → `Table equipment_status_changes` 的 `cancelled_reservation_count` — Why：恢復可用時為 0
     - `spec.md` → FR-012、FR-013 — Why：被取消的預約不得自動復原，人工審核設定要保留
-- [ ] T030 [US2] 在 `backend/src/routes/adminRouter.ts` 的 `PATCH /admin/equipments/:equipmentId/status`，zod 驗證改為接受 `UpdateEquipmentStatusRequest` 的兩種格式：`SetEquipmentUnavailableRequest` 與只帶 `targetStatus: "available"` 的 `RestoreEquipmentRequest`；一般成員呼叫時由 `requireAdmin` 回 `403 FORBIDDEN`，設備狀態不變（FR-017、US2 情境 5）
+- [X] T030 [US2] 在 `backend/src/routes/adminRouter.ts` 的 `PATCH /admin/equipments/:equipmentId/status`，zod 驗證改為接受 `UpdateEquipmentStatusRequest` 的兩種格式：`SetEquipmentUnavailableRequest` 與只帶 `targetStatus: "available"` 的 `RestoreEquipmentRequest`；一般成員呼叫時由 `requireAdmin` 回 `403 FORBIDDEN`，設備狀態不變（FR-017、US2 情境 5）
   - **Must Read**
     - `contracts/openapi.yaml` → `UpdateEquipmentStatusRequest`、`RestoreEquipmentRequest` — Why：兩種請求格式與恢復可用不需要 expected 欄位
     - `spec.md` → US2 情境 5、FR-017 — Why：一般成員呼叫恢復可用時被拒絕且設備狀態不變
 
 ### 前端（F4）
 
-- [ ] T031 [US2] 在 `frontend/src/views/AdminOverviewView.tsx` 的設備區塊，為「送修中」與「停用」列加上「恢復可用」：點擊後不開確認視窗，直接以 `updateEquipmentStatus(equipmentId, { targetStatus: "available" })` 送出；處理中按鈕改為「恢復中…」並停用；成功後重新拉取設備清單，頁頂綠色橫幅「已將 <設備> 恢復為「可用」，審核設定維持「<需人工審核或免審核>」。送修時取消的預約不會自動復原。」；橫幅與按鈕文字加入 `frontend/src/text/zh-TW.ts`（FR-011、FR-012、FR-013、US2 情境 1、2）
+- [X] T031 [US2] 在 `frontend/src/views/AdminOverviewView.tsx` 的設備區塊，為「送修中」與「停用」列加上「恢復可用」：點擊後不開確認視窗，直接以 `updateEquipmentStatus(equipmentId, { targetStatus: "available" })` 送出；處理中按鈕改為「恢復中…」並停用；成功後重新拉取設備清單，頁頂綠色橫幅「已將 <設備> 恢復為「可用」，審核設定維持「<需人工審核或免審核>」。送修時取消的預約不會自動復原。」；橫幅與按鈕文字加入 `frontend/src/text/zh-TW.ts`（FR-011、FR-012、FR-013、US2 情境 1、2）
   - **Must Read**
     - `ui/plan.md` → §3.3 A13 — Why：恢復可用的使用者操作
     - `ui/plan.md` → §4 `equipment-status.html` 的「恢復可用處理中」「已恢復可用」 — Why：處理中與完成橫幅的呈現

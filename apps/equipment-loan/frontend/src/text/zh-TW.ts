@@ -134,6 +134,15 @@ export const UI_TEXT = {
       cancelCount === 0 && expireCount === 0
         ? `已將 ${equipmentLabel} 從「${fromLabel}」改為「${toLabel}」，沒有需要取消的預約。`
         : `已將 ${equipmentLabel} 從「${fromLabel}」改為「${toLabel}」，取消 ${cancelCount} 筆預約，${expireCount} 筆改期申請已失效。`,
+    restore: "恢復可用",
+    restoring: "恢復中…",
+    /** 完成橫幅：恢復可用（ui/plan.md §4「已恢復可用」；送修或停用依變更前狀態，見 equipment-status.html restore()）。 */
+    restoreDone: (
+      equipmentLabel: string,
+      approvalLabel: string,
+      fromStatus: "maintenance" | "retired",
+    ) =>
+      `已將 ${equipmentLabel} 恢復為「可用」，審核設定維持「${approvalLabel}」。${fromStatus === "maintenance" ? "送修" : "停用"}時取消的預約不會自動復原。`,
   },
   approvalModes: {
     requiresApproval: "需人工審核",

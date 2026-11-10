@@ -23,6 +23,7 @@ import {
   type ReservationStatus,
   returnReservationByAdmin,
   updateEquipmentApprovalModeApi,
+  updateEquipmentStatus,
 } from "../api/client";
 import { EquipmentStatusDialog } from "../components/EquipmentStatusDialog";
 import { UI_TEXT } from "../text/zh-TW";
@@ -191,6 +192,7 @@ const EQUIPMENT_STATUS_PAGE_CSS = `
 .eqs-change { font-size: 13px; }
 .eqs-change .mono { display: block; font-size: 12px; color: var(--muted); }
 .eqs-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.eqs-actions .btn-success { background: var(--success); border-color: var(--success); color: #ffffff; }
 @media (max-width: 720px) {
   .eqs-table thead { display: none; }
   .eqs-table tr { display: block; margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -199,7 +201,7 @@ const EQUIPMENT_STATUS_PAGE_CSS = `
 }
 `;
 
-/** 各狀態可用的送修、停用操作（恢復可用另由 US2 處理）（research §4、ui/plan.md §4「設備清單」）。 */
+/** 各狀態可用的送修、停用操作；「送修中」與「停用」另有「恢復可用」（research §4、ui/plan.md §4「設備清單」）。 */
 const UNAVAILABLE_ACTIONS: Record<EquipmentStatus, UnavailableTargetStatus[]> = {
   available: ["maintenance", "retired"],
   maintenance: ["retired"],
@@ -248,6 +250,7 @@ export function AdminOverviewView({
     targetStatus: UnavailableTargetStatus;
   } | null>(null);
   const [togglingEqId, setTogglingEqId] = useState<string | null>(null);
+  const [restoringEqId, setRestoringEqId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [pickupProcessingId, setPickupProcessingId] = useState<string | null>(null);
   const [returnProcessingId, setReturnProcessingId] = useState<string | null>(null);
@@ -564,6 +567,36 @@ export function AdminOverviewView({
     await loadAdminData();
   };
 
+  /**
+   * 恢復可用（FR-011～FR-013、US2 情境 1、2、ui/plan.md §3.3 A13）：不開確認視窗，直接送出；
+   * 處理中按鈕改為「恢復中…」並停用，成功後顯示綠色橫幅並重新拉取設備清單。
+   */
+  const handleRestore = async (eq: AdminEquipmentSettingDto): Promise<void> => {
+    setRestoringEqId(eq.id);
+    setBanner(null);
+    try {
+      const result = await updateEquipmentStatus(eq.id, { targetStatus: "available" });
+      const fromStatus = result.statusChange.fromStatus === "retired" ? "retired" : "maintenance";
+      setBanner({
+        tone: "success",
+        text: UI_TEXT.equipmentStatusActions.restoreDone(
+          `${result.equipment.equipmentCode} ${result.equipment.name}`,
+          result.equipment.requiresApproval
+            ? UI_TEXT.approvalModes.requiresApproval
+            : UI_TEXT.approvalModes.noApproval,
+          fromStatus,
+        ),
+      });
+      await loadAdminData();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "恢復可用失敗，請稍後再試。";
+      setBanner({ tone: "danger", text: msg });
+      await loadAdminData();
+    } finally {
+      setRestoringEqId(null);
+    }
+  };
+
   /** 確認被拒：設備狀態已被變更（FR-019）或剛被登記領取（FR-005），關閉視窗、顯示紅色橫幅並重新拉取清單。 */
   const handleStatusChangeRejected = async (err: ApiError): Promise<void> => {
     const target = statusDialog?.equipment;
@@ -806,22 +839,46 @@ export function AdminOverviewView({
                         </td>
                         <td data-label="操作">
                           <div className="eqs-actions">
-                            {UNAVAILABLE_ACTIONS[eq.status].map((target) => (
+                            {restoringEqId === eq.id ? (
                               <button
-                                key={target}
                                 type="button"
-                                className={`btn btn-sm${target === "maintenance" ? " btn-pending" : ""}`}
-                                data-testid={`eq-${target === "maintenance" ? "set-maintenance" : "set-retired"}-btn-${eq.equipmentCode}`}
-                                onClick={() => {
-                                  setBanner(null);
-                                  setStatusDialog({ equipment: eq, targetStatus: target });
-                                }}
+                                className="btn btn-sm btn-success"
+                                disabled
+                                data-testid={`eq-restore-btn-${eq.equipmentCode}`}
                               >
-                                {target === "maintenance"
-                                  ? UI_TEXT.equipmentStatusActions.setMaintenance
-                                  : UI_TEXT.equipmentStatusActions.setRetired}
+                                {UI_TEXT.equipmentStatusActions.restoring}
                               </button>
-                            ))}
+                            ) : (
+                              <>
+                                {UNAVAILABLE_ACTIONS[eq.status].map((target) => (
+                                  <button
+                                    key={target}
+                                    type="button"
+                                    className={`btn btn-sm${target === "maintenance" ? " btn-pending" : ""}`}
+                                    data-testid={`eq-${target === "maintenance" ? "set-maintenance" : "set-retired"}-btn-${eq.equipmentCode}`}
+                                    onClick={() => {
+                                      setBanner(null);
+                                      setStatusDialog({ equipment: eq, targetStatus: target });
+                                    }}
+                                  >
+                                    {target === "maintenance"
+                                      ? UI_TEXT.equipmentStatusActions.setMaintenance
+                                      : UI_TEXT.equipmentStatusActions.setRetired}
+                                  </button>
+                                ))}
+                                {eq.status !== "available" && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-success"
+                                    data-testid={`eq-restore-btn-${eq.equipmentCode}`}
+                                    disabled={restoringEqId !== null}
+                                    onClick={() => void handleRestore(eq)}
+                                  >
+                                    {UI_TEXT.equipmentStatusActions.restore}
+                                  </button>
+                                )}
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
