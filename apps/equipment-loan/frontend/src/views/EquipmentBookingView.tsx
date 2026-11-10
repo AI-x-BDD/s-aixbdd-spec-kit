@@ -21,9 +21,8 @@ const EQUIPMENT_STATUS_BADGE_CLASS: Record<EquipmentStatus, string> = {
 const EQUIPMENT_STATUS_BADGE_STYLE: Record<EquipmentStatus, React.CSSProperties | undefined> = {
   available: undefined,
   maintenance: {
-    background: "var(--pending-soft)",
-    color: "var(--pending)",
-    border: "1px solid var(--pending)",
+    background: "var(--pending)",
+    color: "#ffffff",
   },
   retired: { background: "var(--occupied-soft)", color: "var(--occupied)" },
 };
@@ -243,14 +242,26 @@ export function EquipmentBookingView({
       await loadEquipments();
     } catch (err) {
       // 與即時改期、核准改期同時搶同一時段而失敗（FR-014）：提示剛被占用，重新載入後該格顯示「已被預約」
+      const isEquipmentUnavailable =
+        err instanceof ApiError && err.code === "EQUIPMENT_UNAVAILABLE";
       const msg =
         err instanceof ApiError && err.code === "RESERVATION_CONFLICT"
           ? `預約失敗：${selectedSlot.equipmentCode} ${selectedSlot.equipmentName} ${selectedDate} ${selectedSlot.slotName} ${selectedSlot.startTime}–${selectedSlot.endTime} 剛被其他預約占用，請改選其他時段。`
-          : err instanceof ApiError
-            ? err.message
-            : "預約申請送出失敗，請稍後再試。";
+          : isEquipmentUnavailable
+            ? UI_TEXT.bookingEquipmentUnavailable(
+                err.message,
+                `${selectedSlot.equipmentCode} ${selectedSlot.equipmentName}`,
+                err.message.includes("停用") ? "retired" : "maintenance",
+              )
+            : err instanceof ApiError
+              ? err.message
+              : "預約申請送出失敗，請稍後再試。";
       setBanner({ tone: "danger", text: msg });
-      if (err instanceof ApiError && err.code === "RESERVATION_CONFLICT") {
+      if (
+        err instanceof ApiError &&
+        (err.code === "RESERVATION_CONFLICT" || isEquipmentUnavailable)
+      ) {
+        // FR-006、US1 情境 9：設備已送修或停用時清除右側選取，重新拉取後送修中設備不能點選、停用設備消失
         setSelectedSlot(null);
       }
       await loadEquipments();
@@ -478,347 +489,391 @@ export function EquipmentBookingView({
           </button>
         </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) 350px",
-            gap: "24px",
-            alignItems: "start",
-          }}
-        >
-          <div style={{ display: "grid", gap: "16px" }}>
-            {equipments.map((eq) => (
-              <article
-                key={eq.id}
-                className="card"
-                style={{ padding: "20px" }}
-                data-testid={`equipment-card-${eq.equipmentCode}`}
-              >
-                <div style={{ marginBottom: "14px" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span
-                      className="mono"
+        <>
+          <div
+            style={{ margin: "0 0 10px", fontSize: "13px", color: "var(--muted)" }}
+            data-testid="booking-equipment-count"
+          >
+            {UI_TEXT.bookingEquipmentCount(equipments.length)}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) 350px",
+              gap: "24px",
+              alignItems: "start",
+            }}
+          >
+            <div style={{ display: "grid", gap: "16px" }}>
+              {equipments.map((eq) => (
+                <article
+                  key={eq.id}
+                  className="card"
+                  style={{ padding: "20px" }}
+                  data-testid={`equipment-card-${eq.equipmentCode}`}
+                >
+                  <div style={{ marginBottom: "14px" }}>
+                    <div
                       style={{
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: "var(--primary)",
-                        padding: "2px 8px",
-                        borderRadius: "6px",
-                        background: "var(--primary-soft)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
                       }}
                     >
-                      {eq.equipmentCode}
-                    </span>
-                    <span
-                      className={`badge ${eq.requiresApproval ? "badge-pending" : "badge-available"}`}
-                      data-testid={`approval-badge-${eq.equipmentCode}`}
-                    >
-                      {eq.requiresApproval
-                        ? UI_TEXT.approvalModes.requiresApproval
-                        : UI_TEXT.approvalModes.noApproval}
-                    </span>
-                    <span
-                      className={`badge ${EQUIPMENT_STATUS_BADGE_CLASS[eq.status]}`}
-                      style={EQUIPMENT_STATUS_BADGE_STYLE[eq.status]}
-                    >
-                      {UI_TEXT.equipmentStatus[eq.status]}
-                    </span>
-                  </div>
-                  <h2 style={{ margin: "6px 0 2px", fontSize: "17px" }}>{eq.name}</h2>
-                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>
-                    分類：{eq.category} ｜ 審核規則：
-                    {eq.requiresApproval
-                      ? "送出後進入待審核，核准前不占用時段"
-                      : "送出後立即成為已核准／有效並占用時段"}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-                    gap: "10px",
-                  }}
-                >
-                  {eq.slots.map((slot) => {
-                    const isSelected =
-                      selectedSlot?.equipmentId === eq.id && selectedSlot?.slotId === slot.slotId;
-                    const disabled =
-                      submitting ||
-                      !isDateInRange ||
-                      slot.availabilityStatus === "booked_by_others";
-                    const isMyReschedulePending =
-                      slot.availabilityStatus === "reschedule_pending_by_me" ||
-                      slot.slotStatus === "MY_RESCHEDULE_PENDING";
-                    const isAlreadyMine =
-                      slot.availabilityStatus === "pending_by_me" ||
-                      slot.availabilityStatus === "booked_by_me" ||
-                      slot.availabilityStatus === "checked_out_by_me" ||
-                      slot.availabilityStatus === "returned_by_me";
-
-                    const subnote =
-                      isMyReschedulePending && slot.myRescheduleRequest
-                        ? `改期申請 ${slot.myRescheduleRequest.requestNumber}`
-                        : slot.availabilityStatus === "checked_out_by_me"
-                          ? "已登記領取（不可取消）"
-                          : slot.availabilityStatus === "returned_by_me"
-                            ? "已歸還結案（不重開預約）"
-                            : slot.availabilityStatus === "booked_by_me"
-                              ? "已核准／有效（待領取）"
-                              : slot.availabilityStatus === "pending_by_me"
-                                ? "等待管理員核准"
-                                : slot.availabilityStatus === "booked_by_others"
-                                  ? "已被占用（不揭露借用人身分）"
-                                  : !slot.isBookable
-                                    ? "已逾申請截止時間"
-                                    : "";
-
-                    return (
-                      <button
-                        key={slot.slotId}
-                        type="button"
-                        disabled={disabled}
-                        data-testid={`slot-${eq.equipmentCode}-${slot.slotCode}`}
-                        onClick={() => handleSelectSlot(eq, slot)}
+                      <span
+                        className="mono"
                         style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "flex-start",
-                          gap: "6px",
-                          padding: "12px 14px",
-                          border: `1.5px ${isMyReschedulePending ? "dashed" : "solid"} ${
-                            isMyReschedulePending
-                              ? "var(--pending)"
-                              : isSelected
-                                ? "var(--primary)"
-                                : slot.availabilityStatus === "checked_out_by_me"
-                                  ? "var(--loan)"
-                                  : slot.availabilityStatus === "returned_by_me"
-                                    ? "var(--returned)"
-                                    : "var(--line)"
-                          }`,
-                          borderRadius: "10px",
-                          background: isMyReschedulePending
-                            ? "var(--surface)"
-                            : slot.availabilityStatus === "checked_out_by_me"
-                              ? "var(--loan-soft)"
-                              : slot.availabilityStatus === "returned_by_me"
-                                ? "var(--returned-soft)"
-                                : disabled || isAlreadyMine
-                                  ? "var(--surface-muted)"
-                                  : isSelected
-                                    ? "var(--primary-soft)"
-                                    : "var(--surface)",
-                          color: "var(--ink)",
-                          font: "inherit",
-                          textAlign: "left",
-                          cursor: disabled ? "not-allowed" : "pointer",
-                          opacity: disabled ? 0.88 : 1,
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          color: "var(--primary)",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          background: "var(--primary-soft)",
                         }}
                       >
-                        <div
+                        {eq.equipmentCode}
+                      </span>
+                      <span
+                        className={`badge ${eq.requiresApproval ? "badge-pending" : "badge-available"}`}
+                        data-testid={`approval-badge-${eq.equipmentCode}`}
+                      >
+                        {eq.requiresApproval
+                          ? UI_TEXT.approvalModes.requiresApproval
+                          : UI_TEXT.approvalModes.noApproval}
+                      </span>
+                      <span
+                        className={`badge ${EQUIPMENT_STATUS_BADGE_CLASS[eq.status]}`}
+                        style={EQUIPMENT_STATUS_BADGE_STYLE[eq.status]}
+                      >
+                        {UI_TEXT.equipmentStatus[eq.status]}
+                      </span>
+                    </div>
+                    <h2 style={{ margin: "6px 0 2px", fontSize: "17px" }}>{eq.name}</h2>
+                    <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                      分類：{eq.category} ｜ 審核規則：
+                      {eq.requiresApproval
+                        ? "送出後進入待審核，核准前不占用時段"
+                        : "送出後立即成為已核准／有效並占用時段"}
+                    </div>
+                    {eq.status === "maintenance" && (
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          padding: "8px 12px",
+                          borderLeft: "3px solid var(--pending)",
+                          background: "var(--pending-soft)",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                        }}
+                        data-testid={`maintenance-notice-${eq.equipmentCode}`}
+                      >
+                        {UI_TEXT.bookingMaintenanceNotice}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                      gap: "10px",
+                    }}
+                  >
+                    {eq.slots.map((slot) => {
+                      const isSelected =
+                        selectedSlot?.equipmentId === eq.id && selectedSlot?.slotId === slot.slotId;
+                      // FR-014：送修中設備的所有時段為不能點選的灰色格子，點選時右側面板不變
+                      const isMaintenance = eq.status === "maintenance";
+                      const disabled =
+                        isMaintenance ||
+                        submitting ||
+                        !isDateInRange ||
+                        slot.availabilityStatus === "booked_by_others";
+                      const isMyReschedulePending =
+                        slot.availabilityStatus === "reschedule_pending_by_me" ||
+                        slot.slotStatus === "MY_RESCHEDULE_PENDING";
+                      const isAlreadyMine =
+                        slot.availabilityStatus === "pending_by_me" ||
+                        slot.availabilityStatus === "booked_by_me" ||
+                        slot.availabilityStatus === "checked_out_by_me" ||
+                        slot.availabilityStatus === "returned_by_me";
+
+                      const subnote = isMaintenance
+                        ? ""
+                        : isMyReschedulePending && slot.myRescheduleRequest
+                          ? `改期申請 ${slot.myRescheduleRequest.requestNumber}`
+                          : slot.availabilityStatus === "checked_out_by_me"
+                            ? "已登記領取（不可取消）"
+                            : slot.availabilityStatus === "returned_by_me"
+                              ? "已歸還結案（不重開預約）"
+                              : slot.availabilityStatus === "booked_by_me"
+                                ? "已核准／有效（待領取）"
+                                : slot.availabilityStatus === "pending_by_me"
+                                  ? "等待管理員核准"
+                                  : slot.availabilityStatus === "booked_by_others"
+                                    ? "已被占用（不揭露借用人身分）"
+                                    : !slot.isBookable
+                                      ? "已逾申請截止時間"
+                                      : "";
+
+                      return (
+                        <button
+                          key={slot.slotId}
+                          type="button"
+                          disabled={disabled}
+                          data-testid={`slot-${eq.equipmentCode}-${slot.slotCode}`}
+                          onClick={() => handleSelectSlot(eq, slot)}
                           style={{
                             display: "flex",
-                            justifyContent: "space-between",
-                            width: "100%",
-                            alignItems: "center",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
                             gap: "6px",
+                            padding: "12px 14px",
+                            border: `1.5px ${isMyReschedulePending ? "dashed" : "solid"} ${
+                              isMyReschedulePending
+                                ? "var(--pending)"
+                                : isSelected
+                                  ? "var(--primary)"
+                                  : slot.availabilityStatus === "checked_out_by_me"
+                                    ? "var(--loan)"
+                                    : slot.availabilityStatus === "returned_by_me"
+                                      ? "var(--returned)"
+                                      : "var(--line)"
+                            }`,
+                            borderRadius: "10px",
+                            background: isMyReschedulePending
+                              ? "var(--surface)"
+                              : slot.availabilityStatus === "checked_out_by_me"
+                                ? "var(--loan-soft)"
+                                : slot.availabilityStatus === "returned_by_me"
+                                  ? "var(--returned-soft)"
+                                  : disabled || isAlreadyMine
+                                    ? "var(--surface-muted)"
+                                    : isSelected
+                                      ? "var(--primary-soft)"
+                                      : "var(--surface)",
+                            color: "var(--ink)",
+                            font: "inherit",
+                            textAlign: "left",
+                            cursor: disabled ? "not-allowed" : "pointer",
+                            opacity: disabled ? 0.88 : 1,
                           }}
                         >
-                          <span style={{ fontWeight: 700, fontSize: "14px" }}>
-                            {slot.slotName}時段
-                          </span>
-                          <SlotStatusBadge
-                            status={slot.availabilityStatus}
-                            slotStatus={slot.slotStatus}
-                            isBookable={slot.isBookable}
-                          />
-                        </div>
-                        <span className="mono" style={{ fontSize: "13px", color: "var(--muted)" }}>
-                          {slot.startTime}–{slot.endTime}
-                        </span>
-                        {subnote && (
-                          <span
-                            className={isMyReschedulePending ? "mono" : undefined}
-                            style={{ fontSize: "11px", color: "var(--muted)" }}
-                            data-testid={
-                              isMyReschedulePending
-                                ? `slot-reschedule-${eq.equipmentCode}-${slot.slotCode}`
-                                : undefined
-                            }
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              width: "100%",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
                           >
-                            {subnote}
+                            <span style={{ fontWeight: 700, fontSize: "14px" }}>
+                              {slot.slotName}時段
+                            </span>
+                            {isMaintenance ? (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: "var(--surface)",
+                                  color: "var(--pending)",
+                                  border: "1px solid var(--pending)",
+                                }}
+                                data-testid={`slot-maintenance-${eq.equipmentCode}-${slot.slotCode}`}
+                              >
+                                {UI_TEXT.equipmentStatus.maintenance}
+                              </span>
+                            ) : (
+                              <SlotStatusBadge
+                                status={slot.availabilityStatus}
+                                slotStatus={slot.slotStatus}
+                                isBookable={slot.isBookable}
+                              />
+                            )}
+                          </div>
+                          <span
+                            className="mono"
+                            style={{ fontSize: "13px", color: "var(--muted)" }}
+                          >
+                            {slot.startTime}–{slot.endTime}
                           </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <aside
-            className="card"
-            style={{ position: "sticky", top: "84px", padding: "22px" }}
-            aria-label="預約確認面板"
-          >
-            <h2>單日固定時段預約申請確認</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
-              依所選設備的審核模式，送出後將進入「待審核」（不占位）或直接成為「已核准／有效」（立即占位）。
-            </p>
-
-            <div
-              style={{
-                margin: "12px 0 16px",
-                padding: "14px 16px",
-                borderRadius: "10px",
-                background: "var(--surface-muted)",
-                border: "1px solid var(--line)",
-                fontSize: "14px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                <span className="muted">申請成員</span>
-                <span style={{ fontWeight: 600 }}>
-                  {currentUser.displayName} (<span className="mono">{currentUser.username}</span>)
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                <span className="muted">預約日期</span>
-                <span className="mono" style={{ fontWeight: 600 }}>
-                  {selectedDate}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                <span className="muted">所選設備</span>
-                <span style={{ fontWeight: 600, textAlign: "right" }}>
-                  {selectedSlot
-                    ? `${selectedSlot.equipmentCode} ${selectedSlot.equipmentName}`
-                    : "尚未選擇設備"}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                <span className="muted">審核模式</span>
-                <span
-                  style={{ fontWeight: 600, textAlign: "right" }}
-                  data-testid="panel-approval-mode"
-                >
-                  {selectedSlot
-                    ? selectedSlot.requiresApproval
-                      ? "需人工審核（送出後進入待審核，核准前不鎖定時段）"
-                      : "免審核（送出後立即成為已核准／有效並占用時段）"
-                    : "請先選擇時段"}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                }}
-              >
-                <span className="muted">固定時段</span>
-                <span className="mono" style={{ fontWeight: 600 }}>
-                  {selectedSlot
-                    ? `${selectedSlot.slotName} ${selectedSlot.startTime}–${selectedSlot.endTime}`
-                    : "尚未選擇時段"}
-                </span>
-              </div>
+                          {subnote && (
+                            <span
+                              className={isMyReschedulePending ? "mono" : undefined}
+                              style={{ fontSize: "11px", color: "var(--muted)" }}
+                              data-testid={
+                                isMyReschedulePending
+                                  ? `slot-reschedule-${eq.equipmentCode}-${slot.slotCode}`
+                                  : undefined
+                              }
+                            >
+                              {subnote}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
             </div>
 
-            {rescheduleNotice && (
-              <div
-                role="status"
-                data-testid="panel-reschedule-notice"
-                style={{
-                  margin: "0 0 12px",
-                  padding: "12px 14px",
-                  borderRadius: "10px",
-                  background: "var(--pending-soft)",
-                  border: "1px dashed var(--pending)",
-                  color: "var(--ink)",
-                  fontSize: "13px",
-                  lineHeight: 1.6,
-                }}
-              >
-                <div>{rescheduleNotice}</div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-block"
-                  style={{ marginTop: "10px" }}
-                  onClick={onGoToMyReservations}
-                  data-testid="panel-go-my-reservations"
-                >
-                  查看我的預約
-                </button>
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="btn btn-primary btn-block"
-              disabled={submitting || !isDateInRange}
-              onClick={() => void handleSubmitBooking()}
-              data-testid="submit-booking-btn"
+            <aside
+              className="card"
+              style={{ position: "sticky", top: "84px", padding: "22px" }}
+              aria-label="預約確認面板"
             >
-              {submitting
-                ? "送出申請中…"
-                : selectedSlot?.requiresApproval
-                  ? "送出待審核申請"
-                  : "確認送出預約"}
-            </button>
+              <h2>單日固定時段預約申請確認</h2>
+              <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
+                依所選設備的審核模式，送出後將進入「待審核」（不占位）或直接成為「已核准／有效」（立即占位）。
+              </p>
 
-            {panelError && (
               <div
-                role="alert"
                 style={{
-                  marginTop: "10px",
-                  color: "var(--danger)",
-                  fontSize: "13px",
-                  fontWeight: 500,
+                  margin: "12px 0 16px",
+                  padding: "14px 16px",
+                  borderRadius: "10px",
+                  background: "var(--surface-muted)",
+                  border: "1px solid var(--line)",
+                  fontSize: "14px",
                 }}
               >
-                {panelError}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--line)",
+                  }}
+                >
+                  <span className="muted">申請成員</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {currentUser.displayName} (<span className="mono">{currentUser.username}</span>)
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--line)",
+                  }}
+                >
+                  <span className="muted">預約日期</span>
+                  <span className="mono" style={{ fontWeight: 600 }}>
+                    {selectedDate}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--line)",
+                  }}
+                >
+                  <span className="muted">所選設備</span>
+                  <span style={{ fontWeight: 600, textAlign: "right" }}>
+                    {selectedSlot
+                      ? `${selectedSlot.equipmentCode} ${selectedSlot.equipmentName}`
+                      : "尚未選擇設備"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--line)",
+                  }}
+                >
+                  <span className="muted">審核模式</span>
+                  <span
+                    style={{ fontWeight: 600, textAlign: "right" }}
+                    data-testid="panel-approval-mode"
+                  >
+                    {selectedSlot
+                      ? selectedSlot.requiresApproval
+                        ? "需人工審核（送出後進入待審核，核准前不鎖定時段）"
+                        : "免審核（送出後立即成為已核准／有效並占用時段）"
+                      : "請先選擇時段"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                  }}
+                >
+                  <span className="muted">固定時段</span>
+                  <span className="mono" style={{ fontWeight: 600 }}>
+                    {selectedSlot
+                      ? `${selectedSlot.slotName} ${selectedSlot.startTime}–${selectedSlot.endTime}`
+                      : "尚未選擇時段"}
+                  </span>
+                </div>
               </div>
-            )}
-          </aside>
-        </div>
+
+              {rescheduleNotice && (
+                <div
+                  role="status"
+                  data-testid="panel-reschedule-notice"
+                  style={{
+                    margin: "0 0 12px",
+                    padding: "12px 14px",
+                    borderRadius: "10px",
+                    background: "var(--pending-soft)",
+                    border: "1px dashed var(--pending)",
+                    color: "var(--ink)",
+                    fontSize: "13px",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <div>{rescheduleNotice}</div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-block"
+                    style={{ marginTop: "10px" }}
+                    onClick={onGoToMyReservations}
+                    data-testid="panel-go-my-reservations"
+                  >
+                    查看我的預約
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="btn btn-primary btn-block"
+                disabled={submitting || !isDateInRange}
+                onClick={() => void handleSubmitBooking()}
+                data-testid="submit-booking-btn"
+              >
+                {submitting
+                  ? "送出申請中…"
+                  : selectedSlot?.requiresApproval
+                    ? "送出待審核申請"
+                    : "確認送出預約"}
+              </button>
+
+              {panelError && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: "10px",
+                    color: "var(--danger)",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                  }}
+                >
+                  {panelError}
+                </div>
+              )}
+            </aside>
+          </div>
+        </>
       )}
     </div>
   );

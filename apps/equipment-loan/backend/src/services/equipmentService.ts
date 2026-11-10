@@ -12,6 +12,11 @@ import { expireDueRescheduleRequests, type TimeSlotSummaryDto } from "./reschedu
 /** 設備 3 種狀態（contracts/openapi.yaml EquipmentStatus）；只有 available 可以被預約（FR-006）。 */
 export type EquipmentStatus = "available" | "maintenance" | "retired";
 
+/** 成員設備清單可見的設備狀態（contracts/openapi.yaml MemberVisibleEquipmentStatus）；retired 不出現在成員清單（FR-014）。 */
+export type MemberVisibleEquipmentStatus = "available" | "maintenance";
+
+const MEMBER_VISIBLE_STATUSES: MemberVisibleEquipmentStatus[] = ["available", "maintenance"];
+
 export type SlotStatus =
   | "AVAILABLE"
   | "MY_PENDING"
@@ -59,7 +64,7 @@ export interface EquipmentWithSlotAvailabilityDto {
   equipmentCode: string;
   name: string;
   category: string;
-  status: EquipmentStatus;
+  status: MemberVisibleEquipmentStatus;
   requiresApproval: boolean;
   reservationDate: string;
   slots: EquipmentSlotAvailabilityDto[];
@@ -86,8 +91,10 @@ export async function listEquipments(params: {
     throw new AppError("VALIDATION_FAILED", 400, "查詢日期 date 必須為有效的 YYYY-MM-DD 格式。");
   }
 
+  // FR-014：停用（retired）設備不出現在成員清單，也不計入 totalItems；以 equipmentId 篩選停用設備時 items 為空
   const whereClause = {
     deleted_at: null as Date | null,
+    status: { in: MEMBER_VISIBLE_STATUSES },
     ...(params.equipmentId ? { id: params.equipmentId } : {}),
     ...(params.category ? { category: params.category } : {}),
     ...(params.requiresApproval !== undefined
@@ -257,7 +264,8 @@ export async function listEquipments(params: {
         equipmentCode: eq.equipment_code,
         name: eq.name,
         category: eq.category,
-        status: eq.status,
+        // 查詢條件已排除 retired
+        status: eq.status === "maintenance" ? "maintenance" : "available",
         requiresApproval: eq.requires_approval,
         reservationDate: params.date,
         slots,

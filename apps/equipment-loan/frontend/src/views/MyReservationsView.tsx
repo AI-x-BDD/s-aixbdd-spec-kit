@@ -7,6 +7,7 @@ import {
   type CreateRescheduleRequestResponse,
   type RescheduleRequest,
   type RescheduleRequestStatus,
+  type ReservationCancelReason,
   type ReservationDto,
   type ReservationPageDto,
   type ReservationStatus,
@@ -50,6 +51,13 @@ const RESCHEDULE_STATUS_BADGE: Record<RescheduleRequestStatus, string> = {
   withdrawn: "badge-occupied",
   expired: "badge-occupied",
 };
+
+/** 因設備送修或停用取消（FR-015）：只有這兩種取消原因在「我的預約」顯示原因，member_cancelled 不顯示。 */
+function isEquipmentCancelReason(
+  reason: ReservationCancelReason | null,
+): reason is "equipment_maintenance" | "equipment_retired" {
+  return reason === "equipment_maintenance" || reason === "equipment_retired";
+}
 
 /** 改期紀錄「說明」欄（ui/my-reservations.html historyNote；失效原因文字見 tasks.md Notes 待確認 2）。 */
 function rescheduleHistoryNote(rr: RescheduleRequest): string {
@@ -624,13 +632,39 @@ export function MyReservationsView({ onGoToBooking }: MyReservationsViewProps): 
                       歸還時間：
                       <span className="mono">{formatIsoToTaipeiDateTime(r.returnedAt)}</span>
                     </span>
-                    {r.cancelledAt && (
+                    {r.cancelledAt && !isEquipmentCancelReason(r.cancelReason) && (
                       <span>
                         取消時間：
                         <span className="mono">{formatIsoToTaipeiDateTime(r.cancelledAt)}</span>
                       </span>
                     )}
                   </div>
+
+                  {r.status === "cancelled" && isEquipmentCancelReason(r.cancelReason) && (
+                    // FR-015、US3 情境 3：因設備送修或停用取消時顯示取消原因與取消時間（送修為琥珀色、停用為灰色，見 ui/my-reservations.html .reason-line）
+                    <div
+                      data-testid={`cancel-reason-${r.reservationNumber}`}
+                      style={{
+                        padding: "6px 10px",
+                        borderLeft: `4px solid ${
+                          r.cancelReason === "equipment_maintenance"
+                            ? "var(--pending)"
+                            : "var(--occupied)"
+                        }`,
+                        borderRadius: "0 8px 8px 0",
+                        background:
+                          r.cancelReason === "equipment_maintenance"
+                            ? "var(--pending-soft)"
+                            : "var(--surface-muted)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      {UI_TEXT.myReservationCancelReasonLine(
+                        UI_TEXT.cancelReason[r.cancelReason],
+                        formatIsoToTaipeiDateTime(r.cancelledAt),
+                      )}
+                    </div>
+                  )}
 
                   {(r.status === "checked_out" || r.status === "returned") && (
                     <div

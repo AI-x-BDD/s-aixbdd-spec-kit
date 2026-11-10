@@ -783,10 +783,24 @@ export async function cancelReservation(params: {
     }
 
     if (existing.status === "cancelled") {
+      // FR-015、ui/plan.md §5「取消時預約已因設備送修取消」：已因設備送修或停用被取消時，寫出取消時間與取消原因
+      const cancellation = describeEquipmentCancellation(existing);
+      if (cancellation) {
+        const reasonText =
+          existing.cancel_reason === "equipment_maintenance" ? "設備送修" : "設備停用";
+        throw new AppError(
+          "RESERVATION_ALREADY_CANCELLED",
+          409,
+          `無法取消：預約 ${existing.reservation_no} ${cancellation}，取消原因為「${reasonText}」。`,
+        );
+      }
+      const cancelledAt = existing.cancelled_at ? getTaipeiNow(existing.cancelled_at) : null;
       throw new AppError(
         "RESERVATION_ALREADY_CANCELLED",
         409,
-        `無法取消：預約編號 ${existing.reservation_no} 已經處於「已取消」狀態，無須重複取消。`,
+        cancelledAt
+          ? `無法取消：預約編號 ${existing.reservation_no} 已在 ${cancelledAt.dateStr} ${cancelledAt.timeStr} 由成員取消，已經處於「已取消」狀態，無須重複取消。`
+          : `無法取消：預約編號 ${existing.reservation_no} 已經處於「已取消」狀態，無須重複取消。`,
       );
     }
 

@@ -144,6 +144,22 @@ export const UI_TEXT = {
     ) =>
       `已將 ${equipmentLabel} 恢復為「可用」，審核設定維持「${approvalLabel}」。${fromStatus === "maintenance" ? "送修" : "停用"}時取消的預約不會自動復原。`,
   },
+  /** 設備預約頁：送修中設備卡片的提示（ui/plan.md §4 booking.html「檢視固定時段狀態」、booking.html 雛形）。 */
+  bookingMaintenanceNotice: "設備送修中，暫停預約。管理員恢復可用後才能預約。",
+  /** 設備預約頁：清單件數（ui/plan.md §4 booking.html「檢視固定時段狀態」「共 5 台設備」）。 */
+  bookingEquipmentCount: (count: number) => `共 ${count} 台設備`,
+  /** 設備預約頁：送出預約收到 EQUIPMENT_UNAVAILABLE（ui/plan.md §5 booking.html「預約時設備已送修」「預約時設備已停用」）。 */
+  bookingEquipmentUnavailable: (
+    backendMessage: string,
+    equipmentLabel: string,
+    status: "maintenance" | "retired",
+  ) =>
+    status === "maintenance"
+      ? `${backendMessage}：${equipmentLabel} 目前送修中，這筆預約沒有建立，請改選其他設備。`
+      : `${backendMessage}：${equipmentLabel} 已停用，這筆預約沒有建立，設備已從清單移除。`,
+  /** 我的預約：因設備送修或停用取消的取消原因條（ui/plan.md §5 my-reservations.html「因設備送修或停用取消的預約」）。 */
+  myReservationCancelReasonLine: (reasonLabel: string, cancelledAt: string) =>
+    `取消原因：${reasonLabel}｜取消時間 ${cancelledAt}`,
   approvalModes: {
     requiresApproval: "需人工審核",
     noApproval: "免審核",

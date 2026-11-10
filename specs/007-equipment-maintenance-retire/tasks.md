@@ -296,12 +296,12 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 > D2、D3 已在 Foundational 建立，本故事沒有資料庫任務。
 
-- [ ] T032 [US3] 在 `backend/src/services/equipmentService.ts` 的 `listEquipments` 只查 `status` 為 `available` 或 `maintenance` 的設備：`retired` 不出現在 `items`，也不計入 `totalItems`；以 `equipmentId` 篩選停用設備時回 `200` 與空的 `items`；`EquipmentWithSlotAvailabilityDto.status` 型別改為 `available`、`maintenance`；`maintenance` 設備的所有時段 `isBookable` 為 false；設備恢復可用後，被取消預約的原時段回 `AVAILABLE`（FR-014、FR-011、FR-012、US3 情境 1、2、US2 情境 1、2）
+- [X] T032 [US3] 在 `backend/src/services/equipmentService.ts` 的 `listEquipments` 只查 `status` 為 `available` 或 `maintenance` 的設備：`retired` 不出現在 `items`，也不計入 `totalItems`；以 `equipmentId` 篩選停用設備時回 `200` 與空的 `items`；`EquipmentWithSlotAvailabilityDto.status` 型別改為 `available`、`maintenance`；`maintenance` 設備的所有時段 `isBookable` 為 false；設備恢復可用後，被取消預約的原時段回 `AVAILABLE`（FR-014、FR-011、FR-012、US3 情境 1、2、US2 情境 1、2）
   - **Must Read**
     - `contracts/openapi.yaml` → `listEquipments`、`EquipmentWithSlotAvailability`、`MemberVisibleEquipmentStatus` — Why：排除停用、`totalItems` 的計算與送修中時段一律不可預約
     - `data/data-model.dbml` → `Table equipments`（`idx_equipments_category_status`） — Why：成員清單排除 `retired` 使用的索引
     - `spec.md` → FR-014 — Why：送修中設備標示且不提供預約，停用設備不出現在成員清單
-- [ ] T033 [US3] 在 `backend/src/services/reservationService.ts` 的 `cancelReservation`，預約已取消時回 `409 RESERVATION_ALREADY_CANCELLED`，訊息寫出依 `Asia/Taipei` 顯示的取消時間與取消原因（例如因設備送修取消時寫出「設備送修」）；確認 `listMyReservations` 不以設備 `status` 篩選，送修中與停用設備上的紀錄照常回傳設備編號與名稱（FR-015、FR-016、US3 情境 3、4）
+- [X] T033 [US3] 在 `backend/src/services/reservationService.ts` 的 `cancelReservation`，預約已取消時回 `409 RESERVATION_ALREADY_CANCELLED`，訊息寫出依 `Asia/Taipei` 顯示的取消時間與取消原因（例如因設備送修取消時寫出「設備送修」）；確認 `listMyReservations` 不以設備 `status` 篩選，送修中與停用設備上的紀錄照常回傳設備編號與名稱（FR-015、FR-016、US3 情境 3、4）
   - **Must Read**
     - `contracts/openapi.yaml` → `cancelReservation`、`CancelReservationConflict` — Why：已因設備送修或停用取消時的 409 與訊息內容
     - `contracts/openapi.yaml` → `listMyReservations` — Why：本人在送修中或停用設備上的紀錄照常回傳
@@ -309,13 +309,13 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 ### 前端（F2、F3）
 
-- [ ] T034 [US3] 在 `frontend/src/views/EquipmentBookingView.tsx`，`status` 為 `maintenance` 的設備卡片顯示琥珀色「送修中」徽章與「設備送修中，暫停預約」，3 個時段顯示「送修中」且為不能點選的灰色格子，點選時右側面板不變；送出預約收到 `EQUIPMENT_UNAVAILABLE` 時，頁頂紅色橫幅顯示後端訊息、清除右側選取並重新拉取設備清單（停用設備會消失，清單件數更新）（FR-014、FR-006、US3 情境 1、2、US1 情境 9）
+- [X] T034 [US3] 在 `frontend/src/views/EquipmentBookingView.tsx`，`status` 為 `maintenance` 的設備卡片顯示琥珀色「送修中」徽章與「設備送修中，暫停預約」，3 個時段顯示「送修中」且為不能點選的灰色格子，點選時右側面板不變；送出預約收到 `EQUIPMENT_UNAVAILABLE` 時，頁頂紅色橫幅顯示後端訊息、清除右側選取並重新拉取設備清單（停用設備會消失，清單件數更新）（FR-014、FR-006、US3 情境 1、2、US1 情境 9）
   - **Must Read**
     - `ui/plan.md` → §4 `booking.html` 的「檢視固定時段狀態」「設備恢復可用後」 — Why：送修中標示與恢復可用後清單的呈現
     - `ui/plan.md` → §5 `booking.html` 的「送修中設備的時段」「停用設備不顯示」「預約時設備已送修」「預約時設備已停用」 — Why：時段格子的樣式與兩種預約被拒的回饋
     - `ui/booking.html` → 雛形狀態「檢視固定時段狀態」「預約時設備已送修」「預約時設備已停用」 — Why：設備卡片與紅色橫幅的實際樣子
     - `contracts/openapi.yaml` → `EquipmentSlotAvailability` 的 `isBookable` — Why：送修中時一律為 false，前端據此不提供預約
-- [ ] T035 [P] [US3] 在 `frontend/src/views/MyReservationsView.tsx`，`cancelReason` 為 `equipment_maintenance` 或 `equipment_retired` 的預約顯示「已取消」徽章與琥珀色條「取消原因：設備送修｜取消時間 YYYY-MM-DD HH:mm」（或「設備停用」）；`member_cancelled` 只顯示「取消時間 …」；送修中或停用設備上的紀錄照常顯示設備編號、名稱與狀態；改期紀錄中失效的申請顯示灰色「改期已失效」與「失效原因：原預約已取消」；取消預約收到 `RESERVATION_ALREADY_CANCELLED` 時，頁頂紅色橫幅顯示後端訊息並重新拉取清單（FR-015、FR-016、FR-012、FR-004、US3 情境 3、4、5、US2 情境 3）
+- [X] T035 [P] [US3] 在 `frontend/src/views/MyReservationsView.tsx`，`cancelReason` 為 `equipment_maintenance` 或 `equipment_retired` 的預約顯示「已取消」徽章與琥珀色條「取消原因：設備送修｜取消時間 YYYY-MM-DD HH:mm」（或「設備停用」）；`member_cancelled` 只顯示「取消時間 …」；送修中或停用設備上的紀錄照常顯示設備編號、名稱與狀態；改期紀錄中失效的申請顯示灰色「改期已失效」與「失效原因：原預約已取消」；取消預約收到 `RESERVATION_ALREADY_CANCELLED` 時，頁頂紅色橫幅顯示後端訊息並重新拉取清單（FR-015、FR-016、FR-012、FR-004、US3 情境 3、4、5、US2 情境 3）
   - **Must Read**
     - `ui/plan.md` → §4 `my-reservations.html` 的「預約清單」「設備送修後的預約清單」「設備恢復可用後的預約清單」 — Why：取消原因、成員取消與停用設備紀錄的呈現
     - `ui/plan.md` → §5 `my-reservations.html` 的「因設備送修或停用取消的預約」「成員自行取消的預約」「停用設備的歷史紀錄」「改期申請因原預約取消而失效」「取消時預約已因設備送修取消」 — Why：各種預約卡片的文字與取消被拒的回饋
