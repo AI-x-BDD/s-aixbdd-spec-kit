@@ -50,6 +50,8 @@ async function openWindowAs(
     USERS[who].header,
   );
   if (who === "wu") {
+    // 007：管理員登入後先進入「設備狀態管理」，切換到「審核與借用管理」
+    await page.getByTestId("nav-admin").click();
     await expect(page.getByTestId("review-tab-reschedule")).toBeVisible();
   } else {
     await expect(page.getByTestId("submit-booking-btn")).toBeVisible();
@@ -183,6 +185,8 @@ test("US2：需人工審核改期送出後對本人顯示「本人改期審核�
 
   // 管理員：核准新時段已被占用的 demo seed 申請（RV-20261108-11 → RV-20261109-12 占用）被拒
   await wu.reload();
+  // 007：重新整理後回到「設備狀態管理」，再切換到「審核與借用管理」
+  await wu.getByTestId("nav-admin").click();
   await expect(wu.getByTestId(`rr-item-${requestNo}`)).toContainText(
     "改期申請",
   );
@@ -252,6 +256,8 @@ test("US3：成員撤回改期審核中的申請，變成「改期已撤回」�
   await expect(card).toContainText("已核准／有效");
 
   await wu.reload();
+  // 007：重新整理後回到「設備狀態管理」，再切換到「審核與借用管理」
+  await wu.getByTestId("nav-admin").click();
   await expect(wu.getByTestId("review-tab-reschedule")).toBeVisible();
   await expect(wu.getByTestId(`rr-item-${requestNo}`)).toHaveCount(0);
 

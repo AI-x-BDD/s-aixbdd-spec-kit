@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // 單元測試不連資料庫：以假的互動式交易取代 prisma，只驗證 createRescheduleRequest 在寫入前的可改期判斷（FR-001）
 const fakeTx = vi.hoisted(() => ({
   $executeRaw: vi.fn(async () => 0),
+  // 007（FR-004、FR-009）：改期交易第一個語句以 FOR SHARE 鎖定設備列並讀取設備狀態；單元測試固定回傳可用
+  $queryRaw: vi.fn(async () => [{ status: "available", requires_approval: false }]),
   reservations: { findFirst: vi.fn() },
   time_slots: { findFirst: vi.fn() },
   reschedule_requests: { findFirst: vi.fn(), create: vi.fn() },

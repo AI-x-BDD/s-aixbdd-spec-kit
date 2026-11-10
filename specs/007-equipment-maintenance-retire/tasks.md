@@ -331,46 +331,46 @@ description: "Task list for 設備送修與停用、恢復可用及受影響未�
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T036 [P] 在 `frontend/tests/unit/zh-TW.test.ts` 補上設備 3 態標籤、3 種取消原因標籤與 `EQUIPMENT_ON_LOAN`、`EQUIPMENT_STATUS_UNCHANGED`、`EQUIPMENT_STATE_CHANGED` 錯誤說明的檢查，確認都是臺灣繁體中文並說明失敗原因（NFR-001）
+- [X] T036 [P] 在 `frontend/tests/unit/zh-TW.test.ts` 補上設備 3 態標籤、3 種取消原因標籤與 `EQUIPMENT_ON_LOAN`、`EQUIPMENT_STATUS_UNCHANGED`、`EQUIPMENT_STATE_CHANGED` 錯誤說明的檢查，確認都是臺灣繁體中文並說明失敗原因（NFR-001）
   - **Must Read**
     - `spec.md` → NFR-001 — Why：檢查標準
-- [ ] T037 在 `backend/tests/integration/equipmentStatus.test.ts` 以 Vitest 5 + Supertest 7 與真實 PostgreSQL 18 驗證：依 US1 Independent Test 的資料設為送修後，尚未結束的 `pending_approval` 與 `confirmed` 預約 100% 變成 `cancelled` 並帶 `equipment_maintenance`，`returned`、`rejected`、`cancelled` 紀錄完全不變；以 `vi.setSystemTime` 固定在時段進行中，確認已開始未領取與已開始仍待審核的預約一併取消（SC-001、FR-002、FR-003）；設備有 `checked_out` 預約時設定送修與停用都回 `EQUIPMENT_ON_LOAN` 且資料不變（SC-003）；開啟預覽後插入新預約再確認，回 `EQUIPMENT_STATE_CHANGED` 且設備、預約與改期申請都不變（FR-019）
+- [X] T037 在 `backend/tests/integration/equipmentStatus.test.ts` 以 Vitest 5 + Supertest 7 與真實 PostgreSQL 18 驗證：依 US1 Independent Test 的資料設為送修後，尚未結束的 `pending_approval` 與 `confirmed` 預約 100% 變成 `cancelled` 並帶 `equipment_maintenance`，`returned`、`rejected`、`cancelled` 紀錄完全不變；以 `vi.setSystemTime` 固定在時段進行中，確認已開始未領取與已開始仍待審核的預約一併取消（SC-001、FR-002、FR-003）；設備有 `checked_out` 預約時設定送修與停用都回 `EQUIPMENT_ON_LOAN` 且資料不變（SC-003）；開啟預覽後插入新預約再確認，回 `EQUIPMENT_STATE_CHANGED` 且設備、預約與改期申請都不變（FR-019）
   - **Must Read**
     - `spec.md` → SC-001、SC-003、FR-019 — Why：量測標準與確認時資料改變的預期結果
     - `research.md` → §5 — Why：整合測試的資料庫、`vi.setSystemTime` 與 FR-019 的驗證方式
-- [ ] T038 在 `backend/tests/integration/equipmentStatus.test.ts` 再驗證：恢復可用後被取消的預約 0% 復原，成員對恢復設備未來時段的預約 100% 依 `requires_approval` 成立或進入 `pending_approval`（SC-004）；一般成員呼叫預覽、設為送修、設為停用與恢復可用 100% 回 `403 FORBIDDEN`（SC-005、FR-017）
+- [X] T038 在 `backend/tests/integration/equipmentStatus.test.ts` 再驗證：恢復可用後被取消的預約 0% 復原，成員對恢復設備未來時段的預約 100% 依 `requires_approval` 成立或進入 `pending_approval`（SC-004）；一般成員呼叫預覽、設為送修、設為停用與恢復可用 100% 回 `403 FORBIDDEN`（SC-005、FR-017）
   - **Must Read**
     - `spec.md` → SC-004、SC-005 — Why：量測標準
     - `research.md` → §5 — Why：整合測試的寫法
-- [ ] T039 [P] 在 `backend/tests/integration/equipmentStatusConcurrency.test.ts` 以 `Promise.all` 同時送出新預約與設定送修、同時核准待審預約與設定送修，各重複 20 輪，每輪確認設備沒有尚未結束的 `pending_approval` 或 `confirmed` 預約，且新預約不是被拒絕就是被取消並帶 `equipment_maintenance`（SC-002、FR-009）
+- [X] T039 [P] 在 `backend/tests/integration/equipmentStatusConcurrency.test.ts` 以 `Promise.all` 同時送出新預約與設定送修、同時核准待審預約與設定送修，各重複 20 輪，每輪確認設備沒有尚未結束的 `pending_approval` 或 `confirmed` 預約，且新預約不是被拒絕就是被取消並帶 `equipment_maintenance`（SC-002、FR-009）
   - **Must Read**
     - `spec.md` → SC-002、US1 情境 12 — Why：並發時設備留下未結束預約的筆數必須為 0
     - `research.md` → §5 — Why：重複 20 輪的並發驗證方式
   - **Optional**
     - `research.md` → §3 — Why：並發驗證失敗、需要確認鎖的取得順序時
-- [ ] T040 [P] 在 `backend/tests/integration/equipmentStatusPerformance.test.ts` 為一台設備建立 100 筆尚未結束的預約，量測預覽、設為送修、設為停用與恢復可用的回應時間都低於 2 秒（SC-006、NFR-002）
+- [X] T040 [P] 在 `backend/tests/integration/equipmentStatusPerformance.test.ts` 為一台設備建立 100 筆尚未結束的預約，量測預覽、設為送修、設為停用與恢復可用的回應時間都低於 2 秒（SC-006、NFR-002）
   - **Must Read**
     - `spec.md` → SC-006、NFR-002 — Why：回應時間的量測標準
     - `research.md` → §5 — Why：建立 100 筆預約後量測的做法
-- [ ] T041 [P] 在 `backend/tests/migration/equipmentMaintenanceRetire.test.ts` 以 `pg` 在獨立測試資料庫依序執行 `backend/prisma/migrations/` 中 007 之前的 `migration.sql`，寫入一台 `unavailable` 設備與各種狀態的預約、借用與改期申請，再執行 007 的 `migration.sql`，確認設備變成 `retired`、既有取消紀錄的 `cancel_reason` 為 `member_cancelled`，其餘欄位值與資料列數都不變（FR-018、US1 情境 13）
+- [X] T041 [P] 在 `backend/tests/migration/equipmentMaintenanceRetire.test.ts` 以 `pg` 在獨立測試資料庫依序執行 `backend/prisma/migrations/` 中 007 之前的 `migration.sql`，寫入一台 `unavailable` 設備與各種狀態的預約、借用與改期申請，再執行 007 的 `migration.sql`，確認設備變成 `retired`、既有取消紀錄的 `cancel_reason` 為 `member_cancelled`，其餘欄位值與資料列數都不變（FR-018、US1 情境 13）
   - **Must Read**
     - `research.md` → §5 — Why：逐支執行 `migration.sql` 的遷移測試做法
     - `spec.md` → FR-018、US1 情境 13 — Why：無損遷移的檢查標準
-- [ ] T042 [P] 在 `e2e/equipment-maintenance.spec.ts` 以 Playwright 1.65 走完：管理員設為送修並在確認視窗看到數量、成員看到「送修中」與取消原因「設備送修」、停用設備從成員清單消失、恢復可用後成員重新預約（SC-001、SC-004）
+- [X] T042 [P] 在 `e2e/equipment-maintenance.spec.ts` 以 Playwright 1.65 走完：管理員設為送修並在確認視窗看到數量、成員看到「送修中」與取消原因「設備送修」、停用設備從成員清單消失、恢復可用後成員重新預約（SC-001、SC-004）
   - **Must Read**
     - `spec.md` → US1、US2、US3 的 Independent Test — Why：端對端測試要走的流程
     - `research.md` → §5 — Why：端對端測試的範圍
-- [ ] T043 修正 003～006 既有測試中依賴 `isActive` 或 `unavailable` 的斷言，再執行 `npm run test:backend`、`npm run test:frontend` 與 `npm run test:e2e`，確認前四版回歸 100% 通過（SC-005）
+- [X] T043 修正 003～006 既有測試中依賴 `isActive` 或 `unavailable` 的斷言，再執行 `npm run test:backend`、`npm run test:frontend` 與 `npm run test:e2e`，確認前四版回歸 100% 通過（SC-005）
   - **Must Read**
     - `spec.md` → SC-005、FR-018 — Why：前四版既有功能必須完整保留
-- [ ] T044 [P] 在 `README.md` 補上 007 的資料庫遷移（`npm run db:migrate`）、demo seed 內容（送修中、停用與可示範設為送修的設備）、新測試的執行方式，以及設為送修、恢復可用的示範步驟（FR-018）
+- [X] T044 [P] 在 `README.md` 補上 007 的資料庫遷移（`npm run db:migrate`）、demo seed 內容（送修中、停用與可示範設為送修的設備）、新測試的執行方式，以及設為送修、恢復可用的示範步驟（FR-018）
   - **Must Read**
     - `spec.md` → FR-018 — Why：demo seed 必須包含的展示資料
     - `research.md` → §5 — Why：遷移測試、整合測試與端對端測試的執行方式
-- [ ] T045 在 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、`prettier --check`），修正所有錯誤（research §4）
+- [X] T045 在 `apps/equipment-loan/` 執行 `npm run check`（`tsc --noEmit`、ESLint、`prettier --check`），修正所有錯誤（research §4）
   - **Must Read**
     - `techstack.md` → 技術堆疊總覽 — Why：靜態檢查與格式化使用的工具
-- [ ] T046 依 `README.md` 以 demo seed 手動走一次 US1～US3 的 Independent Test，逐條核對各故事的 Acceptance Scenarios
+- [X] T046 依 `README.md` 以 demo seed 手動走一次 US1～US3 的 Independent Test，逐條核對各故事的 Acceptance Scenarios
   - **Must Read**
     - `spec.md` → US1、US2、US3 的 Independent Test — Why：手動驗證的步驟
     - `spec.md` → US1、US2、US3 的 Acceptance Scenarios — Why：逐條核對的預期結果

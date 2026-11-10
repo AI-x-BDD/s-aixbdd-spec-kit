@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EQUIPMENT_STATUS_ERROR_MESSAGES,
   ERROR_MESSAGES,
   getErrorMessage,
   RESCHEDULE_ERROR_MESSAGES,
@@ -82,6 +83,45 @@ describe("frontend zh-TW text and form validation unit tests", () => {
       UI_TEXT.slotStatusByCode.MY_RESCHEDULE_PENDING,
       ...Object.values(UI_TEXT.rescheduleExpireReason),
       ...Object.values(UI_TEXT.reschedule),
+    ]) {
+      expect(isZhTw(text), text).toBe(true);
+    }
+  });
+
+  it("contains Traditional Chinese text for 3 equipment statuses, 3 cancel reasons, and 3 equipment status error codes (NFR-001)", () => {
+    // 只含中文與全形標點：不得出現英文字母，避免把狀態值或錯誤碼原樣顯示給使用者
+    const isZhTw = (text: string) => /[\u4e00-\u9fff]/.test(text) && !/[A-Za-z]/.test(text);
+
+    expect(UI_TEXT.equipmentStatus).toEqual({
+      available: "可用",
+      maintenance: "送修中",
+      retired: "停用",
+    });
+    expect(UI_TEXT.cancelReason).toEqual({
+      equipment_maintenance: "設備送修",
+      equipment_retired: "設備停用",
+      member_cancelled: "成員取消",
+    });
+
+    const equipmentStatusErrorCodes = [
+      "EQUIPMENT_ON_LOAN",
+      "EQUIPMENT_STATUS_UNCHANGED",
+      "EQUIPMENT_STATE_CHANGED",
+    ];
+    expect(Object.keys(EQUIPMENT_STATUS_ERROR_MESSAGES).sort()).toEqual(
+      [...equipmentStatusErrorCodes].sort(),
+    );
+    for (const code of equipmentStatusErrorCodes) {
+      expect(isZhTw(getErrorMessage(code)), code).toBe(true);
+    }
+    // 錯誤說明必須寫出失敗原因（NFR-001：設備借用中、設備狀態已被變更）
+    expect(getErrorMessage("EQUIPMENT_ON_LOAN")).toContain("借用中");
+    expect(getErrorMessage("EQUIPMENT_STATUS_UNCHANGED")).toContain("已經是這個狀態");
+    expect(getErrorMessage("EQUIPMENT_STATE_CHANGED")).toContain("設備狀態已被變更");
+
+    for (const text of [
+      ...Object.values(UI_TEXT.equipmentStatus),
+      ...Object.values(UI_TEXT.cancelReason),
     ]) {
       expect(isZhTw(text), text).toBe(true);
     }

@@ -66,6 +66,8 @@ test("US1, US2, US3 pickup/return & 6-state loan tracking + Iterations 1-2 regre
   await expect(page.getByTestId("header-user")).toContainText(
     "吳承翰（管理員）",
   );
+  // 007：管理員登入後先進入「設備狀態管理」，審核與借用管理改由頁首導覽切換
+  await page.getByTestId("nav-admin").click();
 
   // Filter confirmed (待領取) records
   await page.getByTestId("admin-tab-confirmed").click();
@@ -115,6 +117,8 @@ test("US1, US2, US3 pickup/return & 6-state loan tracking + Iterations 1-2 regre
     "已駁回預約申請 RV-20261109-09",
   );
 
+  // 007：設備清單（含審核設定）移到「設備狀態管理」頁籤
+  await page.getByTestId("nav-equipment-status").click();
   await page.getByTestId("toggle-approval-btn-EQ-103").click();
   await expect(page.getByTestId("admin-banner")).toContainText(
     "已更新設備審核設定：EQ-103",
