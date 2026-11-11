@@ -304,49 +304,49 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T030 [P] 更新 `README.md`：資料庫遷移、demo seed 重設、`.env` 的三個新設定、以 `npm --prefix backend run discord:sim` 啟動模擬器與 `PUT /__sim/mode` 切換模式，以及展示 US3 手動檢查前先在 `.env` 設 `OVERDUE_AUTO_CHECK_ENABLED=false` 並重啟後端；不寫出真實的 Webhook 位址（FR-020、NFR-003）
+- [X] T030 [P] 更新 `README.md`：資料庫遷移、demo seed 重設、`.env` 的三個新設定、以 `npm --prefix backend run discord:sim` 啟動模擬器與 `PUT /__sim/mode` 切換模式，以及展示 US3 手動檢查前先在 `.env` 設 `OVERDUE_AUTO_CHECK_ENABLED=false` 並重啟後端；不寫出真實的 Webhook 位址（FR-020、NFR-003）
   - **Must Read**
     - `research.md` → §8 — Why：README 要寫明展示手動檢查前關閉自動檢查
     - `notification/plan.md` → §5.5 — Why：模擬器的啟動方式與控制操作
     - `research.md` → §5 — Why：三個設定與 `.env` 不 commit
-- [ ] T031 [P] 量測送出時效與重試結果（SC-001、SC-003）：在 `backend/tests/integration/overdueDispatch.test.ts` 以 `createDiscordWebhookSimulator()` 在連接埠 `0` 啟動模擬器，搭配 `vi.setSystemTime` 直接呼叫 `runOverdueCheck(now)`、`dispatchDueNotifications(now)`、`recoverInterruptedNotifications(now)`，逐一跑 notification/plan.md §7 的 NS1～NS10、NS12～NS14、NS16～NS18、NS20～NS21，確認時段結束後 10 分鐘內送出、等待不超過 1 分鐘且 3 次內恢復時 100% 為 `sent`、逾時與送出後中斷 100% 為 `unknown` 且自動重送 0 次；模擬器無法重現的回應以分類函式直接驗證（見 Notes 待確認 2）；記錄每個情境的結果（FR-001、FR-002、FR-013～FR-017、FR-021）
+- [X] T031 [P] 量測送出時效與重試結果（SC-001、SC-003）：在 `backend/tests/integration/overdueDispatch.test.ts` 以 `createDiscordWebhookSimulator()` 在連接埠 `0` 啟動模擬器，搭配 `vi.setSystemTime` 直接呼叫 `runOverdueCheck(now)`、`dispatchDueNotifications(now)`、`recoverInterruptedNotifications(now)`，逐一跑 notification/plan.md §7 的 NS1～NS10、NS12～NS14、NS16～NS18、NS20～NS21，確認時段結束後 10 分鐘內送出、等待不超過 1 分鐘且 3 次內恢復時 100% 為 `sent`、逾時與送出後中斷 100% 為 `unknown` 且自動重送 0 次；模擬器無法重現的回應以分類函式直接驗證（見 Notes 待確認 2）；記錄每個情境的結果（FR-001、FR-002、FR-013～FR-017、FR-021）
   - **Must Read**
     - `notification/plan.md` → §7 — Why：每個驗收情境的 Given／When／Then
     - `spec.md` → SC-001、SC-003 — Why：送出時效與重試結果的通過標準
     - `research.md` → §8 — Why：固定時間、直接呼叫排程函式與模擬器的測試做法
   - **Optional**
     - `notification/plan.md` → §8 UC2 — Why：需要確認哪些分類只能直接交給分類函式驗證時
-- [ ] T032 [P] 量測不重複（SC-002）：在 `backend/tests/integration/overdueConcurrency.test.ts` 以 `Promise.all` 同時執行手動檢查與自動檢查，重複 20 輪（每輪重設資料），確認每輪每筆借用只有 1 則通知、兩邊的 `createdCount` 合計為 1、模擬器只收到 1 則訊息；再同時送出兩個 `resendOverdueNotification`，確認只有一個回 `202`、另一個回 `409`，模擬器只收到 1 次（FR-012、FR-018、US2 情境 14、US3 情境 4）
+- [X] T032 [P] 量測不重複（SC-002）：在 `backend/tests/integration/overdueConcurrency.test.ts` 以 `Promise.all` 同時執行手動檢查與自動檢查，重複 20 輪（每輪重設資料），確認每輪每筆借用只有 1 則通知、兩邊的 `createdCount` 合計為 1、模擬器只收到 1 則訊息；再同時送出兩個 `resendOverdueNotification`，確認只有一個回 `202`、另一個回 `409`，模擬器只收到 1 次（FR-012、FR-018、US2 情境 14、US3 情境 4）
   - **Must Read**
     - `notification/plan.md` → §7 NS19、NS20 — Why：並發檢查與並發重送的驗收情境
     - `spec.md` → SC-002 — Why：通知數恰好 1 則的通過標準
     - `research.md` → §8 — Why：並發測試重複 20 輪的做法
-- [ ] T033 [P] 量測重送與回應時間（SC-004、SC-005）：在 `backend/tests/integration/overdueResend.test.ts` 確認重送「送出失敗」的通知、模擬器為 `success` 時，同一則通知變成 `sent`、`attempt_count` 加 1、通知總數不變；建立 100 筆逾期借用後量測 `POST /admin/overdue-checks` 的回應時間低於 2 秒（FR-005、NFR-001）
+- [X] T033 [P] 量測重送與回應時間（SC-004、SC-005）：在 `backend/tests/integration/overdueResend.test.ts` 確認重送「送出失敗」的通知、模擬器為 `success` 時，同一則通知變成 `sent`、`attempt_count` 加 1、通知總數不變；建立 100 筆逾期借用後量測 `POST /admin/overdue-checks` 的回應時間低於 2 秒（FR-005、NFR-001）
   - **Must Read**
     - `spec.md` → SC-004、SC-005 — Why：重送結果與手動檢查回應時間的通過標準
     - `research.md` → §8 — Why：以 100 筆逾期借用量測回應時間的做法
-- [ ] T034 [P] 量測 Webhook 位址不外洩（SC-006）：在 `backend/tests/integration/overdueSecret.test.ts` 以 `vi.spyOn` 收集 `console.log`、`console.warn`、`console.error`，模擬器依序切換 6 種模式並停止一次，讓送出程序處理每種情況，再搜尋 log、所有 API 回應與 `overdue_notifications` 的內容，確認 Webhook token 出現次數為 0（NFR-003、FR-015）
+- [X] T034 [P] 量測 Webhook 位址不外洩（SC-006）：在 `backend/tests/integration/overdueSecret.test.ts` 以 `vi.spyOn` 收集 `console.log`、`console.warn`、`console.error`，模擬器依序切換 6 種模式並停止一次，讓送出程序處理每種情況，再搜尋 log、所有 API 回應與 `overdue_notifications` 的內容，確認 Webhook token 出現次數為 0（NFR-003、FR-015）
   - **Must Read**
     - `notification/plan.md` → §7 NS23 — Why：收集與搜尋的範圍
     - `spec.md` → SC-006 — Why：出現次數為 0 的通過標準
     - `notification/plan.md` → §6 — Why：哪些紀錄項目不得記錄 Webhook 位址
-- [ ] T035 [P] 量測角色權限（SC-007 的權限部分）：在 `backend/tests/integration/overdueAuth.test.ts` 以一般成員呼叫 `listOverdueNotifications`、`resendOverdueNotification`、`runOverdueCheck`，確認 100% 回 `403` `FORBIDDEN`、訊息為繁體中文，且沒有建立或送出任何通知（FR-019、NFR-002）
+- [X] T035 [P] 量測角色權限（SC-007 的權限部分）：在 `backend/tests/integration/overdueAuth.test.ts` 以一般成員呼叫 `listOverdueNotifications`、`resendOverdueNotification`、`runOverdueCheck`，確認 100% 回 `403` `FORBIDDEN`、訊息為繁體中文，且沒有建立或送出任何通知（FR-019、NFR-002）
   - **Must Read**
     - `spec.md` → SC-007、FR-019 — Why：一般成員 100% 被拒絕且不建立通知
     - `contracts/openapi.yaml` → `Forbidden` — Why：權限不足的錯誤碼
-- [ ] T036 [P] 驗證無損遷移（US1 情境 10）：在 `backend/tests/migration/overdueDiscordNotification.test.ts` 比照 `backend/tests/migration/equipmentMaintenanceRetire.test.ts`，在獨立測試資料庫以 `pg` 依序執行 008 之前的 `migration.sql`，寫入各種狀態的預約、借用、改期申請與設備狀態變更紀錄，再執行 008 的 `migration.sql`，確認既有資料列數與欄位值不變、`overdue_notifications` 已建立且是空表（FR-020）
+- [X] T036 [P] 驗證無損遷移（US1 情境 10）：在 `backend/tests/migration/overdueDiscordNotification.test.ts` 比照 `backend/tests/migration/equipmentMaintenanceRetire.test.ts`，在獨立測試資料庫以 `pg` 依序執行 008 之前的 `migration.sql`，寫入各種狀態的預約、借用、改期申請與設備狀態變更紀錄，再執行 008 的 `migration.sql`，確認既有資料列數與欄位值不變、`overdue_notifications` 已建立且是空表（FR-020）
   - **Must Read**
     - `research.md` → §8 — Why：以 `pg` 逐支執行 `migration.sql` 的遷移驗證做法
     - `spec.md` → US1 情境 10、FR-020 — Why：升級後既有資料不變的通過標準
-- [ ] T037 在 `backend/` 與 `frontend/` 執行 `npm run check`（`tsc --noEmit`、ESLint、`prettier --check`），修正所有錯誤
+- [X] T037 在 `backend/` 與 `frontend/` 執行 `npm run check`（`tsc --noEmit`、ESLint、`prettier --check`），修正所有錯誤
   - **Must Read**
     - `techstack.md` → 技術堆疊總覽 — Why：靜態檢查與格式化使用的 ESLint 10、`typescript-eslint` 8 與 Prettier
-- [ ] T038 執行 `npm run test:backend`、`npm run test:frontend` 與 `npm run test:e2e`，確認前五次迭代既有測試 100% 通過並記錄通過率（SC-007、FR-020）
+- [X] T038 執行 `npm run test:backend`、`npm run test:frontend` 與 `npm run test:e2e`，確認前五次迭代既有測試 100% 通過並記錄通過率（SC-007、FR-020）
   - **Must Read**
     - `spec.md` → SC-007 — Why：前五次迭代回歸的通過標準
   - **Optional**
     - `research.md` → §8 — Why：e2e 失敗、需要確認 Playwright 啟動後端與模擬器的設定時
-- [ ] T039 依 `README.md` 啟動後端、前端與模擬器，執行 demo seed，逐條走 US1～US3 的 Independent Test，並核對 US2 情境 16 與 US3 情境 6（FR-020）
+- [X] T039 依 `README.md` 啟動後端、前端與模擬器，執行 demo seed，逐條走 US1～US3 的 Independent Test，並核對 US2 情境 16 與 US3 情境 6（FR-020）
   - **Must Read**
     - `spec.md` → US1、US2、US3 的 Independent Test — Why：手動驗證的步驟
     - `spec.md` → US2 情境 16、US3 情境 6 — Why：demo seed 後要看到的結果

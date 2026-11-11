@@ -20,6 +20,12 @@
 - 「恢復可用」不開確認視窗；被取消的預約不會自動復原，成員要重新預約。
 - 每次狀態變更都會新增一筆設備狀態變更紀錄（只新增、不刪除），設備清單顯示最近一次變更的管理員與時間。
 
+迭代 6 新增「逾期借用的 Discord 通知」：借用中的設備超過固定時段結束時間仍未歸還時，系統自動把逾期提醒送到 Discord，管理員在「逾期通知紀錄」頁籤查看每則通知有沒有送出成功。
+
+- 每筆逾期借用只會有一則通知；送出失敗時依失敗原因自動重試，用完重試次數後標為「送出失敗」，送出後等不到回應則標為「結果不明」。
+- 管理員可以篩選通知狀態、重送「送出失敗」或「結果不明」的通知（重送「結果不明」前先確認對方可能已收到），也可以按「立即檢查逾期」手動執行一次逾期檢查。
+- 本機開發與展示不連到真實的 Discord，改由本機 Discord Webhook 模擬器接收通知（見第 7 節）。
+
 ## 1. 環境需求
 
 - Node.js 24 LTS 以上
@@ -75,6 +81,16 @@ npm run db:migrate
 - 新增只新增、不修改的 `equipment_status_changes`（設備狀態變更紀錄）資料表與索引。
 
 既有的預約、借用與改期申請的狀態與內容都不變；遷移測試 `backend/tests/migration/equipmentMaintenanceRetire.test.ts` 驗證這一點（見第 4 節）。
+
+### 2.3 從迭代 5 升級：逾期通知的增量資料庫遷移
+
+已經跑過前五次迭代的資料庫，同樣在 `apps/equipment-loan/` 執行：
+
+```bash
+npm run db:migrate
+```
+
+這個指令套用 `backend/prisma/migrations/20261111000000_overdue_notifications/`，只新增逾期通知的資料表、狀態與失敗原因 Enum 及索引，不改寫既有的使用者、設備、預約、借用、改期申請與設備狀態變更紀錄。
 
 ## 3. 重設展示資料（Demo Seed）與預建設定
 
@@ -228,3 +244,69 @@ npx playwright test e2e/equipment-maintenance.spec.ts
 5. **改為停用**：吳承翰對送修中的 `EQ-101` 按「設為停用」並確認。林雅婷重新進入「設備預約」，`EQ-101` 不再出現在設備清單；「我的預約」的歷史紀錄仍顯示 `EQ-101` 的名稱。
 6. **恢復可用**：吳承翰對 `EQ-101`（或 `EQ-105`）按「恢復可用」。不開確認視窗，頁頂顯示已恢復為「可用」與「取消的預約不會自動復原」。林雅婷到「設備預約」預約 `EQ-101` 未來的時段，因為設備需人工審核，新預約進入「待審核」；`RV-20261108-04` 仍為「已取消」。
 7. **確認時資料改變**：吳承翰對 `EQ-104` 按「設為送修」，先不要確認。林雅婷在「設備預約」預約 `EQ-104` 未來的可預約時段。吳承翰再按「確認設為送修」，頁頂顯示「設備狀態已被變更，請重新確認」，`EQ-104` 與所有預約都不變；重新開啟確認視窗後，數量多 1 筆。
+
+## 7. 展示逾期 Discord 通知（迭代 6）
+
+### 7.1 `.env` 的三個新設定
+
+`backend/.env`（由 `backend/.env.example` 複製，已被 git 忽略，不會 commit）新增三個設定：
+
+| 設定 | 預設值 | 說明 |
+| --- | --- | --- |
+| `DISCORD_WEBHOOK_URL` | `.env.example` 填入本機模擬器位址 | Discord Webhook 位址，只有送出通知的程式會讀取。空白或格式錯誤時，後端照常啟動，通知會標成「送出失敗」 |
+| `OVERDUE_AUTO_CHECK_ENABLED` | `true` | 是否由後端定時自動檢查逾期；設為 `false` 時不自動檢查，管理員仍可手動檢查 |
+| `OVERDUE_CHECK_INTERVAL_SECONDS` | `60` | 自動檢查的間隔秒數，可設 10 到 300 |
+
+> 請勿把真實的 Discord Webhook 位址寫進 README、程式碼或任何會 commit 的檔案；真實位址只放在不進版控的 `backend/.env`。位址含有 token，系統的畫面、通知紀錄、錯誤提示與 log 都不會印出它。
+
+後端的 `dev` 與 `db:seed` 指令以 `--env-file-if-exists=.env` 載入 `backend/.env`；同名的真實環境變數優先於 `.env`。`vitest`、`prisma` 與 `tsx` 直接執行時不讀 `.env`，沒有 `DATABASE_URL` 時會使用預設的 `equipment_loan` 資料庫；要連到其他資料庫時，先在 `backend/` 目錄執行 `set -a; . ./.env; set +a`，或自行設定 `DATABASE_URL`。
+
+### 7.2 啟動本機 Discord Webhook 模擬器
+
+模擬器預設監聽 `127.0.0.1:4010`（`DISCORD_SIM_PORT` 可改連接埠）。在 `apps/equipment-loan/` 另開一個終端機執行：
+
+```bash
+npm --prefix backend run discord:sim
+
+# 指定初始模式（success、rate_limit、server_error、timeout、disconnect、not_found）
+npm --prefix backend run discord:sim -- --mode=server_error
+```
+
+模擬器有 6 種模式：
+
+| 模式 | 模擬的情況 |
+| --- | --- |
+| `success` | 送出成功，記錄訊息 |
+| `rate_limit` | `429` 請求太頻繁，等待秒數由 `retryAfterSeconds` 設定（預設 2） |
+| `server_error` | `5xx` 伺服器錯誤，狀態碼由 `statusCode` 設定（預設 `500`） |
+| `timeout` | 收到請求後不回應，後端等 10 秒後標為「結果不明」 |
+| `disconnect` | 收到請求後直接中斷連線 |
+| `not_found` | `404`，模擬 Webhook 已失效 |
+
+展示時用 `PUT /__sim/mode` 切換模式，其他控制操作如下：
+
+```bash
+# 切換成伺服器錯誤；failTimes 為前 N 次依此模式回應，之後自動改回 success（不寫則一直維持此模式）
+curl -X PUT http://127.0.0.1:4010/__sim/mode \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"server_error","statusCode":503,"failTimes":2}'
+
+# 切回成功
+curl -X PUT http://127.0.0.1:4010/__sim/mode \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"success"}'
+
+# 查看目前模式、列出與清空模擬器收到的訊息
+curl http://127.0.0.1:4010/__sim/state
+curl http://127.0.0.1:4010/__sim/messages
+curl -X DELETE http://127.0.0.1:4010/__sim/messages
+```
+
+要模擬「送出前連線失敗」時，停止模擬器，後端呼叫時會得到連線被拒。
+
+### 7.3 展示順序
+
+1. 在 `backend/.env` 確認 `DISCORD_WEBHOOK_URL` 指向模擬器，執行 `npm run db:seed` 重設展示資料。demo seed 會建立 3 則通知（「送出成功」、「送出失敗」、「結果不明」各 1 則），以及 3 筆還沒有通知的逾期借用（`RV-20261107-05`、`RV-20261109-19`、`RV-20261110-23`）。
+2. 啟動模擬器，再依第 2 節啟動後端與前端，用管理員吳承翰登入，打開「逾期通知紀錄」頁籤。管理員登入後仍先進入「設備狀態管理」，再切換頁籤。
+3. 篩選狀態、重送「送出失敗」的通知；重送「結果不明」的通知時，先看確認視窗。
+4. **展示 US3 手動檢查前，先在 `backend/.env` 設 `OVERDUE_AUTO_CHECK_ENABLED=false`，再重啟後端。** 後端 `dev` 會啟動逾期自動檢查，不關閉的話，還沒有通知的逾期借用會在你按「立即檢查逾期」之前先被自動檢查建立通知，剛重設展示資料後手動檢查就不一定建立得到 3 則。關閉自動檢查後，按「立即檢查逾期」會為這 3 筆建立通知並送出，畫面顯示建立的通知數；再按一次顯示建立 0 則。
