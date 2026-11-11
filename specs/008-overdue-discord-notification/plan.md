@@ -18,9 +18,12 @@ specs/008-overdue-discord-notification/
 │   └── openapi.yaml         # 逾期通知紀錄查詢、通知重送、手動逾期檢查與前五版既有 API 的 HTTP 合約（OpenAPI 3.1）
 ├── data/                    # 資料模型
 │   └── data-model.dbml      # 逾期通知（狀態與失敗原因 Enum）與前五版帳號、設備、時段、預約借還、改期、設備狀態變更的 PostgreSQL 資料模型（DBML）
+├── notification/            # 沒有 Planner 的通知類介面規劃
+│   └── plan.md              # S1～S3、N1、N2 的通知可靠性規劃：觸發條件、狀態轉換、失敗分類與重試界線、重複處理、各介面規格與驗收情境
 └── ui/                      # 前端畫面規劃與雛形
     ├── plan.md              # 畫面範疇、視覺風格、畫面與流程、狀態、驗證與錯誤回饋
-    └── index.html           # 可互動雛形入口，其餘頁面依畫面流程決定
+    ├── index.html           # 可互動雛形入口：登入與登出，管理員登入後前往逾期通知紀錄
+    └── overdue-notifications.html # 逾期通知紀錄雛形：通知清單與狀態篩選、重送與「結果不明」確認視窗、立即檢查逾期
 ```
 
 ### Source Code (repository root)
@@ -31,7 +34,7 @@ apps/equipment-loan/
 ├── README.md                        # 系統啟動、資料庫遷移、demo seed 重設、Discord 模擬器與「展示手動檢查前關閉自動檢查」的說明
 ├── package.json                     # 根目錄整合腳本與跨前後端 Playwright E2E 測試設定
 ├── playwright.config.ts             # Playwright 端對端測試設定（啟動後端時關閉自動檢查並啟動 Discord 模擬器）
-├── e2e/                             # 跨前後端端對端測試（逾期通知紀錄與篩選、重送、結果不明確認視窗、立即檢查逾期與前五版回歸）
+├── e2e/                             # 跨前後端端對端測試：只重跑前五版核心流程回歸，本次不新增；新功能的畫面由使用者驗證涵蓋
 ├── frontend/
 │   ├── package.json                 # 前端套件與腳本設定
 │   ├── tsconfig.json                # 前端 TypeScript 6.0 設定
@@ -40,7 +43,7 @@ apps/equipment-loan/
 │   ├── index.html                   # React 19 應用程式掛載頁
 │   ├── src/
 │   │   ├── main.tsx                 # 前端應用程式入口
-│   │   ├── App.tsx                  # 登入狀態守門、頂部導覽、主題切換與成員／管理員頁籤切換（本次新增「逾期通知紀錄」管理員頁籤）
+│   │   ├── App.tsx                  # 登入狀態守門、頂部導覽、主題切換與成員／管理員頁籤切換（本次新增「逾期通知紀錄」頁籤，一般成員點開看到權限不足；管理員登入後的預設頁面維持設備狀態管理）
 │   │   ├── api/
 │   │   │   └── client.ts            # 封裝 Bearer token 與前五版 API 呼叫的 HTTP 客戶端（本次新增通知紀錄查詢、重送與手動檢查）
 │   │   ├── text/
@@ -58,7 +61,7 @@ apps/equipment-loan/
 │   │       ├── EquipmentStatusDialog.tsx # 設為送修或停用前的確認視窗元件
 │   │       └── ResendUnknownDialog.tsx   # 重送「結果不明」通知前提醒先到 Discord 頻道確認的確認視窗元件
 │   └── tests/
-│       └── unit/                    # 前端元件、通知狀態與失敗原因標籤、繁體中文錯誤訊息對應單元測試
+│       └── unit/                    # 前五版既有的前端介面文字與繁體中文錯誤訊息對應單元測試，本次不新增
 └── backend/
     ├── package.json                 # 後端套件與腳本設定（dev、db:seed 加上 --env-file-if-exists=.env，新增 discord:sim）
     ├── tsconfig.json                # 後端 TypeScript 6.0 設定
@@ -103,8 +106,8 @@ apps/equipment-loan/
     │   └── integrations/
     │       └── discordWebhookClient.ts # 以內建 fetch 呼叫 Discord Webhook（?wait=true、10 秒逾時），把回應分類為成功、可重試、不可重試與結果不明，log 只寫主機名稱
     └── tests/
-        ├── unit/                    # 台灣時區時段判斷、Discord 回應分類與等待秒數、通知內容文字單元測試
-        ├── integration/             # 自動與手動檢查、送出與自動重試、恢復處理、重送、並發不重複、回應時間、Webhook 位址不外洩、角色權限與前五版回歸之 Supertest + PostgreSQL + 模擬器整合測試
+        ├── unit/                    # 前五版既有的台灣時區時段判斷、改期條件與共用工具單元測試，本次不新增
+        ├── integration/             # 自動與手動檢查、送出與自動重試、恢復處理、重送、並發不重複、回應時間、Webhook 位址不外洩、角色權限與前五版回歸之 Supertest + PostgreSQL + 模擬器整合測試；模擬器沒有對應模式的 4 類回應以臨時固定回應位址驗證分類（research §6）
         └── migration/               # 以 pg 逐支執行 migration.sql，驗證既有資料不變且 overdue_notifications 為空表的遷移測試
 ```
 

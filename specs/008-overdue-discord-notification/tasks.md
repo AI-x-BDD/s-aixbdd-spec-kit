@@ -352,6 +352,13 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `spec.md` → US2 情境 16、US3 情境 6 — Why：demo seed 後要看到的結果
   - **Optional**
     - `notification/plan.md` → §5.5 — Why：需要切換模擬器模式重現失敗情況時
+- [X] T040 在 `frontend/src/views/OverdueNotificationsView.tsx` 補上通知清單換頁（F1，接續 T023 的暫行做法，見 Notes 待確認 4）：`PAGE_SIZE` 由 100 改為 20，以目前頁碼呼叫 `listOverdueNotifications`；`totalPages` 大於 1 時在清單下方顯示換頁列「第 p／P 頁，第 x–y 則」與「上一頁」「下一頁」，第 1 頁停用「上一頁」、最後一頁停用「下一頁」，只有一頁時不顯示換頁列；「共 N 則通知」顯示 `totalItems`；換頁中停用「上一頁」「下一頁」「重新整理」「立即檢查逾期」與「通知狀態」下拉選單，清單變淡並顯示「正在載入第 N 頁…」；切換「通知狀態」、點擊「顯示全部通知」與「立即檢查逾期」完成後回到第 1 頁，點擊「重新整理」時停在目前頁碼；換頁列文字加入 `frontend/src/text/zh-TW.ts` 的逾期通知文字，不加進 `ERROR_MESSAGES`（`frontend/tests/unit/zh-TW.test.ts` 斷言它有 19 個鍵）；`frontend/src/api/client.ts` 的 `listOverdueNotifications` 已接受 `page`，不需修改；完成後重跑 `frontend/` 的 `npm run check` 與 `npm run test:frontend`、`npm run test:e2e`（FR-003、FR-004、US2 情境 1～3）
+  - **Must Read**
+    - `ui/plan.md` → §3.3 A6、A14 — Why：切換篩選回到第 1 頁、換頁操作，以及重新整理與立即檢查逾期後的頁碼
+    - `ui/plan.md` → §4 `overdue-notifications.html` 的「通知超過一頁」「換頁中」「中間頁」「最後一頁」 — Why：換頁列文字、按鈕停用規則與換頁中的呈現
+    - `contracts/openapi.yaml` → `listOverdueNotifications` — Why：`page`、`pageSize` 參數與回應的 `totalItems`、`totalPages`
+  - **Optional**
+    - `ui/overdue-notifications.html` → 雛形狀態「通知超過一頁」「最後一頁」 — Why：需要對照換頁列的位置與樣式時
 
 ---
 
@@ -450,8 +457,8 @@ With multiple developers:
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
 - plan.md 的 Source Code 只列出 `backend/tests/integration/`、`backend/tests/migration/` 目錄，沒有列出檔名；本 tasks.md 新增 `overdueDispatch.test.ts`（T031）、`overdueConcurrency.test.ts`（T032）、`overdueResend.test.ts`（T033）、`overdueSecret.test.ts`（T034）、`overdueAuth.test.ts`（T035）與 `overdueDiscordNotification.test.ts`（T036），依驗證的 Success Criteria 分檔，對應 plan.md 這兩個目錄的說明
-- plan.md 的 Documentation 樹沒有列出 `notification/plan.md`，但該檔已由 notification-plan 產出，本 tasks.md 照常引用
-- 待確認 1：3 個失敗原因的畫面文字不一致：`ui/overdue-notifications.html` 的 `MOCK.failureReasons` 寫「無法連線到 Discord」「通知設定有誤：沒有設定 Webhook」「Discord 拒絕這則訊息的內容」，`data/data-model.dbml` 的 `Enum overdue_notification_failure_reason`、`research.md` §1 與 `contracts/openapi.yaml` 的 `OverdueNotificationFailureReason` 寫「無法連線」「通知設定有誤：沒有設定」「Discord 拒絕訊息內容」，`ui/plan.md` 沒有列出這 3 個原因（notification/plan.md §8 UC1）。影響 T020；在 ui-plan 決定前，T020 暫用 data-model、research 與合約一致的寫法
-- 待確認 2：`research.md` §6 的 6 種模擬器模式無法重現其他 `4xx`（`message_rejected`）、`401`／`403`（`webhook_invalid`）、`200` 沒有 `id`、沒有等待秒數的 `429`（notification/plan.md §8 UC2）。影響 T008、T031；在 technical-research 決定前，T008 只實作 6 種模式，T031 把這幾類回應直接交給 T007 的分類函式驗證，整合測試與手動展示不涵蓋這幾類
-- 待確認 3：`ui/plan.md` §1 寫「把管理員登入後的入口改到逾期通知紀錄」，§4 `index.html`「管理員登入成功」顯示「前往逾期通知紀錄」；但 plan.md Source Code 與 `research.md` §7 只寫新增「逾期通知紀錄」管理員頁籤，既有 `App.tsx` 管理員登入後直接進入 `equipment-status`，`e2e/equipment-maintenance.spec.ts` 也依賴管理員登入後看到 `equipment-status-table`。影響 T025；在 ui-plan 確認前，T025 維持管理員登入後進入 `equipment-status`，只新增頁籤
-- 待確認 4：`contracts/openapi.yaml` 的 `listOverdueNotifications` 分頁（`pageSize` 預設 20、上限 100），但 `ui/plan.md` §4 沒有規劃分頁控制項，只顯示「共 N 則通知」。影響 T023；在 ui-plan 補上分頁前，T023 以 `page=1`、`pageSize=100` 查詢，「共 N 則通知」顯示 `totalItems`
+- plan.md 的 Documentation 樹已列出 `notification/plan.md`（S1～S3、N1、N2 的通知可靠性規劃）與 `ui/overdue-notifications.html`，本 tasks.md 照常引用
+- 待確認 1：已解決（ui-plan，2026-11-11）。原問題：3 個失敗原因的畫面文字在 `ui/overdue-notifications.html` 與 `data/data-model.dbml`、`research.md` §1、`contracts/openapi.yaml` 不一致，`ui/plan.md` 沒有列出（notification/plan.md §8 UC1）。定案：`ui/plan.md` §5「失敗原因的畫面文字」列出 6 種文字，採用與 data-model、合約一致的「無法連線」「通知設定有誤：沒有設定」「Discord 拒絕訊息內容」，雛形已同步，並新增雛形狀態「其他失敗原因」。T020 原本的暫行做法與定案相同，不需要修改
+- 待確認 2：已解決（technical-research，2026-11-11）。原問題：`research.md` §6 的 6 種模擬器模式無法重現其他 `4xx`（`message_rejected`）、`401`／`403`（`webhook_invalid`）、`200` 沒有 `id`、沒有等待秒數的 `429`（notification/plan.md §8 UC2）。定案：`research.md` §6 不新增模式，這 4 類以臨時固定回應位址或單元測試直接驗證分類函式，使用模擬器的整合情境與手動展示不涵蓋。T008 只實作 6 種模式、T031 以固定回應位址直接驗證分類，與定案相同，不需要修改
+- 待確認 3：已解決（ui-plan，2026-11-11）。原問題：`ui/plan.md` §1 寫把管理員登入後的入口改到逾期通知紀錄，和 plan.md、`research.md` §7 只新增頁籤的寫法不一致，`e2e/equipment-maintenance.spec.ts` 也依賴管理員登入後看到 `equipment-status-table`。定案：`ui/plan.md` §1 寫明「前往逾期通知紀錄」只是雛形入口，產品中管理員登入後仍進入設備狀態管理，只在頁首新增「逾期通知紀錄」頁籤，一般成員點開看到「權限不足」卡片；plan.md 的 `App.tsx` 說明已同步。T025 維持 `equipment-status` 為預設頁面、只新增頁籤，與定案相同，不需要修改
+- 待確認 4：已解決（ui-plan，2026-11-11）。原問題：`contracts/openapi.yaml` 的 `listOverdueNotifications` 分頁（`pageSize` 預設 20、上限 100），但 `ui/plan.md` §4 沒有規劃分頁控制項，只顯示「共 N 則通知」；T023 依暫行做法以 `page=1`、`pageSize=100` 查詢並已完成。定案：`ui/plan.md` §3.3 A6、A14 與 §4「通知超過一頁」「換頁中」「中間頁」「最後一頁」規定每頁 20 則、超過一頁才顯示換頁列、第 1 頁停用「上一頁」、最後一頁停用「下一頁」、換頁中停用其他操作並顯示「正在載入第 N 頁…」、切換篩選與立即檢查逾期後回到第 1 頁、重新整理停在目前頁碼。T023 的完成狀態不變，換頁由新增的 T040 實作。T040 屬於 US2 的 F1，但 T023 之後的任務 ID 都已完成，為了不重新編號，T040 接在 Polish 最後、不標 `[US2]`

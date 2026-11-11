@@ -174,12 +174,19 @@
   - **控制端點**：`GET /__sim/state` 查看模式；`PUT /__sim/mode` 以 JSON `{ mode, retryAfterSeconds?, statusCode?, failTimes? }` 切換模式，不必重啟；`GET /__sim/messages` 列出收到的訊息；`DELETE /__sim/messages` 清空紀錄。啟動時也可以用 `--mode=<模式>` 指定初始模式。
   - **連線在送出前失敗**：停止模擬器即可，後端呼叫時得到 `ECONNREFUSED`。
   - **模擬器的 log**：只寫模式與收到的訊息數，不寫請求路徑。
+  - **不新增模式**：模擬器只提供上表 6 種模式。下列 4 類回應沒有對應模式，以第 3 主題的分類函式直接驗證：
+    - 其他 `4xx`（`message_rejected`）。
+    - `401`、`403`（`webhook_invalid`）。
+    - `200` 但回應 JSON 沒有 `id`（結果不明）。
+    - 沒有等待秒數的 `429`（改用退避間隔）。
+  - **驗證方式**：測試內以 `node:http` 在連接埠 `0` 臨時啟動只回傳固定回應的位址，`discordWebhookClient.send` 經真實 `fetch` 收到回應後驗證分類；不經過 HTTP 的分類邏輯可另以單元測試驗證。使用模擬器的整合情境與手動展示不涵蓋這 4 類。
 - **Rationale**:
   - 對應使用者技術限制「可切換成功、`429`、`5xx`、逾時的本機模擬器」：四種情況都是模式之一，以控制端點在執行中切換，步驟 9 的使用者驗證不必重啟後端或模擬器。
   - 涵蓋 spec 的失敗情境：US1 驗收情境 5（`429` 後成功，`failTimes = 1`）、6（`5xx` 連續 4 次）、7（`404`）、8（逾時）、11（停止模擬器後再啟動）、12（`disconnect`）、15（`retryAfterSeconds = 120`），以及 SC-003。
   - 模擬器走真實的 HTTP 連線，後端看到的錯誤和連線真實的 Discord 時相同。本機實測：伺服器讀完請求內容後中斷連線，`fetch` 得到 `UND_ERR_SOCKET`；不回應時，`AbortSignal.timeout` 到期得到 `TimeoutError`。這讓第 3 主題的分類能被直接驗證。
   - 收到的訊息清單可以驗證「頻道只有一則」，支援 SC-002、US1 驗收情境 4、5、11 與 US2 驗收情境 14。
   - 同一份程式同時供整合測試與手動展示使用，兩邊行為一致；只用 Node.js 內建模組與既有 `tsx`，不新增套件。`tsx` 沿用的理由是後端已用它執行 TypeScript。
+  - 不新增模式依使用者決定（2026-11-11，處理 `analysis.md` C1、`tasks.md` 待確認 2）。使用者限制只列出成功、`429`、`5xx`、逾時四種情況。另外 4 類回應的分類只取決於狀態碼與回應內容，固定回應就能讓分類函式走過同一段程式，FR-015「Discord 拒絕這則訊息的內容」與 `401`／`403` 的 `webhook_invalid` 仍有驗證。
   - 受影響的必須規則：FR-014、FR-015、FR-016、SC-003、NFR-003；模擬器不參與正式操作，只提供可重現的回應。
 - **Alternatives considered**:
   - **真實的 Discord 測試頻道**：無法隨時產生 `429`、`5xx`、逾時與送出後中斷，只能驗證成功的情況。
@@ -187,6 +194,7 @@
   - **msw（Mock Service Worker）**：只在測試程序內攔截請求，步驟 9 執行中的後端用不到；模擬的連線錯誤是一般 `TypeError`，沒有 `ECONNREFUSED`、`UND_ERR_SOCKET` 等代碼，無法驗證第 3 主題的分類。
   - **nock**：同樣只在測試程序內攔截，限制同 msw。
   - **npm `undici` 套件的 `MockAgent`**：只在測試程序內有效，而且要額外安裝 `undici` 才能指定給 `fetch`。
+  - **新增可設定任意狀態碼與回應內容的模式**（例如任意 `4xx`、`200` 不帶 `id`、`429` 不帶等待秒數）：手動展示也能重現這 4 類，但控制端點要多支援自訂回應內容；使用者決定不新增，改以固定回應位址直接驗證分類函式。
 
 ---
 
@@ -216,7 +224,7 @@
 
 - **Decision**: 沿用 **Vitest 5**、**Supertest 7** 與 **Playwright（`@playwright/test` 1.65）**，資料庫用真實的 **PostgreSQL 18** 測試資料庫，Discord 用第 6 主題的模擬器：
   - **後端整合測試（Vitest 5 + Supertest 7）**：
-    - 每個測試檔以 `createDiscordWebhookSimulator()` 在連接埠 `0` 啟動模擬器，並以環境變數把 `DISCORD_WEBHOOK_URL` 指向它。
+    - 每個測試檔以 `createDiscordWebhookSimulator()` 在連接埠 `0` 啟動模擬器，並以環境變數把 `DISCORD_WEBHOOK_URL` 指向它；模擬器沒有對應模式的 4 類回應，依第 6 主題以臨時固定回應位址驗證。
     - 不啟動真實計時器，直接呼叫匯出的 `runOverdueCheck(now)`、`dispatchDueNotifications(now)`、`recoverInterruptedNotifications(now)`，搭配 `vi.setSystemTime` 固定時間；新測試不依賴執行當下的台北時間。
     - 涵蓋 US1～US3 的驗收情境與 FR-001～FR-021 的成功與拒絕路徑。
     - 並發：以 `Promise.all` 同時執行手動檢查與自動檢查，重複 20 輪，每輪驗證每筆借用只有 1 則通知、模擬器只收到 1 則訊息（SC-002）；同時送出兩個重送，驗證模擬器只收到 1 次（US2 驗收情境 14）。
@@ -230,18 +238,21 @@
     - 保留 007 的範例（FR-020、US2 驗收情境 16、US3 驗收情境 6）。
     - README 寫明：展示 US3 手動檢查前，先在 `.env` 設 `OVERDUE_AUTO_CHECK_ENABLED=false` 並重啟後端。
   - **端對端測試（Playwright 1.65）**：
-    - 在 `apps/equipment-loan/e2e/` 新增：管理員查看逾期通知紀錄與篩選、重送「送出失敗」、「結果不明」的確認視窗、立即檢查逾期，以及前五版核心流程回歸。
+    - 不新增端對端測試，只重跑 `apps/equipment-loan/e2e/` 既有測試，作為前五版核心流程回歸（SC-007）。
     - Playwright 啟動後端時以環境變數設定 `OVERDUE_AUTO_CHECK_ENABLED=false`，並啟動模擬器。
+    - 逾期通知紀錄與篩選、重送、「結果不明」的確認視窗、立即檢查逾期等新功能的畫面，由使用者驗證涵蓋。
 - **Rationale**:
-  - 符合使用者技術限制「沿用 007 techstack」：測試工具全部沿用。沿用的理由是本次新增的驗證需求（時間、並發、外部服務失敗、遷移、端對端）都能用既有 Vitest、Supertest、`pg` 與 Playwright 表達，外部服務由第 6 主題的模擬器提供。
+  - 符合使用者技術限制「沿用 007 techstack」：測試工具全部沿用。沿用的理由是本次新增的驗證需求（時間、並發、外部服務失敗、遷移）與前五版回歸都能用既有 Vitest、Supertest、`pg` 與 Playwright 表達，外部服務由第 6 主題的模擬器提供。
+  - 端對端測試以 `tasks.md` 為準，依使用者決定（2026-11-11，處理 `analysis.md` F4）：spec 沒有要求自動化測試，`tasks.md` 不為新功能排入端對端測試任務，所以 Playwright 只負責 SC-007 的前五版回歸，新功能的畫面由使用者驗證涵蓋。
   - 直接呼叫排程函式並固定時間，讓 FR-001、FR-011 的「時段結束後」與 FR-014 的重試間隔不必等真實時間；第 2 主題讓 SQL 使用應用程式傳入的時間，所以 `vi.setSystemTime` 對資料庫查詢也有效。
   - SC-002 與 FR-018 是並發性質，只有真實 PostgreSQL 才能驗證唯一索引、條件式更新與 `FOR UPDATE SKIP LOCKED`；重複多輪可以涵蓋兩種先後順序。
   - SC-006 要求出現次數為 0，所以收集 log、API 回應與資料庫內容一起搜尋，而不是只檢查程式碼。
   - FR-020 要求 demo seed 包含未通知的逾期借用與三種狀態的通知；用「昨天」的時段，任何時間執行 seed 都已逾期，不受當天時段是否結束影響。
-  - 自動檢查的開關依使用者經 `clarify` 決定（2026-11-11）：展示與 Playwright 測試 US3 時關閉自動檢查，讓「剛執行 demo seed 後手動檢查至少建立 1 則」穩定成立。
+  - 自動檢查的開關依使用者經 `clarify` 決定（2026-11-11）：展示 US3 時關閉自動檢查，讓「剛執行 demo seed 後手動檢查至少建立 1 則」穩定成立。Playwright 也關閉自動檢查，前五版回歸執行時，排程不在背景為 demo seed 的逾期借用建立與送出通知。
   - FR-020 的無損遷移要在 008 之前插入舊資料才能驗證，`prisma migrate deploy` 只能一次套用全部 Migration，所以沿用 007 以 `pg` 逐支執行 `migration.sql` 的作法。
 - **Alternatives considered**:
   - **啟動真實計時器並等待 60 秒的檢查間隔**：測試時間變長，結果受執行速度影響。
   - **以 msw 或 nock 在測試程序內模擬 Discord**：拿不到 `ECONNREFUSED`、`UND_ERR_SOCKET` 等錯誤代碼，無法驗證第 3 主題的分類（見第 6 主題）。
   - **以今天的時段建立 demo seed 的逾期借用**：中午 12:00 前執行 seed 時，今天沒有任何時段已結束，就沒有逾期借用可以展示。
   - **遷移只以 `prisma migrate deploy` 在空資料庫上驗證**：空資料庫沒有既有資料，測不到 FR-020 的無損保留。
+  - **為新功能新增 Playwright 端對端測試**（逾期通知紀錄與篩選、重送、確認視窗、立即檢查逾期）：spec 沒有要求自動化測試，`tasks.md` 沒有排入這些任務；使用者決定新功能的畫面由使用者驗證涵蓋。

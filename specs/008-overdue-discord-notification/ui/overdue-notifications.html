@@ -170,6 +170,8 @@
   [data-theme="dark"] .sent-line { color: var(--ink); }
   .loan-cell .meta { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
   .action-note { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .pager-actions { display: flex; gap: 8px; }
   .dialog-title { display: flex; align-items: center; gap: 8px; }
   .dialog .detail-list { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: var(--surface-muted); }
   @media (max-width: 720px) {
@@ -240,7 +242,7 @@
       </div>
       <span class="muted" style="font-size:13px;">依通知建立時間由新到舊排列</span>
     </div>
-    <div id="refresh-line" class="refresh-line" hidden><span class="spinner spinner-sm" aria-hidden="true"></span><span>正在重新整理…</span></div>
+    <div id="refresh-line" class="refresh-line" hidden><span class="spinner spinner-sm" aria-hidden="true"></span><span id="refresh-line-text">正在重新整理…</span></div>
     <div id="count-text" class="count-text"></div>
     <div id="table-wrap" class="table-wrap">
       <table class="data-table">
@@ -248,6 +250,13 @@
         <tbody id="rows"></tbody>
       </table>
     </div>
+    <nav id="pager" class="pager" aria-label="通知清單換頁" hidden>
+      <span id="pager-text"></span>
+      <div class="pager-actions">
+        <button id="prev-btn" class="btn btn-sm" type="button">上一頁</button>
+        <button id="next-btn" class="btn btn-sm" type="button">下一頁</button>
+      </div>
+    </nav>
     <div id="empty-filter" class="empty-state" hidden>
       <h3 id="empty-filter-title"></h3>
       <button id="show-all-btn" class="btn btn-sm" type="button">顯示全部通知</button>
@@ -304,10 +313,10 @@
     failureReasons: {
       rate_limited: 'Discord 請求太頻繁',
       discord_server_error: 'Discord 伺服器錯誤',
-      connection_failed: '無法連線到 Discord',
+      connection_failed: '無法連線',
       webhook_invalid: '通知設定有誤：Webhook 已失效',
-      webhook_not_configured: '通知設定有誤：沒有設定 Webhook',
-      message_rejected: 'Discord 拒絕這則訊息的內容'
+      webhook_not_configured: '通知設定有誤：沒有設定',
+      message_rejected: 'Discord 拒絕訊息內容'
     },
     notifications: [
       { id: 'RV-20261110-13', member: 'lin.yating', eq: 'EQ-103', date: '2026-11-10', slot: 'EV', status: 'sending', attempts: 5, lastAttemptAt: '2026-11-11 17:00', sentAt: null, failureReason: null, returnedAt: null, createdAt: '2026-11-10 21:01' },
@@ -333,9 +342,33 @@
   const $ = sel => document.querySelector(sel);
   const clone = items => items.map(item => Object.assign({}, item));
 
+  // 通知超過一頁時使用：37 則 2026-10-26～2026-11-07 已送出成功且已歸還的通知，依建立時間由新到舊
+  const PAGE_SIZE = 20;
+  function dateText(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function buildOlderNotifications() {
+    const slotOrder = ['EV', 'PM', 'AM'];
+    const slotNo = { EV: '09', PM: '06', AM: '03' };
+    const doneAt = { EV: '21:01', PM: '17:01', AM: '12:01' };
+    const eqs = ['EQ-101', 'EQ-102', 'EQ-103', 'EQ-104', 'EQ-105', 'EQ-106'];
+    const items = [];
+    for (let i = 0; i < 37; i++) {
+      const back = Math.floor(i / 3);
+      const date = dateText(new Date(2026, 10, 7 - back));
+      const nextDay = dateText(new Date(2026, 10, 8 - back));
+      const slot = slotOrder[i % 3];
+      const at = `${date} ${doneAt[slot]}`;
+      items.push({ id: `RV-${date.replace(/-/g, '')}-${slotNo[slot]}`, member: i % 2 ? 'chen.guanting' : 'lin.yating', eq: eqs[i % 6], date, slot, status: 'sent', attempts: 1, lastAttemptAt: at, sentAt: at, failureReason: null, returnedAt: `${nextDay} 09:${String(10 + (i % 40)).padStart(2, '0')}`, createdAt: at });
+    }
+    return items;
+  }
+  MOCK.olderNotifications = buildOlderNotifications();
+
   let timers = [];
   let list = clone(MOCK.notifications);
   let filter = 'all';
+  let page = 1;
   let dialogTarget = null;
 
   function initTheme() {
@@ -387,7 +420,8 @@
 
   function slotText(n) {
     const slot = MOCK.slots[n.slot];
-    return `${n.date}（${MOCK.weekdays[n.date]}）${slot.name} ${slot.time}`;
+    const weekday = MOCK.weekdays[n.date] || '日一二三四五六'[new Date(`${n.date}T00:00:00`).getDay()];
+    return `${n.date}（${weekday}）${slot.name} ${slot.time}`;
   }
 
   function statusCell(n) {
@@ -419,7 +453,15 @@
     $('#table-wrap').hidden = rows.length === 0;
     $('#count-text').hidden = rows.length === 0;
     $('#count-text').textContent = `共 ${rows.length} 則通知`;
-    $('#rows').innerHTML = rows.map(n => `
+    const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    page = Math.min(Math.max(page, 1), totalPages);
+    const start = (page - 1) * PAGE_SIZE;
+    const pageRows = rows.slice(start, start + PAGE_SIZE);
+    $('#pager').hidden = totalPages <= 1;
+    $('#pager-text').textContent = `第 ${page}／${totalPages} 頁，第 ${start + 1}–${start + pageRows.length} 則`;
+    $('#prev-btn').disabled = page === 1;
+    $('#next-btn').disabled = page === totalPages;
+    $('#rows').innerHTML = pageRows.map(n => `
       <tr class="${n.isNew ? 'is-new' : ''}">
         <td class="eq-cell" data-label="設備"><span class="mono">${n.eq}</span>${MOCK.equipments[n.eq]}<span class="rv">預約編號 <span class="mono">${n.id}</span></span></td>
         <td data-label="借用成員">${MOCK.members[n.member]}</td>
@@ -443,9 +485,10 @@
     $('#resend-dialog').hidden = true;
   }
 
-  function setList(items, nextFilter) {
+  function setList(items, nextFilter, nextPage) {
     list = items;
     filter = nextFilter || 'all';
+    page = nextPage || 1;
     resetControls();
     showView('main');
     render();
@@ -454,6 +497,10 @@
   // 依操作推導清單內容
   function initialList() {
     return clone(MOCK.notifications);
+  }
+
+  function pagedList() {
+    return initialList().concat(clone(MOCK.olderNotifications));
   }
 
   function withResent(items, id) {
@@ -514,8 +561,35 @@
     $('#refresh-btn').textContent = '重新整理中…';
     $('#check-btn').disabled = true;
     $('#status-filter').disabled = true;
+    $('#prev-btn').disabled = true;
+    $('#next-btn').disabled = true;
     $('#table-wrap').classList.add('is-refreshing');
+    $('#refresh-line-text').textContent = '正在重新整理…';
     $('#refresh-line').hidden = false;
+  }
+
+  function setPaging(target) {
+    $('#refresh-btn').disabled = true;
+    $('#check-btn').disabled = true;
+    $('#status-filter').disabled = true;
+    $('#prev-btn').disabled = true;
+    $('#next-btn').disabled = true;
+    $('#table-wrap').classList.add('is-refreshing');
+    $('#refresh-line-text').textContent = `正在載入第 ${target} 頁…`;
+    $('#refresh-line').hidden = false;
+  }
+
+  function goToPage(target) {
+    hideBanner();
+    setPaging(target);
+    markState('paging');
+    timers.push(setTimeout(() => {
+      page = target;
+      resetControls();
+      render();
+      const totalPages = Math.max(1, Math.ceil(list.filter(n => filter === 'all' || n.status === filter).length / PAGE_SIZE));
+      markState(page === 1 ? 'paged-first' : page === totalPages ? 'paged-last' : 'paged-middle');
+    }, 600));
   }
 
   function setChecking() {
@@ -547,8 +621,12 @@
     doResend(dialogTarget);
   });
 
+  $('#prev-btn').addEventListener('click', () => goToPage(page - 1));
+  $('#next-btn').addEventListener('click', () => goToPage(page + 1));
+
   $('#status-filter').addEventListener('change', event => {
     filter = event.target.value;
+    page = 1;
     render();
     const visible = list.filter(n => filter === 'all' || n.status === filter).length;
     if (visible === 0) markState('filter-empty');
@@ -557,6 +635,7 @@
 
   $('#show-all-btn').addEventListener('click', () => {
     filter = 'all';
+    page = 1;
     render();
   });
 
@@ -581,6 +660,7 @@
       withChecked(list);
       resetControls();
       filter = 'all';
+      page = 1;
       render();
       if (created) {
         showBanner('success', MOCK.messages.created(1));
@@ -596,7 +676,15 @@
   const STATES = [
     { key: 'loading', label: '載入中', apply: () => { hideBanner(); resetControls(); showView('loading'); } },
     { key: 'list', label: '通知清單', apply: () => { hideBanner(); setList(initialList()); } },
+    { key: 'paged-first', label: '通知超過一頁', apply: () => { hideBanner(); setList(pagedList(), 'all', 1); } },
+    { key: 'paging', label: '換頁中', apply: () => { hideBanner(); setList(pagedList(), 'all', 1); setPaging(2); } },
+    { key: 'paged-middle', label: '中間頁', apply: () => { hideBanner(); setList(pagedList(), 'all', 2); } },
+    { key: 'paged-last', label: '最後一頁', apply: () => { hideBanner(); setList(pagedList(), 'all', 3); } },
     { key: 'filter-failed', label: '篩選送出失敗', apply: () => { hideBanner(); setList(initialList(), 'failed'); } },
+    { key: 'other-failure-reasons', label: '其他失敗原因', apply: () => {
+      const reasons = { 'RV-20261110-12': 'connection_failed', 'RV-20261110-05': 'webhook_not_configured', 'RV-20261108-07': 'message_rejected' };
+      hideBanner(); setList(initialList().map(n => reasons[n.id] ? Object.assign(n, { failureReason: reasons[n.id] }) : n), 'failed');
+    } },
     { key: 'filter-empty', label: '沒有符合篩選的通知', apply: () => {
       hideBanner(); setList(withRefreshed(withResent(initialList(), 'RV-20261110-12')), 'sending');
     } },
