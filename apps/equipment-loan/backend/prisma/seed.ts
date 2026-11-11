@@ -693,6 +693,127 @@ export async function seedDatabase(): Promise<void> {
     ],
   });
 
+  // ---------- 008：逾期通知展示資料（FR-020、US2 情境 16、US3 情境 6） ----------
+  // 以「昨天」的上午、下午時段建立借用中的逾期借用，任何時間執行 seed 都已逾期；
+  // 成員只用陳冠廷，設備只用 EQ-101～EQ-103，並避開昨天晚間已被占用的 EQ-102、EQ-103
+  const overdueCheckedOutBy = wuChenghan.id;
+  await prisma.reservations.createMany({
+    data: [
+      // 配「送出成功」通知
+      {
+        id: "44444444-4444-4444-8444-444444444023",
+        reservation_no: "RV-20261110-20",
+        user_id: chenGuanting.id,
+        equipment_id: eq101.id,
+        reservation_date: yesterday,
+        slot_id: slotMorning.id,
+        status: "checked_out",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T09:10:00Z"),
+        checked_out_by: overdueCheckedOutBy,
+        checked_out_at: getTaipeiDateTimeOffset(-1, "09:05"),
+        created_at: new Date("2026-11-08T08:40:00Z"),
+        updated_at: getTaipeiDateTimeOffset(-1, "09:05"),
+        updated_by: wuChenghan.id,
+      },
+      // 配「送出失敗」通知
+      {
+        id: "44444444-4444-4444-8444-444444444024",
+        reservation_no: "RV-20261110-21",
+        user_id: chenGuanting.id,
+        equipment_id: eq102.id,
+        reservation_date: yesterday,
+        slot_id: slotMorning.id,
+        status: "checked_out",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T09:12:00Z"),
+        checked_out_by: overdueCheckedOutBy,
+        checked_out_at: getTaipeiDateTimeOffset(-1, "09:10"),
+        created_at: new Date("2026-11-08T08:42:00Z"),
+        updated_at: getTaipeiDateTimeOffset(-1, "09:10"),
+        updated_by: wuChenghan.id,
+      },
+      // 配「結果不明」通知
+      {
+        id: "44444444-4444-4444-8444-444444444025",
+        reservation_no: "RV-20261110-22",
+        user_id: chenGuanting.id,
+        equipment_id: eq103.id,
+        reservation_date: yesterday,
+        slot_id: slotMorning.id,
+        status: "checked_out",
+        checked_out_by: overdueCheckedOutBy,
+        checked_out_at: getTaipeiDateTimeOffset(-1, "09:15"),
+        created_at: new Date("2026-11-08T08:44:00Z"),
+        updated_at: getTaipeiDateTimeOffset(-1, "09:15"),
+        updated_by: wuChenghan.id,
+      },
+      // 沒有通知：供手動逾期檢查示範
+      {
+        id: "44444444-4444-4444-8444-444444444026",
+        reservation_no: "RV-20261110-23",
+        user_id: chenGuanting.id,
+        equipment_id: eq101.id,
+        reservation_date: yesterday,
+        slot_id: slotAfternoon.id,
+        status: "checked_out",
+        reviewed_by: wuChenghan.id,
+        reviewed_at: new Date("2026-11-08T09:20:00Z"),
+        checked_out_by: overdueCheckedOutBy,
+        checked_out_at: getTaipeiDateTimeOffset(-1, "13:05"),
+        created_at: new Date("2026-11-08T08:50:00Z"),
+        updated_at: getTaipeiDateTimeOffset(-1, "13:05"),
+        updated_by: wuChenghan.id,
+      },
+    ],
+  });
+
+  // 三種結果的通知，next_attempt_at 都為空
+  const sentAt = getTaipeiDateTimeOffset(-1, "12:01");
+  const failedAttemptAt = getTaipeiDateTimeOffset(-1, "12:07");
+  const unknownAttemptAt = getTaipeiDateTimeOffset(-1, "12:02");
+  await prisma.overdue_notifications.createMany({
+    data: [
+      {
+        id: "77777777-7777-4777-8777-777777777001",
+        reservation_id: "44444444-4444-4444-8444-444444444023",
+        status: "sent",
+        attempt_count: 1,
+        auto_retry_count: 0,
+        next_attempt_at: null,
+        last_attempted_at: sentAt,
+        sent_at: sentAt,
+        discord_message_id: "1304000000000000001",
+        created_at: getTaipeiDateTimeOffset(-1, "12:00"),
+        updated_at: sentAt,
+      },
+      {
+        id: "77777777-7777-4777-8777-777777777002",
+        reservation_id: "44444444-4444-4444-8444-444444444024",
+        status: "failed",
+        attempt_count: 4,
+        auto_retry_count: 3,
+        next_attempt_at: null,
+        last_attempted_at: failedAttemptAt,
+        failure_reason: "discord_server_error",
+        created_at: getTaipeiDateTimeOffset(-1, "12:00"),
+        updated_at: failedAttemptAt,
+      },
+      {
+        id: "77777777-7777-4777-8777-777777777003",
+        reservation_id: "44444444-4444-4444-8444-444444444025",
+        status: "unknown",
+        attempt_count: 1,
+        auto_retry_count: 0,
+        next_attempt_at: null,
+        last_attempted_at: unknownAttemptAt,
+        failure_reason: null,
+        created_at: getTaipeiDateTimeOffset(-1, "12:00"),
+        updated_at: unknownAttemptAt,
+      },
+    ],
+  });
+
   // 設備狀態變更紀錄（只新增，設備清單顯示最近一次變更，FR-008）
   await prisma.equipment_status_changes.createMany({
     data: [
