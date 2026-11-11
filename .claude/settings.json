@@ -7,6 +7,22 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/hooks/answer-style.sh\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/hooks/auto-clarify.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/auto_next.py\"",
+            "timeout": 15
           }
         ]
       }
