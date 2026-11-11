@@ -28,6 +28,7 @@ B 組 Skill 版本（2026-11-11，runbook 第 8 節第 5 點第 1 項）：
 - 沒帶的 commit：`5e407d7` 加上 description 的「（未驗證）」，`0ad3b3f` 又移除它，兩個合起來沒有變動。
 - 檢查：`scripts/sync-skills.sh --check` 為「兩邊一致」；`git diff main HEAD -- .agents/skills .claude/skills` 沒有輸出，B 組的 Skill 和 `main` 的 `6d67e41` 相同。
 - `ab/group-b` 比 `origin/ab/group-b` 多 2 個 commit，還沒 push。步驟 5n 後多 3 個 commit（含 `f614f1a`），仍沒有 push。
+- 歸檔（runbook 第 8 節第 6 點，2026-11-11）：[`docs/ab-test/`](../ab-test/)，commit `3518920`。含共用輸入（`ae040c0`）、A 組 `tasks.md`（`8c4441c`）與 `analysis.md`（`b0cac59`）、B 組 `notification/plan.md`（`f614f1a`）、`tasks.md`（`513708a`）、`analysis.md`（`7cf0db8`）與步驟 8 決策清單；各組 `README.md` 記錄模型設定、Skill 版本與 sha256。歸檔後不再修改。
 
 模型與 effort（兩組必須相同，runbook 第 8 節第 2、5 點）：
 
