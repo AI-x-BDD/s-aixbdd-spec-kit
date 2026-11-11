@@ -242,6 +242,33 @@ description: 已有 plan.md 與 Planner 產出、要在 tasks 之前為沒有 Pl
 
 無。本次所有驗收條件都是通用。附錄第 4 點（`constitution` 的產出物對照表沒有 `notification/`）仍待記入 `docs/待確認.md`。
 
+### 使用者實際驗證（2026-11-11）
+
+- 方式：
+  - 以 `user-verify-skill` 執行，測試模型為 Sonnet、推理強度 medium。
+  - 暫存專案（scratchpad 外的 `mktemp -d`）放入主目錄 `specs/008-overdue-discord-notification` 複本（沒有 `notification/`、`tasks.md`、`analysis.md`）與 `.agents/constitution/` 複本；`.claude/skills/` 只放 `notification-plan` 與 `clarify`；初始 commit `800202e`。
+  - 以 Herdr 在旁邊的 pane 啟動全新的 Claude Code（測試 session `uv47`）。
+  - 實跑需求依使用者規則以路徑指定 Skill：「請讀取 `.claude/skills/notification-plan/SKILL.md`，依其 SOP 為 `specs/008-overdue-discord-notification` 做通知規劃。」
+- 權限處理：
+  - 信任資料夾：第一次啟動時選到 `No, exit`，session 結束；在同一 pane 重新啟動，依使用者指示選 `Yes, I trust this folder`。
+  - 測試 session 為 auto mode，實跑中沒有出現權限確認，主 session 沒有自行放行任何操作。
+  - `clarify` 2 題轉給使用者，使用者都選推薦選項。
+- 結果（1 輪，使用者判定通過）：
+  - 產出 `notification/plan.md` 387 行；`git status` 只多這個檔案；主 session 重跑 `check_notification_plan.py`（`--no-cache`）為 `ok`，issues 0、warnings 0。
+  - E1 符合：S1～S3、N1、N2 各一個 §5.n 章節；「不在範疇」寫「無」並寫理由。
+  - E2 符合：8 段齊全，需求編號都存在於 spec。
+  - E3 符合：狀態表含 `sending`、`sent`、`failed`、`unknown`，每個轉換寫出觸發介面、寫入欄位與需求編號；6 個 `overdue_notification_failure_reason` 值都出現。
+  - E4 符合：S1～S3 有觸發時機、時間來源、讀寫、重疊執行與系統恢復；N1 有 6 行版面與首次、重送兩個填值範例；N2 有 `/__sim/state`、`/__sim/mode`、`/__sim/messages` 與 400 錯誤回應。
+  - E5 符合：失敗表有「對方是否收到」欄；NS12、NS13 為「對方可能已收到」情境；§4 寫殘留風險；全文沒有「保證不重複」。
+  - E6 符合：`clarify` 2 題，寫入 UD1（逾期時間用「小時加分鐘」）、UD2（管理員重送第一行加「（重送）」）。
+  - E7 符合：UC1、UC3 交 `technical-research`，UC2 交 `data-plan`；只建立 `notification/plan.md`。
+  - 觸發：以路徑指定，未驗證自動觸發。
+- 觀察：
+  1. Phase 1 步驟 4 要求讀 `contracts/`、`ui/` 全文；測試 session 只以 grep、sed 讀 `openapi.yaml` 片段，沒有讀 `ui/`，檔頭「上游」卻列出 `ui/plan.md`。這次 F2 確認視窗的內容來自 `spec.md`，結果沒有錯。
+  2. UD2 是 `clarify` 推薦選項帶入的新行為（spec 沒有要求標示重送），也因此產生 UC2（`overdue_notifications` 沒有欄位能分辨管理員重送）。
+  3. 與 8.3 的 S1 比較：本輪多問 1 題，多出 UC1～UC3 上游衝突。
+- 結論：使用者判定通過；移除 `description` 的「（未驗證）」前綴，`./scripts/sync-skills.sh --from agents` 與 `--check` 皆 exit 0、兩邊一致。觀察 1、2 不在本次修改。
+
 ## 附錄：Skill 以外的影響（不在本次施工）
 
 1. runbook：第 8 節第 5 點的 B 組流程需要一個新提示詞（在 P5 之後、P6 之前執行 `notification-plan`），並在 9.0 階段對照補一列；到 A/B 流程第 5 點時再改。
