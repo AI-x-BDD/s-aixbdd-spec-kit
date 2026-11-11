@@ -4,7 +4,7 @@
 - 交出電腦：steve的Mac mini（`Mac14,12`，macOS 27.0.1）
 - 交出時的執行者：Claude Code 2.1.322＋Opus 5.5（effort high）
 - 交出時最新 commit：
-  - `main`：本文件的 commit（前一個是 `5e407d7`）
+  - `main`：本文件最後一次修改的 commit（`git log -1 -- docs/handoff/iter-6-跨機交接.md`）
   - `ab/group-a`：`b0cac59`（A 組步驟 7 `analyze`）
   - `ab/group-b`：`ae040c0`（A/B 共用起點，還沒有跑任何步驟）
 - spec 目錄：`specs/008-overdue-discord-notification`
@@ -87,7 +87,7 @@ git -C ../s-aixbdd-spec-kit-ab/group-b log -1 --format='%h %s'   # 應為 ae040c
 1. 使用者親手驗證：`notification-plan`（本次）、第 5 次迭代與第 4 次迭代的部分情境（見 `iter-5-跨機交接.md` 第 4 節第 1 點）。通過後才提議打 tag，使用者同意才打，不 push tag。
 2. `collect_coverage.py` 把 B1～B4 判成沒有合約、把 `ui/plan.md`「畫面範疇」誤算給 S、N 介面（iter-6 步驟 7 觀察 1），留到步驟 10 分類。
 3. `docs/待確認.md` 第 30 項：`constitution` 的產出物對照表沒有 `notification/plan.md`。
-4. 主目錄有一個未追蹤目錄 `docs/選模評估/`（另一個 session 在 2026-11-11 07:50 建立的選模評估草稿，使用者尚未確認）。交出時依使用者的決定處理，見第 8 節第 4 點。
+4. `docs/選模評估/`：另一個 session 在 2026-11-11 建立的選模評估草稿，內容寫「使用者尚未確認」。交出時已 commit 帶過來，結論還沒有確認。
 
 ## 7. Suggested skills
 
@@ -101,7 +101,7 @@ git -C ../s-aixbdd-spec-kit-ab/group-b log -1 --format='%h %s'   # 應為 ae040c
 1. 使用者確認紀錄 47 的根因報告與藍圖，agent 依 `skill-engineering` Phase 5 施工 12 個工作項，結構診斷 0 error，兩邊同步一致。
 2. 以 Sonnet medium 子代理在暫存複本跑 S1～S6，全部通過，結果寫進藍圖第 8 節。
 3. 使用者要換電腦。agent 記錄 `docs/待確認.md` 第 30 項，分開 commit（`fd8e032`、`be648df`、`400c30b`），補標「（未驗證）」（`5e407d7`），更新 iter-6.md，寫本文件。
-4. `docs/選模評估/` 不屬於本次工作，依使用者決定處理後才 push。**新電腦的第一則貼第 9 節的提示詞。**
+4. 使用者要求所有東西都帶到新電腦，agent 把 `docs/選模評估/` 一起 commit，再 push 3 個 branch。**新電腦的第一則貼第 9 節的提示詞。**
 
 ## 9. 新電腦第一則可直接貼上的提示詞
 
