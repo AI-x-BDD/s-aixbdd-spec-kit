@@ -15,7 +15,7 @@
 | 組別 | worktree 路徑 | branch | 起點 SHA | 目前狀態 |
 |---|---|---|---|---|
 | A 組 | `../s-aixbdd-spec-kit-ab/group-a`（絕對路徑 `/Volumes/data/Projects-practice/s-aixbdd-spec-kit-ab/group-a`） | `ab/group-a` | `ae040c0` | 已跑步驟 6（`tasks`），commit `8c4441c`；已跑步驟 7（`analyze`），commit `b0cac59` |
-| B 組 | `../s-aixbdd-spec-kit-ab/group-b`（絕對路徑 `/Volumes/data/Projects-practice/s-aixbdd-spec-kit-ab/group-b`） | `ab/group-b` | `ae040c0` | 只建立，未跑任何步驟（等第 8 節第 4 點的新 Skill） |
+| B 組 | `../s-aixbdd-spec-kit-ab/group-b`（絕對路徑 `/Volumes/data/Projects-practice/s-aixbdd-spec-kit-ab/group-b`） | `ab/group-b` | `ae040c0` | 只建立，未跑任何步驟。第 8 節第 4 點的新 Skill 已在 `main` 完成（`fd8e032`、`be648df`、`5e407d7`），尚未合併進 `ab/group-b` |
 
 模型與 effort（兩組必須相同，runbook 第 8 節第 2、5 點）：
 
@@ -23,6 +23,32 @@
 |---|---|---|---|
 | 主 session | Opus 5.5（`claude-opus-5-5`），Claude Code 2.1.322 | high（`CLAUDE_EFFORT=high`） | A 組步驟 6 由主 session 依 `tasks` SOP 直接執行 |
 | 子代理 | 委派時明確指定 Opus | 跟隨主 session | 本機 `CLAUDE_CODE_SUBAGENT_MODEL=sonnet`，不指定會變成 Sonnet。A 組步驟 6 的 `tasks` SOP 沒有委派子代理的步驟（只有憲法衝突時委派 `clarify`，本次 0 項），所以沒有子代理 |
+
+## 第四題：`notification-plan`（runbook 第 8 節第 4 點）
+
+2026-11-11 在主目錄 `main` 完成，A 組產出只讀未改。
+
+- 紀錄：[`specs/skill-engineering/47-notification-plan-建立/`](../../specs/skill-engineering/47-notification-plan-建立/)（`rca-report.md`、`blueprint.md`）。
+- 使用者確認（2026-11-11）：驗收條件 E1～E12 正確完整；同意 R1～R3；保留推定的 E10、E11；Skill 名稱 `notification-plan`；產出路徑 `notification/plan.md`。
+- Skill 版本 commit：
+  - `fd8e032` feat(notification-plan)：新 Skill（SKILL.md 4 個 Phase 20 個步驟、RuleFile Rule 1～6、樣板組、`check_notification_plan.py`）。
+  - `be648df` feat(tasks,analyze)：`tasks`、`analyze` 接入 `notification/plan.md`（含 `collect_coverage.py`）。
+  - `400c30b` docs(skill-engineering)：紀錄目錄 47 與 `docs/待確認.md` 第 30 項。
+  - `5e407d7` docs(notification-plan)：description 開頭標「（未驗證）」，使用者驗證通過後由 `user-verify-skill` 移除。
+- 施工後：`audit_skill.py` errors 0、warnings 0；`scripts/sync-skills.sh --check` 兩邊一致。
+- 驗收（**AI 驗收，使用者尚未驗證**）：Sonnet 5.5 medium 子代理在暫存複本執行，6 個情境全部通過。詳細在藍圖第 8 節。
+
+  | 情境 | 驗證 | 結果 |
+  |---|---|---|
+  | S1 | E1～E7：對 008 跑 `notification-plan` | 通過。S1～S3、N1、N2 各一個 §5.n 章節；`clarify` 1 題（「已逾期多久」的格式）；腳本 issues 0 |
+  | S2 | E8：S1 結果跑 `tasks` | 通過。S、N 任務的 Must Read 指向 `notification/plan.md` §5.1～§5.5；沒有「沒有規格」的待確認 |
+  | S3 | E9：S2 結果跑 `analyze` | 通過。S、N 介面 `notification` 非空；沒有 E 類問題；相關問題處理 Skill 為 `notification-plan` |
+  | S4 | E10：007 沒有通知介面 | 通過。停止，不建立檔案 |
+  | S5 | E11：拒絕覆寫 | 通過。雜湊值不變 |
+  | S6 | E12：沒有 `notification/` 時的回歸 | 通過（腳本實跑＋逐步演練）。`collect_coverage.py` 輸出只多空的 `notification` 鍵 |
+
+- 驗收時的觀察（不在本次修改）：`collect_coverage.py` 把 B1～B4 判成沒有合約、把 `ui/plan.md`「畫面範疇」誤算給 S、N 介面，同步驟 7 觀察 1，留到步驟 10 分類。
+- 接下來：使用者驗證 `notification-plan` → 把 `main` 的 Skill commit 合併進 `ab/group-b` → 第 8 節第 5 點（B 組跑新 Skill，再跑步驟 6～8）。
 
 ## 固定環境
 
@@ -34,7 +60,7 @@
 | 子代理模型 | 本機設定 `CLAUDE_CODE_SUBAGENT_MODEL=sonnet`，子代理預設是 Sonnet。iter-5 的 Planner 等子代理用同模型（Opus 5.5）。本次委派 SOP 執行的子代理（Planner 等）要明確指定 Opus，才能和 iter-5 及 A/B 兩組的模型一致 |
 | Skill 版本（開始時） | `89c7d3d`（`scripts/sync-skills.sh --check`：兩邊一致）。含 iter-5 步驟 11 的 5 項優化：`clarify-over-specs` `92f7c1e`、`technical-research` `be06f9c`、`ui-plan` `ca01fc0`、`api-plan` `1a2cf98`、`tasks` `b09eaa7` |
 | 其他 | `git config --global core.hooksPath` = `~/dotfiles/git/hooks`（外洩掃描有效）；`apps/equipment-loan/backend/.env` 存在（未讀內容） |
-| 中途變動 | 2026-11-10：步驟 3 起換新 Claude Code session（中途重開，依交接文件 `iter-6-step3-handoff.md` 接續）；電腦、模型與 effort 不變，commit 仍為 `89c7d3d`（步驟 2 的產出尚未 commit）。2026-11-11：步驟 4 起再換新 Claude Code session（依交接文件 `iter-6-step4-handoff.md` 接續）；電腦、模型與 effort 不變，commit 為 `61ba062`。2026-11-11：步驟 5 起再換新 Claude Code session（依交接文件 `iter-6-step5-handoff.md` 接續）；電腦、模型與 effort 不變，commit 為 `61ba062`（步驟 4 的產出尚未 commit） |
+| 中途變動 | 2026-11-10：步驟 3 起換新 Claude Code session（中途重開，依交接文件 `iter-6-step3-handoff.md` 接續）；電腦、模型與 effort 不變，commit 仍為 `89c7d3d`（步驟 2 的產出尚未 commit）。2026-11-11：步驟 4 起再換新 Claude Code session（依交接文件 `iter-6-step4-handoff.md` 接續）；電腦、模型與 effort 不變，commit 為 `61ba062`。2026-11-11：步驟 5 起再換新 Claude Code session（依交接文件 `iter-6-step5-handoff.md` 接續）；電腦、模型與 effort 不變，commit 為 `61ba062`（步驟 4 的產出尚未 commit）。2026-11-11：A/B 流程第 4 點（第四題 `notification-plan`）完成後換電腦，交出電腦為 steve的Mac mini，交出時 commit 為交接文件的 commit；`main`、`ab/group-a`、`ab/group-b` 都已 push，A/B 不在同一台電腦做完（runbook 0.3「什麼時候可以換」第 3 點的例外做法）。接續方式見 `docs/handoff/iter-6-跨機交接.md`；新電腦的工具版本在接手時補記 |
 | 臨時改寫的提示詞 | P0 改寫：「本次功能」寫「見 runbook 9.3『通知迭代』列（6 次路徑第 6 次）」，取代 9.5 原文的「見 runbook 9.3 第 {N} 列」（9.3 沒有第 6 列的編號）；其餘依 9.5 原文，`{N}`=6、`{PREV_SPEC_DIR}`=`specs/007-equipment-maintenance-retire` |
 
 ## 步驟紀錄
