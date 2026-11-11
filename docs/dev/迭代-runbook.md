@@ -187,6 +187,19 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
    - 各 Planner 的檢查腳本結果。
 6. 檢查點（步驟 4～5 結束）：commit `docs(specs): ...`。
 
+### 步驟 5n（視需要）：`notification-plan`
+
+1. 什麼時候跑：步驟 5 的 `plan.md` 有沒有 Planner 的通知類介面（觸發通知的排程、送出與重試程序、外部通知服務與它的本機替身）。通知迭代的 A/B 流程只有 B 組跑，A 組不跑（第 8 節）。
+2. 指令：「讀取 `.agents/skills/notification-plan/SKILL.md` 並依其 SOP 執行，目標 spec：<路徑>」。
+3. 使用者要做的事：回答 `clarify` 的問題（spec 沒決定的業務規則、憲法衝突）；同意覆寫（若跳出）。
+4. 產出：`specs/<NNN>-<short-name>/notification/plan.md`。
+5. 結束後的檢查：
+   - 每個負責介面都有一個 §5.n 章節。記下 `check_notification_plan.py` 的 issues、warnings 與未通過項。
+   - 記下 `clarify` 問了幾題、決定了什麼，以及決定是否帶進 spec 沒要求的新行為（`docs/待確認.md` 第 31 項第 2 點）。
+   - 記下回報列出的上游檔案是否都實際讀過（`docs/待確認.md` 第 31 項第 1 點）。
+   - 上游衝突逐條記進迭代紀錄：編號、內容、處理 Skill。通知迭代的 B 組只記錄，不修改上游（理由見第 8 節第 5 點）。其他情況依處理 Skill 修正上游，再重跑 P5n。
+6. 檢查點：commit `docs(specs): ...`。通知迭代的 B 組 commit 到 B 組 branch。
+
 ### 步驟 6：`tasks`
 
 1. 指令：「讀取 `.agents/skills/tasks/SKILL.md` 並依其 SOP 執行，目標 spec：<路徑>」。
@@ -351,7 +364,14 @@ fix(<skill>): <一句話說明修改>
 2. 從共用起點建立兩個 git worktree：A 組、B 組。兩組用同一個模型設定。
 3. A 組：由 Claude Code 在 A 組 worktree 跑步驟 6～7（`tasks`、`analyze`），理由見第 6 節。產出先存在 A 組 worktree，不放進主目錄。
 4. 6 次路徑第 17～18 天（第 14～15 天先平行做根因分析與藍圖）；5 次路徑第 15～17 天：Claude Code 用 `skill-engineering` 建第四題的新 Skill，並修改 `tasks`、`analyze` 接入。
-5. B 組：由 Claude Code 用與 A 組相同的模型設定，在 B 組 worktree 跑新 Skill，再跑步驟 6～8。
+5. B 組：由 Claude Code 用與 A 組相同的模型設定，在 B 組 worktree 依序做下列事：
+   1. 把新 Skill 帶進 B 組 branch。只 cherry-pick 修改 Skill 的 commit，不 merge 主線。理由：主線有迭代紀錄與 `skill-engineering` 藍圖，寫了 A 組 `tasks`、`analyze` 的結果，B 組讀到會影響比較。
+      - 第 6 次迭代只帶 `fd8e032`（`notification-plan`）、`be648df`（`tasks`、`analyze` 接入）。`5e407d7` 加上 description 的「（未驗證）」，`0ad3b3f` 又移除它，兩個合起來沒有變動，不帶。
+      - cherry-pick 後跑 `scripts/sync-skills.sh --check`，再跑 `git diff main HEAD -- .agents/skills .claude/skills`，確認沒有差異。
+      - 把 B 組的 Skill 版本（B 組 `git rev-parse --short HEAD`）與來源 commit 記進迭代紀錄的「A/B worktree」。
+   2. 跑步驟 5n（`notification-plan`，提示詞 P5n）。上游衝突只記錄，不修改上游（`plan.md`、`research.md`、`techstack.md`、`contracts/`、`data/`、`ui/`）。理由：上游是 A、B 兩組的共用起點，B 組改了上游，兩組的差異就不只來自新 Skill。上游衝突在 A/B 比較完成後再處理。
+   3. 跑步驟 6～8。
+   4. 迭代紀錄寫在主目錄的 `docs/iterations/iter-<N>.md`，和 A 組相同。B 組 worktree 只 commit spec 目錄的產出。
 6. 兩組都跑完後，把原始產出歸檔到 `docs/ab-test/group-a/`、`docs/ab-test/group-b/`，附上模型設定與 Skill 版本（commit SHA）。歸檔後不再修改。
 7. 只把 B 組的實作合併回主線，繼續步驟 9～12。
 
@@ -370,6 +390,7 @@ fix(<skill>): <一句話說明修改>
 | `/technical-research` | 步驟 4 | P4 | 每次 |
 | `/system-analysis` | 步驟 5 | P5 | 每次 |
 | `/api-plan`、`/data-plan`、`/ui-plan` | 步驟 5 內，由 `system-analysis` 依 Wave 委派 | P5（自動）；P5b（單獨重跑） | 每次；某個 Planner 停止或產出有問題時用 P5b |
+| `/notification-plan`（第四題新 Skill） | 步驟 5n | P5n | `plan.md` 有沒有 Planner 的通知類介面時；通知迭代只在 B 組跑（第 8 節第 5 點） |
 | `/tasks` | 步驟 6 | P6 | 每次 |
 | `/analyze` | 步驟 7 | P7；P7b（修 CRITICAL） | 每次 |
 | `/implement` | 步驟 8 | P8 | 每次 |
@@ -540,6 +561,17 @@ Planner 子代理一律讀取 .agents/skills/<planner>/SKILL.md。完成後依�
 完成後回報檢查腳本結果，並在 docs/iterations/iter-{N}.md 記下：哪個 Planner、為什麼重跑、重跑結果。
 ```
 
+#### P5n `notification-plan`（P5 的 `plan.md` 有沒有 Planner 的通知類介面時；通知迭代只在 B 組 worktree 貼）
+
+```text
+請做 runbook 步驟 5n：讀取 .agents/skills/notification-plan/SKILL.md 並依其 SOP 執行。
+目標 spec：{SPEC_DIR}/spec.md
+上游衝突只記錄、不修改上游：不修改 plan.md、research.md、techstack.md、contracts/、data/、ui/。
+完成後依步驟 5n 的「結束後的檢查」，把結果與每一項上游衝突（編號、內容、處理 Skill）寫進主目錄的 docs/iterations/iter-{N}.md，並依步驟 5n 的檢查點 commit 到目前的 branch。
+```
+
+不是通知迭代的 B 組時，刪掉第 3 行，並把「主目錄的」刪掉；上游衝突依處理 Skill 修正後，再重跑 P5n。
+
 #### P6 `tasks`
 
 ```text
@@ -642,4 +674,4 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 11. P10 →（有 Skill 缺陷時）P11 在 Claude Code → P11b
 12. P12
 
-第 2 次以後：同樣順序，跳過 P1（除非有新的共同規則），P5 用「第 2 次以後」版。通知迭代依第 8 節的 A/B 流程，在 P5 之後分 A、B 兩組。
+第 2 次以後：同樣順序，跳過 P1（除非有新的共同規則），P5 用「第 2 次以後」版。通知迭代依第 8 節的 A/B 流程，在 P5 之後分 A、B 兩組；B 組在 P6 之前先跑 P5n。

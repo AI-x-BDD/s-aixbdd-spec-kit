@@ -73,13 +73,15 @@ git -C ../s-aixbdd-spec-kit-ab/group-b log -1 --format='%h %s'   # 應為 ae040c
 
      ```bash
      cd ../s-aixbdd-spec-kit-ab/group-b
-     git cherry-pick $(git log --reverse --format=%h ae040c0..main -- .agents/skills .claude/skills)
+     git cherry-pick fd8e032 be648df
      scripts/sync-skills.sh --check
+     git diff main HEAD -- .agents/skills .claude/skills   # 應沒有輸出
      ```
 
-   - 帶進去的 commit 應包含 `fd8e032`、`be648df`、`5e407d7`，以及驗證時新增的 Skill commit。把 B 組的 Skill 版本（`git -C ../s-aixbdd-spec-kit-ab/group-b rev-parse --short HEAD`）記進 iter-6.md 的「A/B worktree」。
+   - 只帶 `fd8e032`、`be648df`（2026-11-11 使用者決定，runbook 第 8 節第 5 點）。`5e407d7` 加上 description 的「（未驗證）」，驗證通過後的 `0ad3b3f` 又移除它，兩個合起來沒有變動，不帶。（更正：本文件原本的指令會帶進 `ae040c0..main` 所有修改 Skill 的 commit，包含這兩個。）
+   - 把 B 組的 Skill 版本（`git -C ../s-aixbdd-spec-kit-ab/group-b rev-parse --short HEAD`）與來源 commit 記進 iter-6.md 的「A/B worktree」。
 3. **A/B 流程第 5 點：B 組跑 `notification-plan`，再跑步驟 6～8。**
-   - runbook 9.5 還沒有 B 組跑 `notification-plan` 的提示詞（藍圖附錄第 1 點）。開始前要先在 runbook 第 8 節第 5 點與 9.0 階段對照補上，位置在 P5 之後、P6 之前。
+   - B 組跑 `notification-plan` 的提示詞已補為 runbook 9.5 的 P5n（步驟 5n，藍圖附錄第 1 點）。上游衝突只記錄，不修改上游。
    - 用與 A 組相同的模型設定，在 B 組 worktree 執行；產出 commit 到 `ab/group-b`，不放進主目錄。
 
 ## 6. 還沒完成的項目

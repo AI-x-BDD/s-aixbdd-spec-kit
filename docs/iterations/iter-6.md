@@ -15,7 +15,19 @@
 | 組別 | worktree 路徑 | branch | 起點 SHA | 目前狀態 |
 |---|---|---|---|---|
 | A 組 | `../s-aixbdd-spec-kit-ab/group-a`（絕對路徑 `/Volumes/data/Projects-practice/s-aixbdd-spec-kit-ab/group-a`） | `ab/group-a` | `ae040c0` | 已跑步驟 6（`tasks`），commit `8c4441c`；已跑步驟 7（`analyze`），commit `b0cac59` |
-| B 組 | `../s-aixbdd-spec-kit-ab/group-b`（絕對路徑 `/Volumes/data/Projects-practice/s-aixbdd-spec-kit-ab/group-b`） | `ab/group-b` | `ae040c0` | 只建立，未跑任何步驟。第 8 節第 4 點的新 Skill 已在 `main` 完成（`fd8e032`、`be648df`、`5e407d7`），尚未合併進 `ab/group-b` |
+| B 組 | `../s-aixbdd-spec-kit-ab/group-b`（絕對路徑 `/Volumes/data/Projects-practice/s-aixbdd-spec-kit-ab/group-b`） | `ab/group-b` | `ae040c0` | 已帶進新 Skill，Skill 版本 `b17d451`；還沒跑步驟 5n～8 |
+
+B 組 Skill 版本（2026-11-11，runbook 第 8 節第 5 點第 1 項）：
+
+| B 組 commit | 來源 commit（`main`） | 內容 |
+|---|---|---|
+| `f603bb2` | `fd8e032` | feat(notification-plan)：新 Skill `notification-plan` |
+| `b17d451` | `be648df` | feat(tasks,analyze)：`tasks`、`analyze` 接入 `notification/plan.md` |
+
+- 做法：在 B 組 worktree 執行 `git cherry-pick fd8e032 be648df`，沒有衝突。不 merge `main`。
+- 沒帶的 commit：`5e407d7` 加上 description 的「（未驗證）」，`0ad3b3f` 又移除它，兩個合起來沒有變動。
+- 檢查：`scripts/sync-skills.sh --check` 為「兩邊一致」；`git diff main HEAD -- .agents/skills .claude/skills` 沒有輸出，B 組的 Skill 和 `main` 的 `6d67e41` 相同。
+- `ab/group-b` 比 `origin/ab/group-b` 多 2 個 commit，還沒 push。
 
 模型與 effort（兩組必須相同，runbook 第 8 節第 2、5 點）：
 
@@ -48,7 +60,7 @@
   | S6 | E12：沒有 `notification/` 時的回歸 | 通過（腳本實跑＋逐步演練）。`collect_coverage.py` 輸出只多空的 `notification` 鍵 |
 
 - 驗收時的觀察（不在本次修改）：`collect_coverage.py` 把 B1～B4 判成沒有合約、把 `ui/plan.md`「畫面範疇」誤算給 S、N 介面，同步驟 7 觀察 1，留到步驟 10 分類。
-- 接下來：使用者驗證 `notification-plan` → 把 `main` 的 Skill commit 合併進 `ab/group-b` → 第 8 節第 5 點（B 組跑新 Skill，再跑步驟 6～8）。
+- 接下來：使用者驗證 `notification-plan`（2026-11-11 通過，`0ad3b3f`）→ 把 Skill commit 帶進 `ab/group-b`（完成，見「A/B worktree」）→ 第 8 節第 5 點（B 組跑步驟 5n `notification-plan`，再跑步驟 6～8）。
 
 ## 固定環境
 
