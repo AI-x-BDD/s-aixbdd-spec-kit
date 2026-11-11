@@ -9,6 +9,7 @@
   2. 找不到，或剩餘步數為 0，就結束。
   3. 找到時，在背景執行：herdr tab create → herdr agent start（claude）→ herdr agent prompt。
      新對話沿用本對話的模型與權限模式；.auto/mode 有指定 model、effort 時用指定的值。
+  4. 下一步送出成功後，關掉上一步的分頁（只關標籤以 auto- 開頭的分頁）。
 
 只使用 Python 標準函式庫。不修改專案檔案；只寫 .auto/ 下的狀態檔、紀錄與暫存提示詞。
 """
@@ -136,7 +137,26 @@ def launch(job_file: str) -> int:
     log(f"[{name}] 已在 pane {pane} 送出下一步提示詞（{len(prompt)} 字）")
     for leftover in (job["prompt_file"], job_file):
         Path(leftover).unlink(missing_ok=True)
+    close_previous_tab(name, job.get("previous_tab", ""))
     return 0
+
+
+def close_previous_tab(name: str, tab_id: str) -> None:
+    """下一步已成功送出後，關掉上一步的分頁。只關自動模式開的分頁（標籤以 auto- 開頭），不關使用者自己開的分頁。"""
+    if not tab_id:
+        return
+    got = herdr("tab", "get", tab_id)
+    try:
+        label = json.loads(got.stdout)["result"]["tab"]["label"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return
+    if not str(label).startswith("auto-"):
+        return
+    closed = herdr("tab", "close", tab_id)
+    if closed.returncode == 0:
+        log(f"[{name}] 已關閉上一步的分頁 {tab_id}（{label}）")
+    else:
+        log(f"[{name}] 關閉上一步的分頁 {tab_id} 失敗：{(closed.stderr.strip() or closed.stdout.strip())[:200]}")
 
 
 def main() -> int:
@@ -166,6 +186,7 @@ def main() -> int:
             break
         time.sleep(0.5)
     if prompt is None:
+        log("回覆結尾沒有下一步提示詞，自動接續停止")
         return 0
 
     session = data.get("session_id", "")
@@ -197,8 +218,10 @@ def main() -> int:
         "name": name,
         "prompt_file": str(prompt_file),
         "workspace": os.environ.get("HERDR_WORKSPACE_ID", ""),
-        "cwd": data.get("cwd") or os.getcwd(),
+        # 一律在專案根目錄啟動：從子目錄啟動時不會載入 .claude/settings.json 的 hook，自動接續會斷掉。
+        "cwd": str(ROOT),
         "agent_args": agent_args,
+        "previous_tab": os.environ.get("HERDR_TAB_ID", ""),
     }
     job_file = AUTO_DIR / f"{name}.job.json"
     job_file.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
