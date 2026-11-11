@@ -1,6 +1,6 @@
 ---
 name: notification-plan
-description: 已有 plan.md 與 Planner 產出、要在 tasks 之前為沒有 Planner 的外部通知介面產出通知可靠性規劃時使用：依 plan.md 系統介面盤點挑出負責通知觸發、送出、重試與結果追蹤的介面（例如觸發通知的排程、送出與重試程序、外部通知服務與它的本機替身），參考 spec.md、技術研究結果與 contracts、data、ui 的產出，寫出觸發條件、通知狀態轉換、失敗分類與重試界線、重複處理、紀錄需求、各介面規格與驗收情境，存成 spec 目錄的 notification/plan.md；spec 沒決定的業務規則委派 clarify，需要改 API 合約、資料模型或 UI 時列為上游衝突，交回原 Planner。在 system-analysis 與 Planner 之後、tasks 之前單獨執行，不由 system-analysis 委派。使用者提到 notification-plan、通知規劃、通知可靠性、排程規格、Webhook 規格、重試與重複通知、沒有 Planner 的介面時使用。盤點介面改用 system-analysis；設計 API 合約、資料模型、畫面改用 api-plan、data-plan、ui-plan；技術選型改用 technical-research；拆任務改用 tasks。
+description: （未驗證）已有 plan.md 與 Planner 產出、要在 tasks 之前為沒有 Planner 的外部通知介面產出通知可靠性規劃時使用：依 plan.md 系統介面盤點挑出負責通知觸發、送出、重試與結果追蹤的介面（例如觸發通知的排程、送出與重試程序、外部通知服務與它的本機替身），參考 spec.md、技術研究結果與 contracts、data、ui 的產出，寫出觸發條件、通知狀態轉換、失敗分類與重試界線、重複處理、紀錄需求、各介面規格與驗收情境，存成 spec 目錄的 notification/plan.md；spec 沒決定的業務規則委派 clarify，需要改 API 合約、資料模型或 UI 時列為上游衝突，交回原 Planner。在 system-analysis 與 Planner 之後、tasks 之前單獨執行，不由 system-analysis 委派。使用者提到 notification-plan、通知規劃、通知可靠性、排程規格、Webhook 規格、重試與重複通知、沒有 Planner 的介面時使用。盤點介面改用 system-analysis；設計 API 合約、資料模型、畫面改用 api-plan、data-plan、ui-plan；技術選型改用 technical-research；拆任務改用 tasks。
 ---
 
 # SOP
