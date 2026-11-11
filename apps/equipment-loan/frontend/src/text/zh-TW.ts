@@ -232,6 +232,7 @@ export const UI_TEXT = {
     refresh: "重新整理",
     refreshing: "重新整理中…",
     refreshingLine: "正在重新整理…",
+    refreshedAt: (time: string) => `已更新 ${time}`,
     filterLabel: "通知狀態",
     filterAll: "全部",
     sortHint: "依通知建立時間由新到舊排列",

@@ -12,6 +12,29 @@ import {
 import { ResendUnknownDialog } from "../components/ResendUnknownDialog";
 import { UI_TEXT } from "../text/zh-TW";
 
+/** 重新整理與換頁的載入超過這個時間才變淡並顯示提示；本機回應很快時，不讓清單一閃一閃（T042）。 */
+const BUSY_DELAY_MS = 300;
+/** 「重新整理」按鈕至少顯示「重新整理中…」這麼久，回應再快也看得到按鈕有反應（T042）。 */
+const REFRESH_MIN_FEEDBACK_MS = 500;
+
+function formatTaipeiTime(date: Date): string {
+  return date.toLocaleTimeString("zh-TW", { hour12: false, timeZone: "Asia/Taipei" });
+}
+
+/** value 變成 true 並持續 delayMs 後才回傳 true；value 變回 false 時立即回傳 false。 */
+function useDelayedFlag(value: boolean, delayMs: number): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!value) {
+      setShown(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setShown(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+  return value && shown;
+}
+
 const TEXT = UI_TEXT.overdueNotifications;
 
 /** T020 的 UI_TEXT 沒有涵蓋的文字（ui/plan.md §4 嘗試次數單位、§5「權限不足」），只在本畫面使用。 */
@@ -167,6 +190,12 @@ export function OverdueNotificationsView({
   const [checking, setChecking] = useState<boolean>(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [dialogTarget, setDialogTarget] = useState<OverdueNotification | null>(null);
+  /** 重新整理或換頁載入超過 BUSY_DELAY_MS 才為 true，只用於畫面呈現；防止重複操作仍以 loading 判斷。 */
+  const showBusy = useDelayedFlag(loading && loaded, BUSY_DELAY_MS);
+  /** 按下「重新整理」到回饋結束（至少 REFRESH_MIN_FEEDBACK_MS）之間為 true。 */
+  const [refreshPressed, setRefreshPressed] = useState<boolean>(false);
+  /** 最近一次按「重新整理」完成的時間，顯示在「共 N 則通知」右側。 */
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
 
   const load = useCallback(
     async (status: OverdueNotificationStatus | "all", targetPage: number) => {
@@ -242,6 +271,9 @@ export function OverdueNotificationsView({
 
   /** 立即檢查逾期：不等送出結果；createdCount 大於 0 顯示綠色橫幅，為 0 顯示藍色橫幅，然後重新查詢清單（FR-009、FR-010、FR-012）。 */
   async function doRunCheck(): Promise<void> {
+    if (checking || pagingTo !== null) {
+      return;
+    }
     setChecking(true);
     setBanner(null);
     try {
@@ -274,12 +306,28 @@ export function OverdueNotificationsView({
     }
   }
 
-  function handleRefresh(): void {
+  async function handleRefresh(): Promise<void> {
+    if (loading || refreshPressed) {
+      return;
+    }
     setBanner(null);
-    void load(filter, currentPage);
+    setRefreshPressed(true);
+    setRefreshedAt(null);
+    const startedAt = Date.now();
+    await load(filter, currentPage);
+    const remaining = REFRESH_MIN_FEEDBACK_MS - (Date.now() - startedAt);
+    if (remaining > 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, remaining));
+    }
+    setRefreshPressed(false);
+    setRefreshedAt(formatTaipeiTime(new Date()));
   }
 
   function goToPage(target: number): void {
+    if (loading) {
+      return;
+    }
+    setRefreshedAt(null);
     setBanner(null);
     setPagingTo(target);
     void load(filter, target);
@@ -354,7 +402,7 @@ export function OverdueNotificationsView({
             <button
               type="button"
               className="btn btn-sm btn-primary"
-              disabled={checking || paging}
+              disabled={checking || (paging && showBusy)}
               onClick={() => void doRunCheck()}
               data-testid="overdue-check-btn"
             >
@@ -362,12 +410,12 @@ export function OverdueNotificationsView({
             </button>
             <button
               type="button"
-              className="btn btn-sm"
-              disabled={refreshing || checking}
-              onClick={handleRefresh}
+              className="btn btn-sm odn-refresh-btn"
+              disabled={refreshPressed || showBusy || checking}
+              onClick={() => void handleRefresh()}
               data-testid="overdue-refresh-btn"
             >
-              {refreshing ? TEXT.refreshing : TEXT.refresh}
+              {refreshPressed || showBusy ? TEXT.refreshing : TEXT.refresh}
             </button>
           </div>
         </div>
@@ -378,8 +426,13 @@ export function OverdueNotificationsView({
               id="overdue-status-filter"
               data-testid="overdue-status-filter"
               value={filter}
-              disabled={refreshing}
-              onChange={(e) => setFilter(e.target.value as OverdueNotificationStatus | "all")}
+              disabled={showBusy}
+              onChange={(e) => {
+                if (!loading) {
+                  setRefreshedAt(null);
+                  setFilter(e.target.value as OverdueNotificationStatus | "all");
+                }
+              }}
             >
               <option value="all">{TEXT.filterAll}</option>
               {STATUS_OPTIONS.map((status) => (
@@ -394,19 +447,31 @@ export function OverdueNotificationsView({
           </span>
         </div>
 
-        {refreshing && (
-          <div className="odn-refresh-line" data-testid="overdue-refreshing">
-            <span className="odn-spinner" aria-hidden="true" />
-            <span>{paging ? TEXT.loadingPage(pagingTo) : TEXT.refreshingLine}</span>
+        {(showTable || showBusy) && (
+          <div className="odn-count-row">
+            {showTable && (
+              <div className="odn-count" data-testid="overdue-count">
+                {TEXT.totalCount(totalItems)}
+              </div>
+            )}
+            {showBusy ? (
+              <div className="odn-refresh-line" data-testid="overdue-refreshing">
+                <span className="odn-spinner" aria-hidden="true" />
+                <span>{paging ? TEXT.loadingPage(pagingTo) : TEXT.refreshingLine}</span>
+              </div>
+            ) : (
+              refreshedAt && (
+                <div className="odn-refresh-line" data-testid="overdue-refreshed-at">
+                  {TEXT.refreshedAt(refreshedAt)}
+                </div>
+              )
+            )}
           </div>
         )}
 
         {showTable && (
           <>
-            <div className="odn-count" data-testid="overdue-count">
-              {TEXT.totalCount(totalItems)}
-            </div>
-            <div className={`odn-table-wrap${loading ? " odn-refreshing" : ""}`}>
+            <div className={`odn-table-wrap${showBusy ? " odn-refreshing" : ""}`}>
               <table className="odn-table" data-testid="overdue-notifications-table">
                 <thead>
                   <tr>
@@ -487,7 +552,7 @@ export function OverdueNotificationsView({
                   <button
                     type="button"
                     className="btn btn-sm"
-                    disabled={refreshing || currentPage <= 1}
+                    disabled={showBusy || currentPage <= 1}
                     onClick={() => goToPage(currentPage - 1)}
                     data-testid="overdue-prev-btn"
                   >
@@ -496,7 +561,7 @@ export function OverdueNotificationsView({
                   <button
                     type="button"
                     className="btn btn-sm"
-                    disabled={refreshing || currentPage >= totalPages}
+                    disabled={showBusy || currentPage >= totalPages}
                     onClick={() => goToPage(currentPage + 1)}
                     data-testid="overdue-next-btn"
                   >
@@ -541,13 +606,15 @@ const OVERDUE_NOTIFICATIONS_CSS = `
 .odn-section { padding: 20px; }
 .odn-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .odn-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.odn-refresh-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.odn-refresh-btn { min-width: 7.5rem; justify-content: center; }
+.odn-count-row { display: flex; align-items: center; gap: 16px; flex-wrap: nowrap; min-height: 22px; margin-bottom: 8px; line-height: 22px; }
+.odn-refresh-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; white-space: nowrap; }
 .odn-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .odn-field { min-width: 200px; }
 .odn-field label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
 .odn-field select { width: 100%; height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
 .odn-field select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary); }
-.odn-count { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.odn-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .odn-table-wrap { overflow-x: auto; transition: opacity .15s; }
 .odn-table-wrap.odn-refreshing { opacity: .45; pointer-events: none; }
 .odn-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--muted); }

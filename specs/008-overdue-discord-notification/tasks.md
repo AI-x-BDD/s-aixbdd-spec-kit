@@ -309,13 +309,13 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `research.md` → §8 — Why：README 要寫明展示手動檢查前關閉自動檢查
     - `notification/plan.md` → §5.5 — Why：模擬器的啟動方式與控制操作
     - `research.md` → §5 — Why：三個設定與 `.env` 不 commit
-- [X] T031 [P] 量測送出時效與重試結果（SC-001、SC-003）：在 `backend/tests/integration/overdueDispatch.test.ts` 以 `createDiscordWebhookSimulator()` 在連接埠 `0` 啟動模擬器，搭配 `vi.setSystemTime` 直接呼叫 `runOverdueCheck(now)`、`dispatchDueNotifications(now)`、`recoverInterruptedNotifications(now)`，逐一跑 notification/plan.md §7 的 NS1～NS10、NS12～NS14、NS16～NS18、NS20～NS21，確認時段結束後 10 分鐘內送出、等待不超過 1 分鐘且 3 次內恢復時 100% 為 `sent`、逾時與送出後中斷 100% 為 `unknown` 且自動重送 0 次；模擬器無法重現的回應以分類函式直接驗證（見 Notes 待確認 2）；記錄每個情境的結果（FR-001、FR-002、FR-013～FR-017、FR-021）
+- [X] T031 [P] 量測送出時效與重試結果（SC-001、SC-003）：在 `backend/tests/integration/overdueDispatch.test.ts` 以 `createDiscordWebhookSimulator()` 在連接埠 `0` 啟動模擬器，搭配 `vi.setSystemTime` 直接呼叫 `runOverdueCheck(now)`、`dispatchDueNotifications(now)`、`recoverInterruptedNotifications(now)`，逐一跑 notification/plan.md §7 的 NS1～NS18、NS20～NS21，確認時段結束後 10 分鐘內送出、等待不超過 1 分鐘且 3 次內恢復時 100% 為 `sent`、逾時與送出後中斷 100% 為 `unknown` 且自動重送 0 次；NS11、NS15 與其他模擬器無法重現的回應（`401`、`403`、沒有等待秒數的 `429`）以 `node:http` 在連接埠 `0` 臨時啟動的固定回應位址經 `discordWebhookClient.send` 驗證，`DISCORD_WEBHOOK_URL` 指向它，經真實 `fetch` 收到回應後確認分類，不新增單元測試（見 Notes 待確認 2）；記錄每個情境的結果（FR-001、FR-002、FR-013～FR-017、FR-021）
   - **Must Read**
     - `notification/plan.md` → §7 — Why：每個驗收情境的 Given／When／Then
     - `spec.md` → SC-001、SC-003 — Why：送出時效與重試結果的通過標準
     - `research.md` → §8 — Why：固定時間、直接呼叫排程函式與模擬器的測試做法
   - **Optional**
-    - `notification/plan.md` → §8 UC2 — Why：需要確認哪些分類只能直接交給分類函式驗證時
+    - `notification/plan.md` → §5.5 — Why：需要確認哪些分類由模擬器重現、哪些要以臨時固定回應位址經 `discordWebhookClient.send` 驗證時
 - [X] T032 [P] 量測不重複（SC-002）：在 `backend/tests/integration/overdueConcurrency.test.ts` 以 `Promise.all` 同時執行手動檢查與自動檢查，重複 20 輪（每輪重設資料），確認每輪每筆借用只有 1 則通知、兩邊的 `createdCount` 合計為 1、模擬器只收到 1 則訊息；再同時送出兩個 `resendOverdueNotification`，確認只有一個回 `202`、另一個回 `409`，模擬器只收到 1 次（FR-012、FR-018、US2 情境 14、US3 情境 4）
   - **Must Read**
     - `notification/plan.md` → §7 NS19、NS20 — Why：並發檢查與並發重送的驗收情境
@@ -366,6 +366,10 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `contracts/openapi.yaml` → `listOverdueNotifications` — Why：`page` 超過總頁數時回應空的 `items`，以及 `totalItems`、`totalPages`
   - **Optional**
     - `ui/overdue-notifications.html` → 雛形狀態「送出失敗最後一頁」「目前頁碼超過總頁數」 — Why：需要對照互動流程時
+- [X] T042 在 `frontend/src/views/OverdueNotificationsView.tsx` 修正重新整理與換頁載入中的版面位移（F1，接續 T023、T040，見 Notes 待確認 4 與 T042 的說明）：目前 `refreshing` 為 true 時，在表格上方插入 `odn-refresh-line`（`data-testid="overdue-refreshing"`，顯示「重新整理中…」或「正在載入第 N 頁…」），把「共 N 則通知」（`overdue-count`）、表格（`overdue-notifications-table`）與換頁列往下推，載入完成後這一行被移除，表格彈回原位。改為載入中的提示文字與轉圈不改變「共 N 則通知」、表格與換頁列的位置，做法例如在同檔的 `OVERDUE_NOTIFICATIONS_CSS` 固定保留 `odn-refresh-line` 的高度（不載入時只隱藏內容），或改成浮在清單上方的覆蓋層；清單仍依 ui/plan.md §4「重新整理中」「換頁中」以 `odn-refreshing` 變淡，並顯示提示文字與轉圈，`TEXT.refreshingLine`、`TEXT.loadingPage` 的文字、`data-testid` 與按鈕停用規則不變。完成後重跑 `frontend/` 的 `npm run check` 與 `npm run test:frontend`，以及 `npm run test:e2e`（FR-003、FR-005）
+  - **Must Read**
+    - `ui/plan.md` → §4 `overdue-notifications.html` 的「重新整理中」「換頁中」 — Why：載入中的呈現方式（清單變淡、提示文字與轉圈、停用的操作）
+    - `frontend/src/views/OverdueNotificationsView.tsx` → `odn-refresh-line` 的 JSX 與 `OVERDUE_NOTIFICATIONS_CSS` 的 `.odn-refresh-line`、`.odn-count`、`.odn-table-wrap.odn-refreshing` — Why：造成位移的元素與要調整的樣式
 
 ---
 
@@ -466,8 +470,11 @@ With multiple developers:
 - plan.md 的 Source Code 只列出 `backend/tests/integration/`、`backend/tests/migration/` 目錄，沒有列出檔名；本 tasks.md 新增 `overdueDispatch.test.ts`（T031）、`overdueConcurrency.test.ts`（T032）、`overdueResend.test.ts`（T033）、`overdueSecret.test.ts`（T034）、`overdueAuth.test.ts`（T035）與 `overdueDiscordNotification.test.ts`（T036），依驗證的 Success Criteria 分檔，對應 plan.md 這兩個目錄的說明
 - plan.md 的 Documentation 樹已列出 `notification/plan.md`（S1～S3、N1、N2 的通知可靠性規劃）與 `ui/overdue-notifications.html`，本 tasks.md 照常引用
 - 待確認 1：已解決（ui-plan，2026-11-11）。原問題：3 個失敗原因的畫面文字在 `ui/overdue-notifications.html` 與 `data/data-model.dbml`、`research.md` §1、`contracts/openapi.yaml` 不一致，`ui/plan.md` 沒有列出（notification/plan.md §8 UC1）。定案：`ui/plan.md` §5「失敗原因的畫面文字」列出 6 種文字，採用與 data-model、合約一致的「無法連線」「通知設定有誤：沒有設定」「Discord 拒絕訊息內容」，雛形已同步，並新增雛形狀態「其他失敗原因」。T020 原本的暫行做法與定案相同，不需要修改
-- 待確認 2：已解決（technical-research，2026-11-11）。原問題：`research.md` §6 的 6 種模擬器模式無法重現其他 `4xx`（`message_rejected`）、`401`／`403`（`webhook_invalid`）、`200` 沒有 `id`、沒有等待秒數的 `429`（notification/plan.md §8 UC2）。定案：`research.md` §6 不新增模式，這 4 類以臨時固定回應位址或單元測試直接驗證分類函式，使用模擬器的整合情境與手動展示不涵蓋。T008 只實作 6 種模式、T031 以固定回應位址直接驗證分類，與定案相同，不需要修改
+- 待確認 2：已解決（technical-research，2026-11-11）。原問題：`research.md` §6 的 6 種模擬器模式無法重現其他 `4xx`（`message_rejected`）、`401`／`403`（`webhook_invalid`）、`200` 沒有 `id`、沒有等待秒數的 `429`（notification/plan.md §8 UC2）。定案：`research.md` §6 不新增模式，這 4 類在整合測試以 `node:http` 臨時啟動的固定回應位址經 `discordWebhookClient.send` 與真實 `fetch` 驗證分類，不新增單元測試（notification/plan.md §5.5），使用模擬器的整合情境與手動展示不涵蓋。T008 只實作 6 種模式、T031 以固定回應位址經 `discordWebhookClient.send` 驗證 NS11、NS15 與其他 2 類，與定案相同，不需要修改
 - 待確認 3：已解決（ui-plan，2026-11-11）。原問題：`ui/plan.md` §1 寫把管理員登入後的入口改到逾期通知紀錄，和 plan.md、`research.md` §7 只新增頁籤的寫法不一致，`e2e/equipment-maintenance.spec.ts` 也依賴管理員登入後看到 `equipment-status-table`。定案：`ui/plan.md` §1 寫明「前往逾期通知紀錄」只是雛形入口，產品中管理員登入後仍進入設備狀態管理，只在頁首新增「逾期通知紀錄」頁籤，一般成員點開看到「權限不足」卡片；plan.md 的 `App.tsx` 說明已同步。T025 維持 `equipment-status` 為預設頁面、只新增頁籤，與定案相同，不需要修改
 - 待確認 4：已解決（ui-plan，2026-11-11）。原問題：`contracts/openapi.yaml` 的 `listOverdueNotifications` 分頁（`pageSize` 預設 20、上限 100），但 `ui/plan.md` §4 沒有規劃分頁控制項，只顯示「共 N 則通知」；T023 依暫行做法以 `page=1`、`pageSize=100` 查詢並已完成。定案：`ui/plan.md` §3.3 A6、A14 與 §4「通知超過一頁」「換頁中」「中間頁」「最後一頁」規定每頁 20 則、超過一頁才顯示換頁列、第 1 頁停用「上一頁」、最後一頁停用「下一頁」、換頁中停用其他操作並顯示「正在載入第 N 頁…」、切換篩選與立即檢查逾期後回到第 1 頁、重新整理停在目前頁碼。T023 的完成狀態不變，換頁由新增的 T040 實作。T040 屬於 US2 的 F1，但 T023 之後的任務 ID 都已完成，為了不重新編號，T040 接在 Polish 最後、不標 `[US2]`
 - T041 的新增原因：analysis.md C1 指出 `ui/plan.md` A14 沒有規定重送後重新載入停在哪一頁，也沒有規定停在目前頁碼重新載入時頁碼超過總頁數的處理；合約在 `page` 超過總頁數時回應空的 `items`，畫面會顯示空清單。ui-plan 已於 2026-11-11 定案：`ui/plan.md` §3.3 A14 寫明重送成功、重送被拒與重新整理後都停在目前頁碼，超過總頁數時改載最後一頁，§4 新增「送出失敗最後一頁」「目前頁碼超過總頁數」狀態，雛形已同步。T040 已完成，不重新打開；改載最後一頁由新增的 T041 實作，理由同待確認 4，接在 Polish 最後、不標 `[US2]`
-- T041 新增 `frontend/tests/unit/overdueNotificationsPaging.test.ts`：plan.md 的 Source Code 寫 `frontend/tests/unit/` 本次不新增，但使用者要求 T041 補前端測試涵蓋「目前頁碼超過總頁數」；前端 Vitest 沒有 DOM 且本次不新增套件，所以把頁碼判斷抽成同檔匯出的函式，以單元測試驗證。`e2e/` 維持不新增，只重跑回歸
+- T041 新增 `frontend/tests/unit/overdueNotificationsPaging.test.ts`：plan.md 的 Source Code 已列出本次新增的 `overdueNotificationsPaging.test.ts`（T041），新增原因是使用者要求 T041 補前端測試涵蓋「目前頁碼超過總頁數」；前端 Vitest 沒有 DOM 且本次不新增套件，所以把頁碼判斷抽成同檔匯出的函式，以單元測試驗證。`e2e/` 維持不新增，只重跑回歸
+- T042 的新增原因：使用者在 2026-11-12 驗證 T041 時回報，在「逾期通知紀錄」點擊清單右上角的「重新整理」時畫面上下抖動，認定為嚴重錯誤。原因是 `OverdueNotificationsView.tsx` 在 `refreshing` 為 true 時於表格上方插入 `odn-refresh-line`，把「共 N 則通知」與表格往下推，載入完成後移除，換頁載入時也一樣；這個寫法從 T023 就存在，T040 沿用。T041 的完成狀態不變；修正由新增的 T042 實作，理由同待確認 4，接在 Polish 最後、不標 `[US2]`。T042 不改變 `data-testid` 與畫面文字，以既有測試搜尋 `overdue-refreshing`、`odn-refresh-line` 沒有命中，不需要更新既有測試，只重跑回歸
+- T042 第二次修正：使用者驗證第一次修正時回報「畫面還是會閃爍」。原因是本機回應很快，清單在極短時間內變淡又恢復，「重新整理」按鈕文字也一閃而過。修正：載入超過 0.3 秒才變淡並顯示提示與「重新整理中…」，0.3 秒內完成時畫面不變；載入中以 `loading` 擋下重複的重新整理、換頁、篩選與立即檢查逾期。`ui/plan.md` §4「重新整理中」「換頁中」已同步。0.3 秒的門檻由主控對話依自動模式採用推薦做法（自動採推薦，非使用者決定）
+- T042 第三次修正：使用者驗證第二次修正時回報「點重新整理沒有任何動作」。查詢其實有送出，但第二次修正把所有載入回饋都藏在 0.3 秒門檻後，本機回應很快時畫面沒有任何變化。修正：點擊後按鈕立即顯示「重新整理中…」並至少維持 0.5 秒、按鈕寬度固定，完成後在「共 N 則通知」右側顯示「已更新 HH:MM:SS」；清單變淡仍只在載入超過 0.3 秒時出現。`ui/plan.md` §4「重新整理中」已同步
