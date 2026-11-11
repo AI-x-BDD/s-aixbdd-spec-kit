@@ -36,7 +36,15 @@ Subcommands:
           tasks remain in --scope (excluding blocked tasks) and a reminder to
           run `next` right away; when none remain, the last line is instead
           the reminder to run `report` right away and then write the completion
-          report as Phase 3 says.
+          report as Phase 3 says. The task's Must Read references are numbered
+          from 1 in the order listed in its block; every number must appear in
+          --must-read (comma separated) or in a repeatable --not-found
+          "<n>：<how it was searched and the result>". A missing number exits 1
+          without writing tasks.md and lists the missing references on stderr;
+          a number that is not a positive integer, out of range, listed in both
+          options, or a --not-found without a reason exits 2. When --not-found
+          is given, the progress adds a "- 找不到的 Must Read：" line after the
+          "- 讀取：" line. Optional references are not checked.
   block   mark the currently issued, unchecked task as blocked, without
           changing tasks.md. --cause is env, constitution or dependency;
           --detail is required; constitution also requires --rule; dependency
@@ -276,6 +284,54 @@ def format_issues(lines: list[str], tasks: list[dict]) -> list[str]:
     return issues
 
 
+def must_read_refs(block: list[str]) -> list[str]:
+    """Return the display text of each Must Read reference line, in listed order."""
+    start = next((k for k, raw in enumerate(block) if MUST_READ_RE.match(raw.rstrip("\n"))), None)
+    if start is None:
+        return []
+    refs: list[str] = []
+    for raw in block[start + 1:]:
+        line = raw.rstrip("\n")
+        if LEVEL_RE.match(line):
+            break
+        if REF_LINE_RE.match(line):
+            text = line.strip()[2:]
+            refs.append(text.split(" — Why", 1)[0].strip())
+    return refs
+
+
+def parse_numbers(value: str, total: int, option: str) -> list[int]:
+    numbers: list[int] = []
+    for token in re.split(r"[,、\s]+", value.strip()):
+        if not token:
+            continue
+        if not token.isdigit() or int(token) < 1:
+            raise UsageError(f"{option} 的序號必須是正整數：{token!r}")
+        n = int(token)
+        if n > total:
+            raise UsageError(f"{option} 的序號 {n} 超出範圍：目前任務只有 {total} 項 Must Read")
+        if n not in numbers:
+            numbers.append(n)
+    return numbers
+
+
+def parse_not_found(values: list[str] | None, total: int) -> dict[int, str]:
+    result: dict[int, str] = {}
+    for value in values or []:
+        m = re.match(r"^\s*([^:：]*?)\s*[:：]\s*(.*?)\s*$", value)
+        if not m:
+            raise UsageError(f"--not-found 格式必須是 \"<序號>：<搜尋方式與結果>\"：{value!r}")
+        number = parse_numbers(m.group(1), total, "--not-found")
+        if len(number) != 1:
+            raise UsageError(f"--not-found 每次只能寫一個序號：{value!r}")
+        if not m.group(2):
+            raise UsageError(f"--not-found {number[0]} 沒有寫搜尋方式與結果")
+        if number[0] in result:
+            raise UsageError(f"--not-found 的序號 {number[0]} 重複")
+        result[number[0]] = m.group(2)
+    return result
+
+
 def resolve_scope(spec: str | None, phases: list[dict], tasks: list[dict]) -> list[str]:
     ids = [t["id"] for t in tasks]
     if not spec:
@@ -421,6 +477,19 @@ def cmd_check(args: argparse.Namespace) -> dict:
         current = f"目前任務是 {issued}" if issued else "尚未以 next 取得任務"
         raise LogicError(f"{current}，不能打勾 {task_id}；一次只能完成一個任務，"
                          "請先執行 next，完成該任務的實作與驗證後再打勾")
+    refs = must_read_refs(lines[t["line"] + 1:t["end"]])
+    read_numbers = parse_numbers(args.must_read or "", len(refs), "--must-read")
+    not_found = parse_not_found(args.not_found, len(refs))
+    overlap = sorted(set(read_numbers) & set(not_found))
+    if overlap:
+        raise UsageError("同一個序號不能同時列在 --must-read 與 --not-found："
+                         + "、".join(str(n) for n in overlap))
+    missing = [n for n in range(1, len(refs) + 1) if n not in read_numbers and n not in not_found]
+    if missing:
+        items = "；".join(f"{n} {refs[n - 1]}" for n in missing)
+        raise LogicError(f"{task_id} 的 Must Read 沒有全部讀取，缺少：{items}。"
+                         "讀完後以 --must-read 列出序號（依任務區塊中的列出順序從 1 起算）；"
+                         "部位以識別字搜尋不到時，以 --not-found \"<序號>：<搜尋方式與結果>\" 記錄")
     phases, _ = parse(lines)
     scope = resolve_scope(args.scope, phases, tasks)
     skip = blocked_ids(path)
@@ -430,7 +499,12 @@ def cmd_check(args: argparse.Namespace) -> dict:
     by_id = {x["id"]: x for x in tasks}
     remaining = sum(1 for i in scope if i != task_id and not by_id[i]["done"] and i not in skip)
     tail = remaining_tail(remaining)
-    progress = f"{task_id} 已通過，回寫後繼續下一個任務\n- 讀取：{read}\n- 驗證：{verify}\n{tail}"
+    not_found_line = ""
+    if not_found:
+        entries = "；".join(f"{n} {refs[n - 1]}（{reason}）" for n, reason in sorted(not_found.items()))
+        not_found_line = f"- 找不到的 Must Read：{entries}\n"
+    progress = (f"{task_id} 已通過，回寫後繼續下一個任務\n- 讀取：{read}\n{not_found_line}"
+                f"- 驗證：{verify}\n{tail}")
     return {"progress": progress, "remaining": remaining, "id": task_id, "done": sum(1 for x in tasks if x["done"]) + 1, "total": len(tasks)}
 
 
@@ -553,6 +627,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("tasks_md", help="tasks.md 路徑")
     p_check.add_argument("task_id", help="任務 ID，例如 T005")
     p_check.add_argument("--read", required=True, help="本任務讀取的 Must Read 與 Optional 部位")
+    p_check.add_argument("--must-read", default="",
+                         help="已讀的 Must Read 序號（依任務區塊中的列出順序從 1 起算），以逗號分隔")
+    p_check.add_argument("--not-found", action="append",
+                         help="以識別字搜尋不到的 Must Read：\"<序號>：<搜尋方式與結果>\"，可重複")
     p_check.add_argument("--verify", required=True, help="本任務的驗證命令與結果")
     p_check.add_argument("--scope", help=scope_help)
     p_block = sub.add_parser("block", help="把目前發出的任務標為受阻（不修改 tasks.md）")
