@@ -377,6 +377,11 @@ export interface OverdueNotificationPage {
   totalPages: number;
 }
 
+/** 手動逾期檢查的結果（contracts OverdueCheckResult）；0 表示沒有新的逾期借用。 */
+export interface OverdueCheckResult {
+  createdCount: number;
+}
+
 export class ApiError extends Error {
   public readonly code: string;
   public readonly status: number;
@@ -638,4 +643,9 @@ export function resendOverdueNotification(notificationId: string): Promise<Overd
   return apiRequest<OverdueNotification>(`/admin/overdue-notifications/${notificationId}/resend`, {
     method: "POST",
   });
+}
+
+/** 管理員手動執行一次逾期檢查，回傳這次新建立的通知數（runOverdueCheck）。 */
+export function runOverdueCheck(): Promise<OverdueCheckResult> {
+  return apiRequest<OverdueCheckResult>("/admin/overdue-checks", { method: "POST" });
 }

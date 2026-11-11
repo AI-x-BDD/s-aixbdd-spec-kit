@@ -5,6 +5,7 @@ import {
   listOverdueNotifications,
   type OverdueNotification,
   resendOverdueNotification,
+  runOverdueCheck,
   type OverdueNotificationStatus,
 } from "../api/client";
 import { ResendUnknownDialog } from "../components/ResendUnknownDialog";
@@ -136,7 +137,12 @@ export function OverdueNotificationsView({
   const [loaded, setLoaded] = useState<boolean>(false);
   const [forbidden, setForbidden] = useState<boolean>(currentUser.role !== "admin");
   const [loadError, setLoadError] = useState<string>("");
-  const [banner, setBanner] = useState<{ tone: "info" | "danger"; text: string } | null>(null);
+  const [banner, setBanner] = useState<{
+    tone: "info" | "success" | "danger";
+    text: string;
+  } | null>(null);
+  /** 手動逾期檢查進行中：「立即檢查逾期」與「重新整理」都停用（ui/plan.md §4「檢查逾期中」）。 */
+  const [checking, setChecking] = useState<boolean>(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [dialogTarget, setDialogTarget] = useState<OverdueNotification | null>(null);
 
@@ -203,6 +209,32 @@ export function OverdueNotificationsView({
       return;
     }
     void doResend(item);
+  }
+
+  /** 立即檢查逾期：不等送出結果；createdCount 大於 0 顯示綠色橫幅，為 0 顯示藍色橫幅，然後重新查詢清單（FR-009、FR-010、FR-012）。 */
+  async function doRunCheck(): Promise<void> {
+    setChecking(true);
+    setBanner(null);
+    try {
+      const result = await runOverdueCheck();
+      setBanner(
+        result.createdCount > 0
+          ? { tone: "success", text: TEXT.banner.checkCreated(result.createdCount) }
+          : { tone: "info", text: TEXT.banner.checkNone },
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setForbidden(true);
+        return;
+      }
+      setBanner({
+        tone: "danger",
+        text: err instanceof ApiError ? err.message : "逾期檢查失敗，請稍後再試。",
+      });
+    } finally {
+      setChecking(false);
+    }
+    await load(filter);
   }
 
   function handleConfirmResend(): void {
@@ -285,8 +317,17 @@ export function OverdueNotificationsView({
           <div className="odn-toolbar-actions">
             <button
               type="button"
+              className="btn btn-sm btn-primary"
+              disabled={checking}
+              onClick={() => void doRunCheck()}
+              data-testid="overdue-check-btn"
+            >
+              {checking ? TEXT.checking : TEXT.runCheck}
+            </button>
+            <button
+              type="button"
               className="btn btn-sm"
-              disabled={refreshing}
+              disabled={refreshing || checking}
               onClick={handleRefresh}
               data-testid="overdue-refresh-btn"
             >

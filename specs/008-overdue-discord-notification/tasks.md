@@ -272,7 +272,7 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 > D1 的 `overdue_notifications` 已在 Foundational 建立，demo seed 的未通知逾期借用已在 US2 的 T015 建立，本故事沒有資料庫任務。
 
-- [ ] T026 [US3] 在 `backend/src/routes/adminRouter.ts` 以 `requireAuth`、`requireAdmin` 掛上 `POST /admin/overdue-checks`（`runOverdueCheck`）：不需要請求內容，以目前時間呼叫 T009 的 `runOverdueCheck(now)`，回 `200` 與 `OverdueCheckResult`（`createdCount`），不等通知送出；不受 `OVERDUE_AUTO_CHECK_ENABLED` 影響；一般成員沿用 `requireAdmin` 回 `403` `FORBIDDEN`，不建立任何通知（FR-009、FR-010、FR-012、FR-018、FR-019、NFR-001、US3 情境 1～5、Edge Cases 手動檢查與自動檢查同時執行）
+- [X] T026 [US3] 在 `backend/src/routes/adminRouter.ts` 以 `requireAuth`、`requireAdmin` 掛上 `POST /admin/overdue-checks`（`runOverdueCheck`）：不需要請求內容，以目前時間呼叫 T009 的 `runOverdueCheck(now)`，回 `200` 與 `OverdueCheckResult`（`createdCount`），不等通知送出；不受 `OVERDUE_AUTO_CHECK_ENABLED` 影響；一般成員沿用 `requireAdmin` 回 `403` `FORBIDDEN`，不建立任何通知（FR-009、FR-010、FR-012、FR-018、FR-019、NFR-001、US3 情境 1～5、Edge Cases 手動檢查與自動檢查同時執行）
   - **Must Read**
     - `contracts/openapi.yaml` → `runOverdueCheck`、`OverdueCheckResult` — Why：路由、`200` 回應與 `createdCount` 的意義
     - `notification/plan.md` → §1 的 TR2 — Why：手動檢查和自動檢查用同一個函式且不受開關影響
@@ -281,13 +281,13 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 ### 前端（F3）
 
-- [ ] T027 [US3] 在 `frontend/src/text/zh-TW.ts` 新增「立即檢查逾期」、「檢查中…」、「這次建立 N 則逾期通知」、「沒有新的逾期借用」的介面文字（FR-010、NFR-002）
+- [X] T027 [US3] 在 `frontend/src/text/zh-TW.ts` 新增「立即檢查逾期」、「檢查中…」、「這次建立 N 則逾期通知」、「沒有新的逾期借用」的介面文字（FR-010、NFR-002）
   - **Must Read**
     - `ui/plan.md` → §4 `overdue-notifications.html` 的「檢查逾期中」「已建立逾期通知」「沒有新的逾期借用」 — Why：按鈕與兩種結果橫幅的文字
-- [ ] T028 [US3] 在 `frontend/src/api/client.ts` 新增 `OverdueCheckResult` 型別與呼叫 `runOverdueCheck`（`POST /admin/overdue-checks`）的函式（FR-009、FR-010）
+- [X] T028 [US3] 在 `frontend/src/api/client.ts` 新增 `OverdueCheckResult` 型別與呼叫 `runOverdueCheck`（`POST /admin/overdue-checks`）的函式（FR-009、FR-010）
   - **Must Read**
     - `contracts/openapi.yaml` → `runOverdueCheck`、`OverdueCheckResult` — Why：呼叫的路徑與回應欄位
-- [ ] T029 [US3] 在 `frontend/src/views/OverdueNotificationsView.tsx` 的清單標題列右側加上「立即檢查逾期」：點擊後按鈕改為「檢查中…」並停用、「重新整理」也停用；`createdCount` 大於 0 時顯示綠色橫幅「這次建立 N 則逾期通知」，為 0 時顯示藍色橫幅「沒有新的逾期借用」，然後重新查詢清單；沒有逾期通知時按鈕照常可用；收到 `403` 時顯示權限不足（FR-009、FR-010、FR-012、FR-019、NFR-001、US3 情境 1～3、5、6）
+- [X] T029 [US3] 在 `frontend/src/views/OverdueNotificationsView.tsx` 的清單標題列右側加上「立即檢查逾期」：點擊後按鈕改為「檢查中…」並停用、「重新整理」也停用；`createdCount` 大於 0 時顯示綠色橫幅「這次建立 N 則逾期通知」，為 0 時顯示藍色橫幅「沒有新的逾期借用」，然後重新查詢清單；沒有逾期通知時按鈕照常可用；收到 `403` 時顯示權限不足（FR-009、FR-010、FR-012、FR-019、NFR-001、US3 情境 1～3、5、6）
   - **Must Read**
     - `ui/plan.md` → §3.3 A12 — Why：立即檢查逾期的操作
     - `ui/plan.md` → §4 `overdue-notifications.html` 的「檢查逾期中」「已建立逾期通知」「沒有新的逾期借用」 — Why：檢查中與兩種結果的呈現
