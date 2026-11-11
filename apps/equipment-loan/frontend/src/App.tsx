@@ -5,12 +5,13 @@ import { AdminOverviewView } from "./views/AdminOverviewView";
 import { EquipmentBookingView } from "./views/EquipmentBookingView";
 import { LoginView } from "./views/LoginView";
 import { MyReservationsView } from "./views/MyReservationsView";
+import { OverdueNotificationsView } from "./views/OverdueNotificationsView";
 
-export type ViewName = "login" | "booking" | "my-reservations" | "equipment-status" | "admin";
+export type ViewName =
+  "login" | "booking" | "my-reservations" | "equipment-status" | "admin" | "overdue-notifications";
 
 /** 未登入時開啟受保護頁面的提示（ui/plan.md §5 未登入存取受保護頁面）。 */
-const LOGIN_REQUIRED_MESSAGE =
-  "請先登入，才能查看設備預約、我的預約、設備狀態管理或審核與借用管理。";
+const LOGIN_REQUIRED_MESSAGE = "請先登入，才能使用設備預約、我的預約、管理員總覽與逾期通知紀錄。";
 
 export interface AuthenticatedUser {
   id: string;
@@ -201,6 +202,15 @@ export function App(): React.ReactElement {
             >
               {UI_TEXT.nav.admin}
             </button>
+            <button
+              type="button"
+              className="nav-tab"
+              aria-current={activeView === "overdue-notifications" ? "page" : undefined}
+              onClick={() => handleNavigate("overdue-notifications")}
+              data-testid="nav-overdue-notifications"
+            >
+              {UI_TEXT.nav.overdueNotifications}
+            </button>
           </nav>
 
           <div className="header-actions">
@@ -247,6 +257,11 @@ export function App(): React.ReactElement {
               }
               setActiveView("booking");
             }}
+          />
+        ) : activeView === "overdue-notifications" ? (
+          <OverdueNotificationsView
+            currentUser={currentUser}
+            onSwitchAccount={() => void handleLogout()}
           />
         ) : activeView === "equipment-status" || activeView === "admin" ? (
           <AdminOverviewView

@@ -81,6 +81,16 @@ export const EQUIPMENT_STATUS_ERROR_MESSAGES: Record<EquipmentStatusErrorCode, s
   EQUIPMENT_STATE_CHANGED: "設備狀態已被變更，請重新確認",
 };
 
+export type OverdueNotificationErrorCode =
+  "OVERDUE_LOAN_RETURNED" | "OVERDUE_NOTIFICATION_NOT_RESENDABLE";
+
+/** 迭代 8 逾期通知重送錯誤碼說明；與 ERROR_MESSAGES 分開，保留前幾次迭代的錯誤碼清單不變（FR-007、FR-008、NFR-002）。 */
+export const OVERDUE_NOTIFICATION_ERROR_MESSAGES: Record<OverdueNotificationErrorCode, string> = {
+  OVERDUE_LOAN_RETURNED: "借用已歸還，不需要重送",
+  OVERDUE_NOTIFICATION_NOT_RESENDABLE:
+    "無法重送：這則通知目前不是「送出失敗」或「結果不明」，請按「重新整理」查看最新狀態。",
+};
+
 export const UI_TEXT = {
   brandTitle: "精密實驗設備借用中心",
   nav: {
@@ -88,6 +98,7 @@ export const UI_TEXT = {
     booking: "設備預約",
     myReservations: "我的預約",
     equipmentStatus: "設備狀態管理",
+    overdueNotifications: "逾期通知紀錄",
     admin: "審核與借用管理",
     logout: "登出",
     darkMode: "深色模式",
@@ -213,6 +224,76 @@ export const UI_TEXT = {
     returnEquipment: "登記歸還",
     returnProcessing: "登記歸還中…",
   },
+  /** 逾期通知紀錄頁的文字（ui/plan.md §4、§5 overdue-notifications.html；失敗原因依 tasks.md Notes 待確認 1 採用 data-model、research 與合約一致的寫法）。 */
+  overdueNotifications: {
+    title: "逾期通知紀錄",
+    listTitle: "通知清單",
+    loading: "正在載入逾期通知紀錄…",
+    refresh: "重新整理",
+    refreshing: "重新整理中…",
+    refreshingLine: "正在重新整理…",
+    filterLabel: "通知狀態",
+    filterAll: "全部",
+    sortHint: "依通知建立時間由新到舊排列",
+    totalCount: (count: number) => `共 ${count} 則通知`,
+    columns: {
+      equipment: "設備",
+      member: "借用成員",
+      slot: "預約日期與時段",
+      status: "通知狀態",
+      attempts: "嘗試次數",
+      lastAttemptedAt: "最後嘗試時間",
+      loan: "借用",
+      actions: "操作",
+    },
+    reservationNumberLabel: "預約編號",
+    createdAtLabel: "通知建立",
+    notAttempted: "—",
+    status: {
+      sending: "送出中",
+      sent: "送出成功",
+      failed: "送出失敗",
+      unknown: "結果不明",
+    },
+    failureReason: {
+      rate_limited: "Discord 請求太頻繁",
+      discord_server_error: "Discord 伺服器錯誤",
+      connection_failed: "無法連線",
+      webhook_invalid: "通知設定有誤：Webhook 已失效",
+      webhook_not_configured: "通知設定有誤：沒有設定",
+      message_rejected: "Discord 拒絕訊息內容",
+    },
+    failureReasonLine: (reasonLabel: string) => `失敗原因：${reasonLabel}`,
+    sentAtLine: "送出時間",
+    loan: {
+      checkedOut: "借用中",
+      returned: "已歸還",
+      returnedAtLabel: "歸還",
+    },
+    resend: "重送",
+    resending: "重送中…",
+    loanReturnedNote: "借用已歸還",
+    emptyFilterTitle: (statusLabel: string) => `目前沒有「${statusLabel}」的通知`,
+    showAll: "顯示全部通知",
+    emptyAllTitle: "目前沒有逾期通知",
+    emptyAllHint: "借用中的設備超過時段結束時間還沒歸還時，系統會發 Discord 通知並列在這裡。",
+    banner: {
+      resent: (reservationNo: string) =>
+        `已重新送出 ${reservationNo} 的通知，目前為「送出中」。請稍後按「重新整理」查看送出結果。`,
+    },
+    confirmDialog: {
+      title: "重送「結果不明」的通知？",
+      lastAttempt: "最後嘗試",
+      equipment: "設備",
+      member: "借用成員",
+      slot: "預約時段",
+      noticeTitle: "請先到 Discord 確認",
+      notice:
+        "系統上次送出這則通知後沒有收到 Discord 回應，Discord 頻道可能已經收到。請先到 Discord 通知頻道確認沒有收到這則通知再重送，重送可能造成頻道出現兩則相同的通知。",
+      cancel: "取消",
+      confirm: "已確認沒收到，重送",
+    },
+  },
   fieldValidation: {
     usernameRequired: "請輸入登入帳號",
     passwordRequired: "請輸入登入密碼",
@@ -234,6 +315,9 @@ export function getErrorMessage(code?: string, fallbackMessage?: string): string
   }
   if (code && code in EQUIPMENT_STATUS_ERROR_MESSAGES) {
     return EQUIPMENT_STATUS_ERROR_MESSAGES[code as EquipmentStatusErrorCode];
+  }
+  if (code && code in OVERDUE_NOTIFICATION_ERROR_MESSAGES) {
+    return OVERDUE_NOTIFICATION_ERROR_MESSAGES[code as OverdueNotificationErrorCode];
   }
   return "操作失敗，請稍後再試。";
 }

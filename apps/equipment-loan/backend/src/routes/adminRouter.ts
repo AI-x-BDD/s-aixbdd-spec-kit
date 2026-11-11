@@ -16,6 +16,10 @@ import {
   returnReservationByAdmin,
 } from "../services/reservationService.js";
 import {
+  listOverdueNotifications,
+  resendOverdueNotification,
+} from "../services/overdueNotificationService.js";
+import {
   approveRescheduleRequest,
   listRescheduleRequests,
   rejectRescheduleRequest,
@@ -370,5 +374,37 @@ adminRouter.post(
       rejectReason: parsedBody?.rejectReason ?? null,
     });
     res.status(200).json(result);
+  },
+);
+
+const listOverdueNotificationsQuerySchema = z.object({
+  status: z
+    .enum(["sending", "sent", "failed", "unknown"], {
+      message: "查詢參數 status 必須為 sending、sent、failed 或 unknown。",
+    })
+    .optional(),
+});
+
+const overdueNotificationIdParamsSchema = z.object({
+  notificationId: z.string().uuid("逾期通知 ID 格式不合法"),
+});
+
+adminRouter.get("/overdue-notifications", requireAuth, requireAdmin, async (req, res) => {
+  const { page, pageSize } = parsePaginationParams(req.query);
+  const query = listOverdueNotificationsQuerySchema.parse({ status: req.query.status });
+
+  const result = await listOverdueNotifications({ status: query.status, page, pageSize });
+
+  res.status(200).json(result);
+});
+
+adminRouter.post(
+  "/overdue-notifications/:notificationId/resend",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { notificationId } = overdueNotificationIdParamsSchema.parse(req.params);
+    const result = await resendOverdueNotification(notificationId, req.authUser!.id);
+    res.status(202).json(result);
   },
 );

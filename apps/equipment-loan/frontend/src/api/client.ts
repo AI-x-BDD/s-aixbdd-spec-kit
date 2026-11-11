@@ -332,6 +332,51 @@ export interface EquipmentStatusChangeResult {
   expiredRescheduleRequestCount: number;
 }
 
+export type OverdueNotificationStatus = "sending" | "sent" | "failed" | "unknown";
+
+export type OverdueNotificationFailureReason =
+  | "rate_limited"
+  | "discord_server_error"
+  | "connection_failed"
+  | "webhook_invalid"
+  | "webhook_not_configured"
+  | "message_rejected";
+
+/** 一則逾期通知與它對應的逾期借用（contracts OverdueNotification）。 */
+export interface OverdueNotification {
+  id: string;
+  reservationId: string;
+  reservationNumber: string;
+  equipmentId: string;
+  equipmentCode: string;
+  equipmentName: string;
+  userId: string;
+  userDisplayName: string;
+  reservationDate: string;
+  slotName: "上午" | "下午" | "晚間";
+  slotStartTime: "09:00" | "13:00" | "18:00";
+  slotEndTime: "12:00" | "17:00" | "21:00";
+  status: OverdueNotificationStatus;
+  attemptCount: number;
+  lastAttemptedAt: string | null;
+  sentAt: string | null;
+  discordMessageId: string | null;
+  failureReason: OverdueNotificationFailureReason | null;
+  loanReturned: boolean;
+  returnedAt: string | null;
+  canResend: boolean;
+  createdAt: string;
+}
+
+/** 逾期通知紀錄的分頁回應（contracts OverdueNotificationPage）。 */
+export interface OverdueNotificationPage {
+  items: OverdueNotification[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 export class ApiError extends Error {
   public readonly code: string;
   public readonly status: number;
@@ -572,4 +617,25 @@ export function rejectRescheduleRequest(
       body: JSON.stringify({ rejectReason: body.rejectReason ?? null }),
     },
   );
+}
+
+/** 管理員分頁查詢逾期通知紀錄，可依通知狀態篩選（listOverdueNotifications）。 */
+export function listOverdueNotifications(params?: {
+  status?: OverdueNotificationStatus;
+  page?: number;
+  pageSize?: number;
+}): Promise<OverdueNotificationPage> {
+  const qs = new URLSearchParams({
+    page: String(params?.page ?? 1),
+    pageSize: String(params?.pageSize ?? 20),
+  });
+  if (params?.status) qs.set("status", params.status);
+  return apiRequest<OverdueNotificationPage>(`/admin/overdue-notifications?${qs.toString()}`);
+}
+
+/** 管理員重送一則「送出失敗」或「結果不明」的逾期通知，回傳狀態為 sending 的通知（resendOverdueNotification）。 */
+export function resendOverdueNotification(notificationId: string): Promise<OverdueNotification> {
+  return apiRequest<OverdueNotification>(`/admin/overdue-notifications/${notificationId}/resend`, {
+    method: "POST",
+  });
 }

@@ -22,7 +22,8 @@ export type ErrorCode =
   | "RESERVATION_ALREADY_STARTED"
   | "RESERVATION_ALREADY_CANCELLED"
   | RescheduleErrorCode
-  | EquipmentStatusErrorCode;
+  | EquipmentStatusErrorCode
+  | OverdueNotificationErrorCode;
 
 export type RescheduleErrorCode =
   | "RESCHEDULE_NOT_ALLOWED"
@@ -82,6 +83,33 @@ export function equipmentStatusError(code: EquipmentStatusErrorCode, message?: s
     code,
     EQUIPMENT_STATUS_ERROR_STATUS[code],
     message ?? EQUIPMENT_STATUS_ERROR_MESSAGE[code],
+  );
+}
+
+export type OverdueNotificationErrorCode =
+  "OVERDUE_LOAN_RETURNED" | "OVERDUE_NOTIFICATION_NOT_RESENDABLE";
+
+/** 逾期通知重送錯誤碼對應的 HTTP 狀態碼（contracts/openapi.yaml 的 ResendOverdueNotificationConflict）。 */
+export const OVERDUE_NOTIFICATION_ERROR_STATUS: Record<OverdueNotificationErrorCode, number> = {
+  OVERDUE_LOAN_RETURNED: 409,
+  OVERDUE_NOTIFICATION_NOT_RESENDABLE: 409,
+};
+
+/** 逾期通知重送錯誤碼的預設繁體中文訊息（FR-007、FR-008、NFR-002）。 */
+export const OVERDUE_NOTIFICATION_ERROR_MESSAGE: Record<OverdueNotificationErrorCode, string> = {
+  OVERDUE_LOAN_RETURNED: "借用已歸還，不需要重送",
+  OVERDUE_NOTIFICATION_NOT_RESENDABLE:
+    "這則通知目前不能重送：只有「送出失敗」或「結果不明」的通知可以重送。",
+};
+
+export function overdueNotificationError(
+  code: OverdueNotificationErrorCode,
+  message?: string,
+): AppError {
+  return new AppError(
+    code,
+    OVERDUE_NOTIFICATION_ERROR_STATUS[code],
+    message ?? OVERDUE_NOTIFICATION_ERROR_MESSAGE[code],
   );
 }
 

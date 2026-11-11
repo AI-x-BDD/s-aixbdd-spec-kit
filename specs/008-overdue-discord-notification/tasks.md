@@ -176,7 +176,7 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 ### 資料庫（D1–D2）
 
-- [ ] T015 [US2] 在 `backend/prisma/seed.ts` 擴充 demo seed：依執行當下的 `Asia/Taipei` 日期，以「昨天」的上午、下午時段建立 `checked_out` 的逾期借用，其中 3 筆各配一則 `overdue_notifications`：`sent`（`sent_at`、假的 `discord_message_id`、`last_attempted_at`、`attempt_count` 至少 1）、`failed`（`failure_reason`，例如 `discord_server_error`，`attempt_count = 4`、`auto_retry_count = 3`）、`unknown`（`failure_reason` 為空）；三則的 `next_attempt_at` 都為空；另外至少 1 筆逾期借用沒有通知，供手動檢查示範；保留 007 的全部範例資料。為了不改變既有測試依賴的資料：新借用的成員只用陳冠廷（`backend/tests/integration/api.test.ts` 斷言林雅婷借用中只有 1 筆、`e2e/equipment-loan.spec.ts` 斷言「借用中 2 件」），設備只用 `EQ-101`～`EQ-103`（`e2e/equipment-maintenance.spec.ts` 會把 `EQ-104` 設為送修與停用，`EQ-105`、`EQ-106` 不是可用狀態），並避開昨天晚間已被占用的 `EQ-102`、`EQ-103`（`uq_reservations_active_slot`）；`reservation_no` 沿用既有 `RV-<日期>-<序號>` 格式（FR-020、US2 情境 16、US3 情境 6）
+- [X] T015 [US2] 在 `backend/prisma/seed.ts` 擴充 demo seed：依執行當下的 `Asia/Taipei` 日期，以「昨天」的上午、下午時段建立 `checked_out` 的逾期借用，其中 3 筆各配一則 `overdue_notifications`：`sent`（`sent_at`、假的 `discord_message_id`、`last_attempted_at`、`attempt_count` 至少 1）、`failed`（`failure_reason`，例如 `discord_server_error`，`attempt_count = 4`、`auto_retry_count = 3`）、`unknown`（`failure_reason` 為空）；三則的 `next_attempt_at` 都為空；另外至少 1 筆逾期借用沒有通知，供手動檢查示範；保留 007 的全部範例資料。為了不改變既有測試依賴的資料：新借用的成員只用陳冠廷（`backend/tests/integration/api.test.ts` 斷言林雅婷借用中只有 1 筆、`e2e/equipment-loan.spec.ts` 斷言「借用中 2 件」），設備只用 `EQ-101`～`EQ-103`（`e2e/equipment-maintenance.spec.ts` 會把 `EQ-104` 設為送修與停用，`EQ-105`、`EQ-106` 不是可用狀態），並避開昨天晚間已被占用的 `EQ-102`、`EQ-103`（`uq_reservations_active_slot`）；`reservation_no` 沿用既有 `RV-<日期>-<序號>` 格式（FR-020、US2 情境 16、US3 情境 6）
   - **Must Read**
     - `research.md` → §8 — Why：demo seed 以「昨天」時段動態建立逾期借用，三種狀態各一則與至少一筆未通知
     - `data/data-model.dbml` → `Table overdue_notifications` — Why：各狀態必填與必須為空的欄位
@@ -187,19 +187,19 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 ### 後端（B1、B2、B4）
 
-- [ ] T016 [P] [US2] 在 `backend/src/middleware/errorHandler.ts` 比照 `EquipmentStatusErrorCode` 的寫法新增錯誤碼 `OVERDUE_LOAN_RETURNED`、`OVERDUE_NOTIFICATION_NOT_RESENDABLE`：加入 `ErrorCode`，HTTP 狀態都是 `409`，預設訊息分別為「借用已歸還，不需要重送」與說明通知目前狀態、不能重送的繁體中文，並提供可帶入詳細訊息的建立函式；前五版的錯誤碼、狀態碼與訊息不變（FR-007、FR-008、FR-020、NFR-002）
+- [X] T016 [P] [US2] 在 `backend/src/middleware/errorHandler.ts` 比照 `EquipmentStatusErrorCode` 的寫法新增錯誤碼 `OVERDUE_LOAN_RETURNED`、`OVERDUE_NOTIFICATION_NOT_RESENDABLE`：加入 `ErrorCode`，HTTP 狀態都是 `409`，預設訊息分別為「借用已歸還，不需要重送」與說明通知目前狀態、不能重送的繁體中文，並提供可帶入詳細訊息的建立函式；前五版的錯誤碼、狀態碼與訊息不變（FR-007、FR-008、FR-020、NFR-002）
   - **Must Read**
     - `contracts/openapi.yaml` → `ResendOverdueNotificationConflict`、`Error` — Why：兩個新錯誤碼與錯誤回應格式
     - `contracts/openapi.yaml` → `resendOverdueNotification` — Why：兩個錯誤碼各自的觸發情況與訊息內容
     - `research.md` → §4 — Why：新錯誤碼加入既有 `ErrorCode` 與 `errorHandler`
-- [ ] T017 [US2] 在 `backend/src/services/overdueNotificationService.ts` 實作通知紀錄查詢：依選填的 `status` 與 `page`、`pageSize` 查出 `overdue_notifications`（排除 `deleted_at` 不為空），join `reservations`、`equipments`、`users`、`time_slots`，依 `created_at` 由新到舊、相同時依 `id` 由小到大排序；轉成 `OverdueNotification`（`reservationNumber` 取 `reservation_no`；`loanReturned` 在預約為 `returned` 時為 true；`returnedAt` 取 `returned_at`；`canResend` 只有在 `status` 為 `failed` 或 `unknown`、且預約仍為 `checked_out` 時為 true；`failureReason` 只回傳 Enum 值），回傳 `OverdueNotificationPage`；`page` 超過 `totalPages` 時回空的 `items`（FR-003、FR-004、FR-008、FR-012、NFR-003、US2 情境 1～3、9～12、Edge Cases 逾期好幾天仍未歸還）
+- [X] T017 [US2] 在 `backend/src/services/overdueNotificationService.ts` 實作通知紀錄查詢：依選填的 `status` 與 `page`、`pageSize` 查出 `overdue_notifications`（排除 `deleted_at` 不為空），join `reservations`、`equipments`、`users`、`time_slots`，依 `created_at` 由新到舊、相同時依 `id` 由小到大排序；轉成 `OverdueNotification`（`reservationNumber` 取 `reservation_no`；`loanReturned` 在預約為 `returned` 時為 true；`returnedAt` 取 `returned_at`；`canResend` 只有在 `status` 為 `failed` 或 `unknown`、且預約仍為 `checked_out` 時為 true；`failureReason` 只回傳 Enum 值），回傳 `OverdueNotificationPage`；`page` 超過 `totalPages` 時回空的 `items`（FR-003、FR-004、FR-008、FR-012、NFR-003、US2 情境 1～3、9～12、Edge Cases 逾期好幾天仍未歸還）
   - **Must Read**
     - `contracts/openapi.yaml` → `listOverdueNotifications` — Why：篩選條件、排序、`canResend` 與 `loanReturned` 的計算規則與超過頁數的回應
     - `contracts/openapi.yaml` → `OverdueNotification`、`OverdueNotificationPage` — Why：回傳的欄位與可為空的條件
     - `data/data-model.dbml` → `Table overdue_notifications` 的 `idx_overdue_notifications_status_created`、`idx_overdue_notifications_created` — Why：篩選與排序依據的索引
   - **Optional**
     - `data/data-model.dbml` → `Table reservations` 的 `returned_at` — Why：需要確認歸還時間的來源欄位時
-- [ ] T018 [US2] 在 `backend/src/services/overdueNotificationService.ts` 實作重送：以一條條件式更新 `UPDATE overdue_notifications n SET status = 'sending', next_attempt_at = $now, auto_retry_count = 0, failure_reason = NULL, updated_by = 管理員, updated_at = $now FROM reservations r WHERE n.id = $1 AND r.id = n.reservation_id AND n.status IN ('failed', 'unknown') AND r.status = 'checked_out' RETURNING n.id` 領取重送權，成功時回傳狀態為 `sending`、`canResend` 為 false 的 `OverdueNotification`，不等送出結果、不建立新列、`attempt_count` 不歸 0；更新 0 列時重新讀取通知與預約，依序判斷：通知不存在拋出 `RESOURCE_NOT_FOUND`（404）；預約已不是 `checked_out` 拋出 `OVERDUE_LOAN_RETURNED`（409），訊息為「借用已歸還，不需要重送」並附預約編號、成員、設備與歸還時間；狀態為 `sending` 或 `sent` 拋出 `OVERDUE_NOTIFICATION_NOT_RESENDABLE`（409），訊息說明目前狀態，`sent` 時附送出時間（FR-005、FR-007、FR-008、FR-018、SC-004、US2 情境 4～8、13、14、Edge Cases 通知送出中或結果不明時借用被歸還）
+- [X] T018 [US2] 在 `backend/src/services/overdueNotificationService.ts` 實作重送：以一條條件式更新 `UPDATE overdue_notifications n SET status = 'sending', next_attempt_at = $now, auto_retry_count = 0, failure_reason = NULL, updated_by = 管理員, updated_at = $now FROM reservations r WHERE n.id = $1 AND r.id = n.reservation_id AND n.status IN ('failed', 'unknown') AND r.status = 'checked_out' RETURNING n.id` 領取重送權，成功時回傳狀態為 `sending`、`canResend` 為 false 的 `OverdueNotification`，不等送出結果、不建立新列、`attempt_count` 不歸 0；更新 0 列時重新讀取通知與預約，依序判斷：通知不存在拋出 `RESOURCE_NOT_FOUND`（404）；預約已不是 `checked_out` 拋出 `OVERDUE_LOAN_RETURNED`（409），訊息為「借用已歸還，不需要重送」並附預約編號、成員、設備與歸還時間；狀態為 `sending` 或 `sent` 拋出 `OVERDUE_NOTIFICATION_NOT_RESENDABLE`（409），訊息說明目前狀態，`sent` 時附送出時間（FR-005、FR-007、FR-008、FR-018、SC-004、US2 情境 4～8、13、14、Edge Cases 通知送出中或結果不明時借用被歸還）
   - **Must Read**
     - `contracts/openapi.yaml` → `resendOverdueNotification`（含 `ResendOverdueNotificationConflict`、`NotFound`） — Why：條件式更新的寫入欄位、`202` 回應與更新 0 列時的判斷順序與錯誤碼
     - `research.md` → §4 — Why：只用一條條件式更新，讓兩位管理員同時重送時只有一方成功
@@ -207,7 +207,7 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `ui/plan.md` → §5 `overdue-notifications.html` 的「重送時借用已歸還」「重送時通知已在送出中」「重送時通知已送出成功」 — Why：三種拒絕訊息要帶出的資訊
   - **Optional**
     - `notification/plan.md` → §4 — Why：需要確認重送 `failed` 或 `unknown` 通知的殘留重複風險時
-- [ ] T019 [US2] 在 `backend/src/routes/adminRouter.ts` 以 `requireAuth`、`requireAdmin` 掛上 `GET /admin/overdue-notifications`（`listOverdueNotifications`）與 `POST /admin/overdue-notifications/:notificationId/resend`（`resendOverdueNotification`）：查詢以 `parsePaginationParams` 處理 `page`、`pageSize`（不合法回 `PAGINATION_INVALID`），zod 驗證 `status` 為四種狀態之一（不符回 `VALIDATION_FAILED`）；重送以 zod 驗證 `notificationId` 為 UUID（不符回 `VALIDATION_FAILED`），以 `req` 上的管理員 ID 呼叫 T018，成功回 `202`；一般成員沿用 `requireAdmin` 回 `403` `FORBIDDEN`（FR-003、FR-004、FR-005、FR-019、US2 情境 15）
+- [X] T019 [US2] 在 `backend/src/routes/adminRouter.ts` 以 `requireAuth`、`requireAdmin` 掛上 `GET /admin/overdue-notifications`（`listOverdueNotifications`）與 `POST /admin/overdue-notifications/:notificationId/resend`（`resendOverdueNotification`）：查詢以 `parsePaginationParams` 處理 `page`、`pageSize`（不合法回 `PAGINATION_INVALID`），zod 驗證 `status` 為四種狀態之一（不符回 `VALIDATION_FAILED`）；重送以 zod 驗證 `notificationId` 為 UUID（不符回 `VALIDATION_FAILED`），以 `req` 上的管理員 ID 呼叫 T018，成功回 `202`；一般成員沿用 `requireAdmin` 回 `403` `FORBIDDEN`（FR-003、FR-004、FR-005、FR-019、US2 情境 15）
   - **Must Read**
     - `contracts/openapi.yaml` → `listOverdueNotifications`、`resendOverdueNotification` — Why：兩個路由的路徑、參數、狀態碼與錯誤回應
     - `contracts/openapi.yaml` → `PaginationOrQueryInvalid`、`ValidationFailed`、`Forbidden` — Why：參數不合法與權限不足時的錯誤碼
@@ -215,25 +215,25 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 ### 前端（F1、F2、F4）
 
-- [ ] T020 [US2] 在 `frontend/src/text/zh-TW.ts` 新增逾期通知的介面文字：管理員頁籤「逾期通知紀錄」；通知狀態「送出中」「送出成功」「送出失敗」「結果不明」；6 種失敗原因的說明（見 Notes 待確認 1）；借用「借用中」「已歸還」；篩選選項、清單欄位、空清單文字、重送與重新整理按鈕、橫幅與確認視窗文字；另比照 `EQUIPMENT_STATUS_ERROR_MESSAGES` 新增一組 `OVERDUE_LOAN_RETURNED`、`OVERDUE_NOTIFICATION_NOT_RESENDABLE` 的錯誤碼說明並接到 `getErrorMessage`，不加進 `ERROR_MESSAGES`（`frontend/tests/unit/zh-TW.test.ts` 斷言它有 19 個鍵）；不得出現 Webhook 位址（FR-003、FR-006、FR-008、NFR-002、NFR-003）
+- [X] T020 [US2] 在 `frontend/src/text/zh-TW.ts` 新增逾期通知的介面文字：管理員頁籤「逾期通知紀錄」；通知狀態「送出中」「送出成功」「送出失敗」「結果不明」；6 種失敗原因的說明（見 Notes 待確認 1）；借用「借用中」「已歸還」；篩選選項、清單欄位、空清單文字、重送與重新整理按鈕、橫幅與確認視窗文字；另比照 `EQUIPMENT_STATUS_ERROR_MESSAGES` 新增一組 `OVERDUE_LOAN_RETURNED`、`OVERDUE_NOTIFICATION_NOT_RESENDABLE` 的錯誤碼說明並接到 `getErrorMessage`，不加進 `ERROR_MESSAGES`（`frontend/tests/unit/zh-TW.test.ts` 斷言它有 19 個鍵）；不得出現 Webhook 位址（FR-003、FR-006、FR-008、NFR-002、NFR-003）
   - **Must Read**
     - `ui/plan.md` → §4 — Why：清單、篩選、空狀態、重送與重新整理各狀態的文字
     - `ui/plan.md` → §5 — Why：失敗原因、借用已歸還、確認視窗提醒與各錯誤橫幅的文字
     - `contracts/openapi.yaml` → `OverdueNotificationStatus`、`OverdueNotificationFailureReason` — Why：要對應文字的 4 種狀態與 6 種失敗原因
   - **Optional**
     - `ui/overdue-notifications.html` → 雛形狀態「重送結果不明確認視窗」 — Why：需要對照確認視窗的實際文字時
-- [ ] T021 [US2] 在 `frontend/src/api/client.ts` 新增 `OverdueNotification`、`OverdueNotificationPage` 型別，以及呼叫 `listOverdueNotifications`（`GET /admin/overdue-notifications`，選填 `status`、`page`、`pageSize`）與 `resendOverdueNotification`（`POST /admin/overdue-notifications/{notificationId}/resend`）的函式，沿用既有 `apiRequest` 的 Bearer token 與錯誤處理（FR-003、FR-004、FR-005）
+- [X] T021 [US2] 在 `frontend/src/api/client.ts` 新增 `OverdueNotification`、`OverdueNotificationPage` 型別，以及呼叫 `listOverdueNotifications`（`GET /admin/overdue-notifications`，選填 `status`、`page`、`pageSize`）與 `resendOverdueNotification`（`POST /admin/overdue-notifications/{notificationId}/resend`）的函式，沿用既有 `apiRequest` 的 Bearer token 與錯誤處理（FR-003、FR-004、FR-005）
   - **Must Read**
     - `contracts/openapi.yaml` → `listOverdueNotifications`、`resendOverdueNotification` — Why：兩個呼叫的路徑、參數與回應
     - `contracts/openapi.yaml` → `OverdueNotification`、`OverdueNotificationPage` — Why：型別的欄位與可為空的條件
-- [ ] T022 [US2] 在 `frontend/src/components/ResendUnknownDialog.tsx` 比照既有 `RescheduleDialog.tsx` 的寫法實作「結果不明」重送確認視窗：標題「重送「結果不明」的通知？」，列出設備編號與名稱、成員姓名、預約日期（星期）與時段、最後嘗試時間；琥珀色提醒先到 Discord 通知頻道確認沒有收到、重送可能造成重複通知；按鈕「取消」與「已確認沒收到，重送」；置中彈窗，手機寬度改為全螢幕；取消時只關閉視窗、不呼叫 API（FR-006、US2 情境 6、7、Edge Cases 結果不明但 Discord 其實已收到）
+- [X] T022 [US2] 在 `frontend/src/components/ResendUnknownDialog.tsx` 比照既有 `RescheduleDialog.tsx` 的寫法實作「結果不明」重送確認視窗：標題「重送「結果不明」的通知？」，列出設備編號與名稱、成員姓名、預約日期（星期）與時段、最後嘗試時間；琥珀色提醒先到 Discord 通知頻道確認沒有收到、重送可能造成重複通知；按鈕「取消」與「已確認沒收到，重送」；置中彈窗，手機寬度改為全螢幕；取消時只關閉視窗、不呼叫 API（FR-006、US2 情境 6、7、Edge Cases 結果不明但 Discord 其實已收到）
   - **Must Read**
     - `ui/plan.md` → §4 `overdue-notifications.html` 的「重送結果不明確認視窗」 — Why：視窗的標題、內容、提醒文字與按鈕
     - `ui/plan.md` → §5 `overdue-notifications.html` 的「取消重送結果不明的通知」 — Why：取消時視窗關閉、通知不變、不顯示橫幅
     - `ui/overdue-notifications.html` → 雛形狀態「重送結果不明確認視窗」 — Why：視窗配置與文字的實際樣子
   - **Optional**
     - `ui/plan.md` → §2 — Why：需要確認琥珀色提醒與手機全螢幕的版面規則時
-- [ ] T023 [US2] 在 `frontend/src/views/OverdueNotificationsView.tsx` 實作通知清單與狀態篩選（F1）：載入中以灰色骨架與「正在載入逾期通知紀錄…」呈現；「共 N 則通知」依 API 順序列出預約編號、設備編號與名稱、成員姓名、預約日期與時段、狀態徽章（「送出中」靛藍加轉圈、「送出成功」綠色、「送出失敗」紅色、「結果不明」琥珀色）、嘗試次數、最後嘗試時間（為空時顯示「—」）；`sent` 顯示送出時間，`failed` 在狀態下方以紅色條顯示「失敗原因：…」；借用欄顯示「借用中」或「已歸還」與歸還時間；`canResend` 為 true 才顯示「重送」，已歸還時操作欄顯示「借用已歸還」灰字；「通知狀態」下拉選單（全部、送出中、送出成功、送出失敗、結果不明）以 `status` 重新查詢；沒有通知與沒有符合篩選時顯示對應文字與「顯示全部通知」；時間以 `Asia/Taipei` 顯示；720px 以下改為一則一張卡片；一般成員或收到 `403` 時隱藏篩選列與清單，顯示「權限不足」卡片與「切換管理員帳號登入」；分頁做法見 Notes 待確認 4（FR-003、FR-004、FR-008、FR-012、FR-017、FR-019、NFR-002、NFR-003、US2 情境 1～3、9～12、15）
+- [X] T023 [US2] 在 `frontend/src/views/OverdueNotificationsView.tsx` 實作通知清單與狀態篩選（F1）：載入中以灰色骨架與「正在載入逾期通知紀錄…」呈現；「共 N 則通知」依 API 順序列出預約編號、設備編號與名稱、成員姓名、預約日期與時段、狀態徽章（「送出中」靛藍加轉圈、「送出成功」綠色、「送出失敗」紅色、「結果不明」琥珀色）、嘗試次數、最後嘗試時間（為空時顯示「—」）；`sent` 顯示送出時間，`failed` 在狀態下方以紅色條顯示「失敗原因：…」；借用欄顯示「借用中」或「已歸還」與歸還時間；`canResend` 為 true 才顯示「重送」，已歸還時操作欄顯示「借用已歸還」灰字；「通知狀態」下拉選單（全部、送出中、送出成功、送出失敗、結果不明）以 `status` 重新查詢；沒有通知與沒有符合篩選時顯示對應文字與「顯示全部通知」；時間以 `Asia/Taipei` 顯示；720px 以下改為一則一張卡片；一般成員或收到 `403` 時隱藏篩選列與清單，顯示「權限不足」卡片與「切換管理員帳號登入」；分頁做法見 Notes 待確認 4（FR-003、FR-004、FR-008、FR-012、FR-017、FR-019、NFR-002、NFR-003、US2 情境 1～3、9～12、15）
   - **Must Read**
     - `ui/plan.md` → §3.3 A6、A7、A13 — Why：本畫面的篩選、查看與權限不足時的操作
     - `ui/plan.md` → §4 `overdue-notifications.html` 的「載入中」「通知清單」「篩選送出失敗」「沒有符合篩選的通知」「沒有逾期通知」 — Why：各狀態的呈現
@@ -242,7 +242,7 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `contracts/openapi.yaml` → `listOverdueNotifications` — Why：`canResend` 與 `loanReturned` 決定按鈕與借用欄
   - **Optional**
     - `ui/plan.md` → §2 — Why：需要確認配色變數、等寬字體與 720px 以下卡片版面時
-- [ ] T024 [US2] 在 `frontend/src/views/OverdueNotificationsView.tsx` 實作重送與重新整理（F2）：`failed` 的「重送」直接呼叫 `resendOverdueNotification`，`unknown` 先開 `ResendUnknownDialog`，確認後才呼叫；送出時該列按鈕改為「重送中…」並停用；收到 `202` 後顯示藍色橫幅「已重新送出 <預約編號> 的通知，目前為「送出中」。請稍後按「重新整理」查看送出結果。」並重新查詢清單，不等送出結果；收到 `409` 時以紅色橫幅顯示 API 回傳的繁體中文訊息並重新查詢清單；「重新整理」按鈕重新查詢，進行中改為「重新整理中…」並停用、清單變淡；不自動更新清單（FR-005、FR-006、FR-007、FR-008、FR-018、US2 情境 4～8、13、14）
+- [X] T024 [US2] 在 `frontend/src/views/OverdueNotificationsView.tsx` 實作重送與重新整理（F2）：`failed` 的「重送」直接呼叫 `resendOverdueNotification`，`unknown` 先開 `ResendUnknownDialog`，確認後才呼叫；送出時該列按鈕改為「重送中…」並停用；收到 `202` 後顯示藍色橫幅「已重新送出 <預約編號> 的通知，目前為「送出中」。請稍後按「重新整理」查看送出結果。」並重新查詢清單，不等送出結果；收到 `409` 時以紅色橫幅顯示 API 回傳的繁體中文訊息並重新查詢清單；「重新整理」按鈕重新查詢，進行中改為「重新整理中…」並停用、清單變淡；不自動更新清單（FR-005、FR-006、FR-007、FR-008、FR-018、US2 情境 4～8、13、14）
   - **Must Read**
     - `ui/plan.md` → §3.3 A8～A11 — Why：重送「送出失敗」、重送「結果不明」、取消與重新整理的操作
     - `ui/plan.md` → §4 `overdue-notifications.html` 的「重送處理中」「已重送，送出中」「重新整理中」「重新整理後」 — Why：重送與重新整理各階段的呈現
@@ -250,7 +250,7 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `contracts/openapi.yaml` → `resendOverdueNotification` — Why：`202` 回應與 `409` 錯誤碼
   - **Optional**
     - `ui/overdue-notifications.html` → 雛形狀態「已重送，送出中」「重送時借用已歸還」 — Why：需要對照橫幅位置與樣式時
-- [ ] T025 [US2] 在 `frontend/src/App.tsx` 新增 `ViewName` 的逾期通知紀錄頁籤：頁首導覽加一個按鈕（文字取自 T020，`data-testid` 沿用既有 `nav-*` 命名），點擊時切到 `OverdueNotificationsView`；未登入時沿用 `LOGIN_REQUIRED_MESSAGE` 的處理，並依 ui/plan.md §5「未登入存取受保護頁面」把訊息改為「請先登入，才能使用設備預約、我的預約、管理員總覽與逾期通知紀錄。」；管理員登入後的預設頁面維持 `equipment-status`（見 Notes 待確認 3）；前五版既有頁籤與 `data-testid` 不變（FR-003、FR-019、FR-020、US2 情境 15）
+- [X] T025 [US2] 在 `frontend/src/App.tsx` 新增 `ViewName` 的逾期通知紀錄頁籤：頁首導覽加一個按鈕（文字取自 T020，`data-testid` 沿用既有 `nav-*` 命名），點擊時切到 `OverdueNotificationsView`；未登入時沿用 `LOGIN_REQUIRED_MESSAGE` 的處理，並依 ui/plan.md §5「未登入存取受保護頁面」把訊息改為「請先登入，才能使用設備預約、我的預約、管理員總覽與逾期通知紀錄。」；管理員登入後的預設頁面維持 `equipment-status`（見 Notes 待確認 3）；前五版既有頁籤與 `data-testid` 不變（FR-003、FR-019、FR-020、US2 情境 15）
   - **Must Read**
     - `ui/plan.md` → §3.1、§3.2 — Why：逾期通知紀錄的進入方式與流程
     - `ui/plan.md` → §5 `index.html` 的「未登入存取受保護頁面」 — Why：未登入提示的新文字
