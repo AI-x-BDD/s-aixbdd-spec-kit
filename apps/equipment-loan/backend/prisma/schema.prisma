@@ -7,6 +7,22 @@ datasource db {
   provider = "postgresql"
 }
 
+enum overdue_notification_status {
+  sending
+  sent
+  failed
+  unknown
+}
+
+enum overdue_notification_failure_reason {
+  rate_limited
+  discord_server_error
+  connection_failed
+  webhook_invalid
+  webhook_not_configured
+  message_rejected
+}
+
 enum user_role {
   member
   admin
@@ -151,33 +167,34 @@ model time_slots {
 }
 
 model reservations {
-  id                  String                     @id @default(uuid()) @db.Uuid
-  reservation_no      String                     @unique @db.VarChar(32)
-  user_id             String                     @db.Uuid
-  equipment_id        String                     @db.Uuid
-  reservation_date    DateTime                   @db.Date
-  slot_id             String                     @db.Uuid
-  status              reservation_status         @default(confirmed)
-  cancel_reason       reservation_cancel_reason?
-  reviewed_by         String?                    @db.Uuid
-  reviewed_at         DateTime?                  @db.Timestamptz(6)
-  reject_reason       String?                    @db.VarChar(200)
-  checked_out_by      String?                    @db.Uuid
-  checked_out_at      DateTime?                  @db.Timestamptz(6)
-  returned_by         String?                    @db.Uuid
-  returned_at         DateTime?                  @db.Timestamptz(6)
-  cancelled_at        DateTime?                  @db.Timestamptz(6)
-  created_at          DateTime                   @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime                   @default(now()) @db.Timestamptz(6)
-  updated_by          String?                    @db.Uuid
-  deleted_at          DateTime?                  @db.Timestamptz(6)
-  user                users                      @relation("ReservationApplicant", fields: [user_id], references: [id])
-  reviewer            users?                     @relation("ReservationReviewer", fields: [reviewed_by], references: [id])
-  checkout_admin      users?                     @relation("ReservationCheckoutAdmin", fields: [checked_out_by], references: [id])
-  return_admin        users?                     @relation("ReservationReturnAdmin", fields: [returned_by], references: [id])
-  equipment           equipments                 @relation(fields: [equipment_id], references: [id])
-  slot                time_slots                 @relation(fields: [slot_id], references: [id])
-  reschedule_requests reschedule_requests[]
+  id                   String                     @id @default(uuid()) @db.Uuid
+  reservation_no       String                     @unique @db.VarChar(32)
+  user_id              String                     @db.Uuid
+  equipment_id         String                     @db.Uuid
+  reservation_date     DateTime                   @db.Date
+  slot_id              String                     @db.Uuid
+  status               reservation_status         @default(confirmed)
+  cancel_reason        reservation_cancel_reason?
+  reviewed_by          String?                    @db.Uuid
+  reviewed_at          DateTime?                  @db.Timestamptz(6)
+  reject_reason        String?                    @db.VarChar(200)
+  checked_out_by       String?                    @db.Uuid
+  checked_out_at       DateTime?                  @db.Timestamptz(6)
+  returned_by          String?                    @db.Uuid
+  returned_at          DateTime?                  @db.Timestamptz(6)
+  cancelled_at         DateTime?                  @db.Timestamptz(6)
+  created_at           DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_by           String?                    @db.Uuid
+  deleted_at           DateTime?                  @db.Timestamptz(6)
+  user                 users                      @relation("ReservationApplicant", fields: [user_id], references: [id])
+  reviewer             users?                     @relation("ReservationReviewer", fields: [reviewed_by], references: [id])
+  checkout_admin       users?                     @relation("ReservationCheckoutAdmin", fields: [checked_out_by], references: [id])
+  return_admin         users?                     @relation("ReservationReturnAdmin", fields: [returned_by], references: [id])
+  equipment            equipments                 @relation(fields: [equipment_id], references: [id])
+  slot                 time_slots                 @relation(fields: [slot_id], references: [id])
+  reschedule_requests  reschedule_requests[]
+  overdue_notification overdue_notifications?
 
   @@unique([equipment_id, reservation_date, slot_id], map: "uq_reservations_active_slot", where: raw("status IN ('confirmed', 'checked_out', 'returned') AND deleted_at IS NULL"))
   @@unique([user_id, equipment_id, reservation_date, slot_id], map: "uq_reservations_user_active_request", where: raw("status IN ('pending_approval', 'confirmed', 'checked_out') AND deleted_at IS NULL"))
@@ -217,4 +234,25 @@ model reschedule_requests {
   @@unique([reservation_id], map: "uq_reschedule_requests_pending_per_reservation", where: raw("status = 'pending_approval' AND deleted_at IS NULL"))
   @@index([status, to_reservation_date, to_slot_id, created_at], map: "idx_reschedule_requests_status_to_slot")
   @@index([reservation_id, created_at], map: "idx_reschedule_requests_reservation_created")
+}
+
+model overdue_notifications {
+  id                 String                               @id @default(uuid()) @db.Uuid
+  reservation_id     String                               @unique(map: "uq_overdue_notifications_reservation") @db.Uuid
+  status             overdue_notification_status          @default(sending)
+  attempt_count      Int                                  @default(0)
+  auto_retry_count   Int                                  @default(0)
+  next_attempt_at    DateTime?                            @db.Timestamptz(6)
+  last_attempted_at  DateTime?                            @db.Timestamptz(6)
+  sent_at            DateTime?                            @db.Timestamptz(6)
+  failure_reason     overdue_notification_failure_reason?
+  discord_message_id String?                              @db.Text
+  created_at         DateTime                             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime                             @default(now()) @db.Timestamptz(6)
+  updated_by         String?                              @db.Uuid
+  deleted_at         DateTime?                            @db.Timestamptz(6)
+  reservation        reservations                         @relation(fields: [reservation_id], references: [id])
+
+  @@index([status, created_at], map: "idx_overdue_notifications_status_created")
+  @@index([created_at], map: "idx_overdue_notifications_created")
 }
