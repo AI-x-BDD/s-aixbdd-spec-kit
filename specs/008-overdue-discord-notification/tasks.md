@@ -7,7 +7,7 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 **Input**: Design documents from `/specs/008-overdue-discord-notification/`（依下方 Reference Loading Contract 按任務載入）
 
-**Tests**: spec.md 沒有明確要求撰寫自動化測試或 TDD，因此各使用者故事不為新功能產生測試任務。Setup 不另裝測試工具，沿用前一版已安裝的 Vitest 5、Supertest 7 與 Playwright 1.65（research §8）。已用本次會改動的檔案、函式與識別字（`seedDatabase`、`ERROR_MESSAGES`、管理員登入後的 `equipment-status-table`、`nav-*`、`playwright.config.ts` 的 `webServer`、後端 `dev` 指令、`prisma/migrations`）搜尋既有測試並讀過命中段落：T015 的 demo seed 與 T020 的錯誤碼說明在任務內避開既有測試依賴的行為，不需要改測試；T013 讓後端 `dev` 啟動排程，影響 Playwright 啟動的後端，在同一組以 T014 更新 `playwright.config.ts`。Success Criteria 的量測與前版回歸在 Polish 以驗證任務處理（SC-001～SC-007）。
+**Tests**: spec.md 沒有明確要求撰寫自動化測試或 TDD，因此各使用者故事不為新功能產生測試任務。Setup 不另裝測試工具，沿用前一版已安裝的 Vitest 5、Supertest 7 與 Playwright 1.65（research §8）。已用本次會改動的檔案、函式與識別字（`seedDatabase`、`ERROR_MESSAGES`、管理員登入後的 `equipment-status-table`、`nav-*`、`playwright.config.ts` 的 `webServer`、後端 `dev` 指令、`prisma/migrations`）搜尋既有測試並讀過命中段落：T015 的 demo seed 與 T020 的錯誤碼說明在任務內避開既有測試依賴的行為，不需要改測試；T013 讓後端 `dev` 啟動排程，影響 Playwright 啟動的後端，在同一組以 T014 更新 `playwright.config.ts`。Success Criteria 的量測與前版回歸在 Polish 以驗證任務處理（SC-001～SC-007）。T041 依使用者要求補一個前端單元測試，涵蓋「目前頁碼超過總頁數」的改載（見 Notes）。
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story. 每個階段內再依 plan.md「系統介面盤點」的技術端點（資料庫、後端、前端）分組，標題列出該組實作的介面編號；每個任務下方以 Must Read／Optional 列出執行時要讀的文件部位。
 
@@ -359,6 +359,13 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `contracts/openapi.yaml` → `listOverdueNotifications` — Why：`page`、`pageSize` 參數與回應的 `totalItems`、`totalPages`
   - **Optional**
     - `ui/overdue-notifications.html` → 雛形狀態「通知超過一頁」「最後一頁」 — Why：需要對照換頁列的位置與樣式時
+- [X] T041 在 `frontend/src/views/OverdueNotificationsView.tsx` 的 `load()` 處理「目前頁碼超過總頁數」（F1，接續 T040，見 Notes 待確認 4 與 T041 的說明）：`listOverdueNotifications` 回應的 `items` 為空、`totalItems` 大於 0、且 `targetPage` 大於 `totalPages` 時，改以 `totalPages` 再查詢一次，以該次回應更新清單並把目前頁碼設為 `totalPages`，不顯示「沒有符合篩選的通知」的空清單；這個處理適用於重送成功、重送被拒與點擊「重新整理」後停在目前頁碼的重新載入，重送後的頁頂橫幅照常顯示；篩選結果為 0 則（`totalItems` 為 0）時維持既有的「沒有符合篩選的通知」與「顯示全部通知」。把這段頁碼判斷寫成同檔匯出、不依賴 React 的函式（比照 `frontend/src/views/LoginView.tsx` 匯出 `validateLoginForm` 供 `frontend/tests/unit/zh-TW.test.ts` 測試），接受查詢函式作為參數；在新增的 `frontend/tests/unit/overdueNotificationsPaging.test.ts` 以假的查詢函式驗證 ui/plan.md §4「送出失敗最後一頁」重送後的情境：篩選「送出失敗」停在第 3 頁，重送後剩 40 則，第 3 頁回應空的 `items`、`totalItems` 40、`totalPages` 2，函式改以第 2 頁查詢，結果為第 2 頁、20 則，換頁列文字為「第 2／2 頁，第 21–40 則」；另驗證 `totalItems` 為 0 時不再查詢、維持空清單。`frontend/vitest.config.ts` 為 `environment: "node"`、沒有 DOM，不新增套件（techstack.md「本次開發不引入的技術」）；完成後重跑 `frontend/` 的 `npm run check`，以及 `npm run test:frontend`、`npm run test:e2e`（FR-003、FR-004、FR-005）
+  - **Must Read**
+    - `ui/plan.md` → §3.3 A14 — Why：重送成功、重送被拒與重新整理後停在目前頁碼，超過總頁數時改載最後一頁
+    - `ui/plan.md` → §4 `overdue-notifications.html` 的「送出失敗最後一頁」「目前頁碼超過總頁數」 — Why：改載最後一頁後的換頁列、筆數與橫幅
+    - `contracts/openapi.yaml` → `listOverdueNotifications` — Why：`page` 超過總頁數時回應空的 `items`，以及 `totalItems`、`totalPages`
+  - **Optional**
+    - `ui/overdue-notifications.html` → 雛形狀態「送出失敗最後一頁」「目前頁碼超過總頁數」 — Why：需要對照互動流程時
 
 ---
 
@@ -462,3 +469,5 @@ With multiple developers:
 - 待確認 2：已解決（technical-research，2026-11-11）。原問題：`research.md` §6 的 6 種模擬器模式無法重現其他 `4xx`（`message_rejected`）、`401`／`403`（`webhook_invalid`）、`200` 沒有 `id`、沒有等待秒數的 `429`（notification/plan.md §8 UC2）。定案：`research.md` §6 不新增模式，這 4 類以臨時固定回應位址或單元測試直接驗證分類函式，使用模擬器的整合情境與手動展示不涵蓋。T008 只實作 6 種模式、T031 以固定回應位址直接驗證分類，與定案相同，不需要修改
 - 待確認 3：已解決（ui-plan，2026-11-11）。原問題：`ui/plan.md` §1 寫把管理員登入後的入口改到逾期通知紀錄，和 plan.md、`research.md` §7 只新增頁籤的寫法不一致，`e2e/equipment-maintenance.spec.ts` 也依賴管理員登入後看到 `equipment-status-table`。定案：`ui/plan.md` §1 寫明「前往逾期通知紀錄」只是雛形入口，產品中管理員登入後仍進入設備狀態管理，只在頁首新增「逾期通知紀錄」頁籤，一般成員點開看到「權限不足」卡片；plan.md 的 `App.tsx` 說明已同步。T025 維持 `equipment-status` 為預設頁面、只新增頁籤，與定案相同，不需要修改
 - 待確認 4：已解決（ui-plan，2026-11-11）。原問題：`contracts/openapi.yaml` 的 `listOverdueNotifications` 分頁（`pageSize` 預設 20、上限 100），但 `ui/plan.md` §4 沒有規劃分頁控制項，只顯示「共 N 則通知」；T023 依暫行做法以 `page=1`、`pageSize=100` 查詢並已完成。定案：`ui/plan.md` §3.3 A6、A14 與 §4「通知超過一頁」「換頁中」「中間頁」「最後一頁」規定每頁 20 則、超過一頁才顯示換頁列、第 1 頁停用「上一頁」、最後一頁停用「下一頁」、換頁中停用其他操作並顯示「正在載入第 N 頁…」、切換篩選與立即檢查逾期後回到第 1 頁、重新整理停在目前頁碼。T023 的完成狀態不變，換頁由新增的 T040 實作。T040 屬於 US2 的 F1，但 T023 之後的任務 ID 都已完成，為了不重新編號，T040 接在 Polish 最後、不標 `[US2]`
+- T041 的新增原因：analysis.md C1 指出 `ui/plan.md` A14 沒有規定重送後重新載入停在哪一頁，也沒有規定停在目前頁碼重新載入時頁碼超過總頁數的處理；合約在 `page` 超過總頁數時回應空的 `items`，畫面會顯示空清單。ui-plan 已於 2026-11-11 定案：`ui/plan.md` §3.3 A14 寫明重送成功、重送被拒與重新整理後都停在目前頁碼，超過總頁數時改載最後一頁，§4 新增「送出失敗最後一頁」「目前頁碼超過總頁數」狀態，雛形已同步。T040 已完成，不重新打開；改載最後一頁由新增的 T041 實作，理由同待確認 4，接在 Polish 最後、不標 `[US2]`
+- T041 新增 `frontend/tests/unit/overdueNotificationsPaging.test.ts`：plan.md 的 Source Code 寫 `frontend/tests/unit/` 本次不新增，但使用者要求 T041 補前端測試涵蓋「目前頁碼超過總頁數」；前端 Vitest 沒有 DOM 且本次不新增套件，所以把頁碼判斷抽成同檔匯出的函式，以單元測試驗證。`e2e/` 維持不新增，只重跑回歸

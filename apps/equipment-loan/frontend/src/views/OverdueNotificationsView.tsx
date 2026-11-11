@@ -4,6 +4,7 @@ import {
   ApiError,
   listOverdueNotifications,
   type OverdueNotification,
+  type OverdueNotificationPage,
   resendOverdueNotification,
   runOverdueCheck,
   type OverdueNotificationStatus,
@@ -26,6 +27,22 @@ const STATUS_OPTIONS: OverdueNotificationStatus[] = ["sending", "sent", "failed"
 
 /** 每頁 20 則（ui/plan.md §3.3 A14、§4「通知超過一頁」）。 */
 const PAGE_SIZE = 20;
+
+/**
+ * 查詢指定頁碼；目前頁碼超過重新載入後的總頁數時改載最後一頁，不顯示空清單
+ * （ui/plan.md §3.3 A14、§4「目前頁碼超過總頁數」）。篩選結果為 0 則時不再查詢，維持空清單。
+ */
+export async function fetchPageWithinRange(
+  fetchPage: (page: number) => Promise<OverdueNotificationPage>,
+  targetPage: number,
+): Promise<{ result: OverdueNotificationPage; currentPage: number }> {
+  const result = await fetchPage(targetPage);
+  if (result.items.length === 0 && result.totalItems > 0 && targetPage > result.totalPages) {
+    const lastPage = result.totalPages;
+    return { result: await fetchPage(lastPage), currentPage: lastPage };
+  }
+  return { result, currentPage: targetPage };
+}
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -159,15 +176,19 @@ export function OverdueNotificationsView({
       setLoading(true);
       setLoadError("");
       try {
-        const page = await listOverdueNotifications({
-          status: status === "all" ? undefined : status,
-          page: targetPage,
-          pageSize: PAGE_SIZE,
-        });
+        const { result: page, currentPage: loadedPage } = await fetchPageWithinRange(
+          (pageNumber) =>
+            listOverdueNotifications({
+              status: status === "all" ? undefined : status,
+              page: pageNumber,
+              pageSize: PAGE_SIZE,
+            }),
+          targetPage,
+        );
         setItems(page.items);
         setTotalItems(page.totalItems);
         setTotalPages(page.totalPages);
-        setCurrentPage(targetPage);
+        setCurrentPage(loadedPage);
         setLoaded(true);
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
