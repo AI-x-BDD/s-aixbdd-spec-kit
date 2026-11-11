@@ -25,6 +25,8 @@ prints one JSON object to standard output:
 Exit status is 0 on success. When spec.md, plan.md or tasks.md is missing, or the
 directory does not exist, the script prints the reason to standard error and exits 2.
 Contracts are read as YAML text (OpenAPI and AsyncAPI); JSON contracts are not parsed.
+Operation tags may be a flow list, an indented block list or an indentless block list
+(items at the same indent as "tags:"); each item may be a string or a "name:" object.
 Reads files only; writes nothing and makes no network access.
 """
 
@@ -241,9 +243,15 @@ def block_tags(block: list[str], op_indent: int) -> list[str]:
         if inline.startswith("["):
             tags.extend(t.strip().strip("'\"") for t in inline.strip("[]").split(",") if t.strip())
         else:
+            tags_indent = len(m.group(1))
             for sub in block[i + 1 :]:
-                if sub.strip() and indent_of(sub) <= len(m.group(1)):
-                    break
+                if sub.strip():
+                    sub_indent = indent_of(sub)
+                    if sub_indent < tags_indent:
+                        break
+                    # an indentless block list keeps its "- " items at the indent of "tags:"
+                    if sub_indent == tags_indent and not sub.lstrip().startswith("-"):
+                        break
                 item = re.match(r"^\s*-\s*(?:name:\s*)?(.+?)\s*$", sub)
                 if item:
                     tags.append(item.group(1).strip("'\""))
