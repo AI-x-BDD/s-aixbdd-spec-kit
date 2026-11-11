@@ -101,14 +101,14 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 > D1 的 `overdue_notifications` 已在 Foundational 建立，本故事沒有資料庫任務。
 
-- [ ] T006 [P] [US1] 在 `backend/src/config/notificationConfig.ts` 以 zod 4 驗證 `DISCORD_WEBHOOK_URL`（必須是 `http` 或 `https` 位址）、`OVERDUE_AUTO_CHECK_ENABLED`（預設 `true`）、`OVERDUE_CHECK_INTERVAL_SECONDS`（預設 `60`，允許 `10`～`300`）；位址空白或格式錯誤時視為沒有設定，後端照常啟動，log 只寫「DISCORD_WEBHOOK_URL 沒有設定或格式不正確」，不寫輸入值；Webhook 位址只提供給 `discordWebhookClient`，其他模組只拿到 `isWebhookConfigured`；設定要能讀到整合測試啟動模擬器後才設定的環境變數（research §5、§8、FR-015、NFR-003）
+- [X] T006 [P] [US1] 在 `backend/src/config/notificationConfig.ts` 以 zod 4 驗證 `DISCORD_WEBHOOK_URL`（必須是 `http` 或 `https` 位址）、`OVERDUE_AUTO_CHECK_ENABLED`（預設 `true`）、`OVERDUE_CHECK_INTERVAL_SECONDS`（預設 `60`，允許 `10`～`300`）；位址空白或格式錯誤時視為沒有設定，後端照常啟動，log 只寫「DISCORD_WEBHOOK_URL 沒有設定或格式不正確」，不寫輸入值；Webhook 位址只提供給 `discordWebhookClient`，其他模組只拿到 `isWebhookConfigured`；設定要能讀到整合測試啟動模擬器後才設定的環境變數（research §5、§8、FR-015、NFR-003）
   - **Must Read**
     - `research.md` → §5 — Why：三個設定的驗證規則、沒有設定時的處理與 log 規則
     - `notification/plan.md` → §6 — Why：「Webhook 位址設定錯誤」的 log 不得記錄輸入值
     - `spec.md` → NFR-003 — Why：Webhook 位址不得出現在畫面、紀錄與系統紀錄檔
   - **Optional**
     - `research.md` → §8 — Why：需要確認整合測試如何把 `DISCORD_WEBHOOK_URL` 指向測試程序內的模擬器時
-- [ ] T007 [US1] 在 `backend/src/integrations/discordWebhookClient.ts` 實作 `discordWebhookClient.send(content)`：以 `new URL(webhookUrl)` 加上 `searchParams.set("wait", "true")`，`POST`、`Content-Type: application/json`，內容 `{ "content": <通知文字>, "allowed_mentions": { "parse": [] } }`，`signal: AbortSignal.timeout(10_000)` 涵蓋等待標頭與讀取回應內容；沒有設定 Webhook 位址時不送出請求，直接回傳 `webhook_not_configured`；依 notification/plan.md §3 把結果分成成功（`200` 且有 `id`）、可重試（`429` 等待 60 秒以內、`5xx`、送出前連線失敗的 `cause.code` 清單）、不可重試（`429` 等待超過 60 秒、`401`／`403`／`404` 為 `webhook_invalid`、其他 `4xx` 為 `message_rejected`）與結果不明（`TimeoutError`、送出後連線中斷、其他 `fetch` 錯誤、`200` 沒有 `id`、`204`）；等待秒數先讀 `Retry-After` 標頭、再讀 `retry_after`，都沒有時回報使用退避間隔；每次收到回應時回報 `X-RateLimit-Remaining` 與 `X-RateLimit-Reset-After`；不向外拋出原始錯誤，log 只寫狀態碼、錯誤代碼與主機名稱（FR-014、FR-015、FR-016、FR-017、NFR-003、US1 情境 5～8、11、12、15）
+- [X] T007 [US1] 在 `backend/src/integrations/discordWebhookClient.ts` 實作 `discordWebhookClient.send(content)`：以 `new URL(webhookUrl)` 加上 `searchParams.set("wait", "true")`，`POST`、`Content-Type: application/json`，內容 `{ "content": <通知文字>, "allowed_mentions": { "parse": [] } }`，`signal: AbortSignal.timeout(10_000)` 涵蓋等待標頭與讀取回應內容；沒有設定 Webhook 位址時不送出請求，直接回傳 `webhook_not_configured`；依 notification/plan.md §3 把結果分成成功（`200` 且有 `id`）、可重試（`429` 等待 60 秒以內、`5xx`、送出前連線失敗的 `cause.code` 清單）、不可重試（`429` 等待超過 60 秒、`401`／`403`／`404` 為 `webhook_invalid`、其他 `4xx` 為 `message_rejected`）與結果不明（`TimeoutError`、送出後連線中斷、其他 `fetch` 錯誤、`200` 沒有 `id`、`204`）；等待秒數先讀 `Retry-After` 標頭、再讀 `retry_after`，都沒有時回報使用退避間隔；每次收到回應時回報 `X-RateLimit-Remaining` 與 `X-RateLimit-Reset-After`；不向外拋出原始錯誤，log 只寫狀態碼、錯誤代碼與主機名稱（FR-014、FR-015、FR-016、FR-017、NFR-003、US1 情境 5～8、11、12、15）
   - **Must Read**
     - `notification/plan.md` → §3 — Why：每種回應的分類、是否自動重試、等待秒數來源與最終狀態
     - `notification/plan.md` → §5.4 — Why：請求格式、10 秒逾時、沒有設定時不送出，以及速率限制標頭的回報
@@ -116,13 +116,13 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `notification/plan.md` → §6 — Why：送出結果 log 可寫與不得寫的內容
   - **Optional**
     - `notification/plan.md` → §4 — Why：需要確認誤判送出前或送出後連線失敗的影響時
-- [ ] T008 [P] [US1] 在 `backend/scripts/discordWebhookSimulator.ts` 以 `node:http` 實作本機 Discord Webhook 模擬器，匯出 `createDiscordWebhookSimulator()`（整合測試以連接埠 `0` 啟動），直接執行時監聽 `127.0.0.1:4010`（`DISCORD_SIM_PORT` 可改）並接受 `--mode=<模式>`：`POST /api/webhooks/:webhookId/:token` 依 `success`、`rate_limit`、`server_error`、`timeout`、`disconnect`、`not_found` 六種模式回應，每次回應附 `X-RateLimit-Remaining` 與 `X-RateLimit-Reset-After`；`failTimes` 用完後改回 `success`；控制端點 `GET /__sim/state`、`PUT /__sim/mode`（設定不合法時回 `400` `{"error": "invalid mode settings"}`，模式不變）、`GET /__sim/messages`、`DELETE /__sim/messages`，其他路徑回 `404` `{"error": "not found"}`；log 只寫模式與收到的訊息數，不寫請求路徑；無法重現的回應分類不自創模式（見 Notes 待確認 2）（FR-014、FR-015、FR-016、NFR-003、SC-002、SC-003）
+- [X] T008 [P] [US1] 在 `backend/scripts/discordWebhookSimulator.ts` 以 `node:http` 實作本機 Discord Webhook 模擬器，匯出 `createDiscordWebhookSimulator()`（整合測試以連接埠 `0` 啟動），直接執行時監聽 `127.0.0.1:4010`（`DISCORD_SIM_PORT` 可改）並接受 `--mode=<模式>`：`POST /api/webhooks/:webhookId/:token` 依 `success`、`rate_limit`、`server_error`、`timeout`、`disconnect`、`not_found` 六種模式回應，每次回應附 `X-RateLimit-Remaining` 與 `X-RateLimit-Reset-After`；`failTimes` 用完後改回 `success`；控制端點 `GET /__sim/state`、`PUT /__sim/mode`（設定不合法時回 `400` `{"error": "invalid mode settings"}`，模式不變）、`GET /__sim/messages`、`DELETE /__sim/messages`，其他路徑回 `404` `{"error": "not found"}`；log 只寫模式與收到的訊息數，不寫請求路徑；無法重現的回應分類不自創模式（見 Notes 待確認 2）（FR-014、FR-015、FR-016、NFR-003、SC-002、SC-003）
   - **Must Read**
     - `notification/plan.md` → §5.5 — Why：啟動方式、控制操作的請求與錯誤回應、每個模式的回應與是否記錄訊息
     - `research.md` → §6 — Why：以 `node:http` 自寫、測試與展示共用同一份程式
   - **Optional**
     - `notification/plan.md` → §8 UC2 — Why：需要確認哪幾類回應模擬器無法重現時
-- [ ] T009 [US1] 在 `backend/src/services/overdueNotificationService.ts` 實作 `runOverdueCheck(now)`：以 `tx.$queryRaw` 執行一條 `INSERT INTO overdue_notifications (...) SELECT r.id, ... FROM reservations r JOIN time_slots s ON s.id = r.slot_id WHERE r.status = 'checked_out' AND r.deleted_at IS NULL AND ((r.reservation_date + s.end_time::time) AT TIME ZONE 'Asia/Taipei') < $now ON CONFLICT (reservation_id) DO NOTHING RETURNING id`，新通知 `status = 'sending'`、`attempt_count = 0`、`auto_retry_count = 0`、`next_attempt_at = $now`；`now` 由呼叫端傳入，SQL 不使用資料庫的 `now()`；不讀 `equipments.status`；回傳的列數就是這次新建立的通知數（FR-001、FR-009、FR-011、FR-012、FR-018、US1 情境 1～4、Edge Cases 時段結束後、檢查前已歸還）
+- [X] T009 [US1] 在 `backend/src/services/overdueNotificationService.ts` 實作 `runOverdueCheck(now)`：以 `tx.$queryRaw` 執行一條 `INSERT INTO overdue_notifications (...) SELECT r.id, ... FROM reservations r JOIN time_slots s ON s.id = r.slot_id WHERE r.status = 'checked_out' AND r.deleted_at IS NULL AND ((r.reservation_date + s.end_time::time) AT TIME ZONE 'Asia/Taipei') < $now ON CONFLICT (reservation_id) DO NOTHING RETURNING id`，新通知 `status = 'sending'`、`attempt_count = 0`、`auto_retry_count = 0`、`next_attempt_at = $now`；`now` 由呼叫端傳入，SQL 不使用資料庫的 `now()`；不讀 `equipments.status`；回傳的列數就是這次新建立的通知數（FR-001、FR-009、FR-011、FR-012、FR-018、US1 情境 1～4、Edge Cases 時段結束後、檢查前已歸還）
   - **Must Read**
     - `notification/plan.md` → §5.1 — Why：檢查語句、寫入欄位、時間來源與重疊執行的處理
     - `notification/plan.md` → §1 的 TR1、TR2 — Why：逾期判定條件與讀取的欄位
@@ -130,13 +130,13 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
     - `research.md` → §2 — Why：`runOverdueCheck(now)` 由自動檢查與手動檢查共用
   - **Optional**
     - `spec.md` → Edge Cases「送修或停用設備的逾期借用」 — Why：需要確認逾期判定為何不看設備狀態時
-- [ ] T010 [US1] 在 `backend/src/services/overdueNotificationService.ts` 實作通知內容的組字函式，依送出當下的 `now` 產生四行文字：「【逾期未還】設備編號 設備名稱」、「借用成員：成員姓名」、「預約時段：YYYY-MM-DD（星期）時段名稱 HH:mm–HH:mm」、「已逾期 N 天 N 小時 N 分鐘」；日期與星期依 `Asia/Taipei` 換算，沿用 `backend/src/utils/taipeiTime.ts` 的時段時間判斷；分鐘無條件捨去，只省略前面為 0 的單位，不到 1 分鐘寫「已逾期不到 1 分鐘」；全文 2000 字以內（FR-013、NFR-002、US1 情境 1）
+- [X] T010 [US1] 在 `backend/src/services/overdueNotificationService.ts` 實作通知內容的組字函式，依送出當下的 `now` 產生四行文字：「【逾期未還】設備編號 設備名稱」、「借用成員：成員姓名」、「預約時段：YYYY-MM-DD（星期）時段名稱 HH:mm–HH:mm」、「已逾期 N 天 N 小時 N 分鐘」；日期與星期依 `Asia/Taipei` 換算，沿用 `backend/src/utils/taipeiTime.ts` 的時段時間判斷；分鐘無條件捨去，只省略前面為 0 的單位，不到 1 分鐘寫「已逾期不到 1 分鐘」；全文 2000 字以內（FR-013、NFR-002、US1 情境 1）
   - **Must Read**
     - `notification/plan.md` → §5.4 — Why：四行版面、欄位來源、「已逾期多久」寫法對照與填值範例
     - `notification/plan.md` → §7 NS22 — Why：逾期時間寫法的六個對照值
   - **Optional**
     - `notification/plan.md` → §8 UD1 — Why：需要確認「已逾期多久」格式的使用者決定時
-- [ ] T011 [US1] 在 `backend/src/jobs/overdueScheduler.ts` 實作並匯出 `recoverInterruptedNotifications(now)` 與 `dispatchDueNotifications(now)`：恢復處理執行 `UPDATE overdue_notifications SET status = 'unknown', updated_at = $now WHERE status = 'sending' AND next_attempt_at IS NULL`；送出程序一次處理一則，以 `UPDATE overdue_notifications SET next_attempt_at = NULL, attempt_count = attempt_count + 1, last_attempted_at = $now WHERE id = (SELECT id FROM overdue_notifications WHERE status = 'sending' AND next_attempt_at <= $now ORDER BY next_attempt_at LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING ...` 領取並提交，讀取設備、成員與時段資料，以 T010 組出內容，呼叫 `discordWebhookClient.send(content)`，依 notification/plan.md §2 轉換表更新同一列（成功寫 `sent_at`、`discord_message_id`；可重試且 `auto_retry_count` 小於 3 時設 `next_attempt_at = now + 等待秒數`、`auto_retry_count + 1`，退避 2、4、8 秒；已達 3 或不可重試時標 `failed` 與 `failure_reason`；結果不明標 `unknown`、`failure_reason` 為空）；不檢查借用是否已歸還；`X-RateLimit-Remaining` 為 `0` 時暫停到 `X-RateLimit-Reset-After` 秒之後才領取下一則；只寫 `overdue_notifications`，`updated_by` 為空（FR-005、FR-014、FR-015、FR-016、FR-017、FR-018、FR-021、US1 情境 5～8、11～15、Edge Cases 自動重試時又等不到回應或連線中斷）
+- [X] T011 [US1] 在 `backend/src/jobs/overdueScheduler.ts` 實作並匯出 `recoverInterruptedNotifications(now)` 與 `dispatchDueNotifications(now)`：恢復處理執行 `UPDATE overdue_notifications SET status = 'unknown', updated_at = $now WHERE status = 'sending' AND next_attempt_at IS NULL`；送出程序一次處理一則，以 `UPDATE overdue_notifications SET next_attempt_at = NULL, attempt_count = attempt_count + 1, last_attempted_at = $now WHERE id = (SELECT id FROM overdue_notifications WHERE status = 'sending' AND next_attempt_at <= $now ORDER BY next_attempt_at LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING ...` 領取並提交，讀取設備、成員與時段資料，以 T010 組出內容，呼叫 `discordWebhookClient.send(content)`，依 notification/plan.md §2 轉換表更新同一列（成功寫 `sent_at`、`discord_message_id`；可重試且 `auto_retry_count` 小於 3 時設 `next_attempt_at = now + 等待秒數`、`auto_retry_count + 1`，退避 2、4、8 秒；已達 3 或不可重試時標 `failed` 與 `failure_reason`；結果不明標 `unknown`、`failure_reason` 為空）；不檢查借用是否已歸還；`X-RateLimit-Remaining` 為 `0` 時暫停到 `X-RateLimit-Reset-After` 秒之後才領取下一則；只寫 `overdue_notifications`，`updated_by` 為空（FR-005、FR-014、FR-015、FR-016、FR-017、FR-018、FR-021、US1 情境 5～8、11～15、Edge Cases 自動重試時又等不到回應或連線中斷）
   - **Must Read**
     - `notification/plan.md` → §5.2 — Why：送出程序的處理步驟、領取語句、借用已歸還照常送出與速率限制暫停
     - `notification/plan.md` → §5.3 — Why：恢復處理的更新語句與只在啟動時執行一次
@@ -146,18 +146,18 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
   - **Optional**
     - `notification/plan.md` → §8 UD2 — Why：需要確認送出中時借用被歸還為何照常送出時
     - `notification/plan.md` → §4 — Why：需要確認兩個領取者同時執行時的防護時
-- [ ] T012 [US1] 在 `backend/src/jobs/overdueScheduler.ts` 實作並匯出 `start()`：先執行一次 `recoverInterruptedNotifications(now)`，完成後才啟動檢查與送出；`OVERDUE_AUTO_CHECK_ENABLED` 為 `true` 時立即執行一次 `runOverdueCheck(now)`，之後以 `setTimeout` 串接每 `OVERDUE_CHECK_INTERVAL_SECONDS` 秒執行一次，上一次結束後才排下一次；為 `false` 時不排自動檢查；`dispatchDueNotifications(now)` 不受開關影響，每 1 秒執行一次，上一次還沒結束時跳過這一次（FR-001、FR-002、FR-021、SC-001、US1 情境 9、Edge Cases 系統停止運作期間逾期）
+- [X] T012 [US1] 在 `backend/src/jobs/overdueScheduler.ts` 實作並匯出 `start()`：先執行一次 `recoverInterruptedNotifications(now)`，完成後才啟動檢查與送出；`OVERDUE_AUTO_CHECK_ENABLED` 為 `true` 時立即執行一次 `runOverdueCheck(now)`，之後以 `setTimeout` 串接每 `OVERDUE_CHECK_INTERVAL_SECONDS` 秒執行一次，上一次結束後才排下一次；為 `false` 時不排自動檢查；`dispatchDueNotifications(now)` 不受開關影響，每 1 秒執行一次，上一次還沒結束時跳過這一次（FR-001、FR-002、FR-021、SC-001、US1 情境 9、Edge Cases 系統停止運作期間逾期）
   - **Must Read**
     - `notification/plan.md` → §5.1 — Why：`start()` 的啟動順序、自動檢查開關與間隔、`setTimeout` 串接
     - `notification/plan.md` → §5.2 — Why：送出程序每 1 秒執行、不受開關影響、重疊時跳過
     - `research.md` → §2 — Why：開關只關閉自動逾期檢查，恢復處理與送出程序照常執行
   - **Optional**
     - `notification/plan.md` → §7 NS18 — Why：需要確認停機期間才逾期的借用在啟動後如何被補發時
-- [ ] T013 [US1] 在 `backend/src/server.ts` 於 `app.listen` 之後呼叫 `overdueScheduler` 的 `start()`；`backend/src/app.ts` 不啟動排程，Supertest 匯入 `app` 時不會跑排程（FR-001、FR-002、research §2）
+- [X] T013 [US1] 在 `backend/src/server.ts` 於 `app.listen` 之後呼叫 `overdueScheduler` 的 `start()`；`backend/src/app.ts` 不啟動排程，Supertest 匯入 `app` 時不會跑排程（FR-001、FR-002、research §2）
   - **Must Read**
     - `research.md` → §2 — Why：排程由 `src/server.ts` 啟動、`src/app.ts` 不啟動的理由
     - `plan.md` → Source Code (repository root) — Why：`server.ts` 與 `app.ts` 本次的分工
-- [ ] T014 [US1] 更新 `playwright.config.ts` 的 `webServer`：T013 讓 `npm --prefix backend run dev` 啟動排程，自動檢查會為 demo seed 的逾期借用建立並送出通知；後端那一項加上 `env`，設定 `OVERDUE_AUTO_CHECK_ENABLED=false` 與指向模擬器的 `DISCORD_WEBHOOK_URL`，並新增一項以 `npm --prefix backend run discord:sim` 啟動模擬器（連接埠 `4010`）；既有三支 `e2e/*.spec.ts` 不修改（FR-020、SC-007）
+- [X] T014 [US1] 更新 `playwright.config.ts` 的 `webServer`：T013 讓 `npm --prefix backend run dev` 啟動排程，自動檢查會為 demo seed 的逾期借用建立並送出通知；後端那一項加上 `env`，設定 `OVERDUE_AUTO_CHECK_ENABLED=false` 與指向模擬器的 `DISCORD_WEBHOOK_URL`，並新增一項以 `npm --prefix backend run discord:sim` 啟動模擬器（連接埠 `4010`）；既有三支 `e2e/*.spec.ts` 不修改（FR-020、SC-007）
   - **Must Read**
     - `research.md` → §8 — Why：Playwright 啟動後端時關閉自動檢查並啟動模擬器
     - `plan.md` → Source Code (repository root) — Why：`playwright.config.ts` 本次要加的設定
