@@ -301,7 +301,8 @@
       'EQ-103': '高精度工業熱像儀 FLIR E86',
       'EQ-104': '微量分光光度計 Thermo NanoDrop One',
       'EQ-105': '桌上型冷凍離心機 Eppendorf 5430R',
-      'EQ-106': '紫外光可見光分光光譜儀 Hitachi U-2900'
+      'EQ-106': '紫外光可見光分光光譜儀 Hitachi U-2900',
+      'EQ-107': '恆溫培養箱 Memmert IN110'
     },
     slots: {
       AM: { name: '上午', time: '09:00–12:00' },
@@ -364,6 +365,26 @@
     return items;
   }
   MOCK.olderNotifications = buildOlderNotifications();
+
+  // 目前頁碼超過總頁數時使用：38 則 2026-10-26～2026-11-07 Webhook 失效期間送出失敗的通知，依建立時間由新到舊；最舊的 RV-20261026-05 仍借用中
+  function buildOlderFailedNotifications() {
+    const slotOrder = ['EV', 'PM', 'AM'];
+    const slotNo = { EV: '08', PM: '05', AM: '02' };
+    const doneAt = { EV: '21:01', PM: '17:01', AM: '12:01' };
+    const eqs = ['EQ-101', 'EQ-102', 'EQ-103', 'EQ-104', 'EQ-105', 'EQ-106'];
+    const items = [];
+    for (let i = 0; i < 38; i++) {
+      const back = Math.floor(i / 3);
+      const date = dateText(new Date(2026, 10, 7 - back));
+      const nextDay = dateText(new Date(2026, 10, 8 - back));
+      const slot = slotOrder[i % 3];
+      const at = `${date} ${doneAt[slot]}`;
+      const oldest = i === 37;
+      items.push({ id: `RV-${date.replace(/-/g, '')}-${slotNo[slot]}`, member: i % 2 ? 'chen.guanting' : 'lin.yating', eq: oldest ? 'EQ-107' : eqs[i % 6], date, slot, status: 'failed', attempts: 1, lastAttemptAt: at, sentAt: null, failureReason: 'webhook_invalid', returnedAt: oldest ? null : `${nextDay} 09:${String(10 + (i % 40)).padStart(2, '0')}`, createdAt: at });
+    }
+    return items;
+  }
+  MOCK.olderFailedNotifications = buildOlderFailedNotifications();
 
   let timers = [];
   let list = clone(MOCK.notifications);
@@ -503,6 +524,10 @@
     return initialList().concat(clone(MOCK.olderNotifications));
   }
 
+  function failedPagedList() {
+    return initialList().concat(clone(MOCK.olderFailedNotifications));
+  }
+
   function withResent(items, id) {
     const n = items.find(item => item.id === id);
     n.status = 'sending';
@@ -538,10 +563,12 @@
     setResendBusy(id);
     markState('resending');
     timers.push(setTimeout(() => {
+      // 停在目前頁碼重新載入；目前頁碼超過總頁數時 render() 改載最後一頁
+      const before = page;
       withResent(list, id);
       render();
       showBanner('info', MOCK.messages.resent(id));
-      markState('resent');
+      markState(page < before ? 'page-overflow' : 'resent');
     }, 700));
   }
 
@@ -680,6 +707,10 @@
     { key: 'paging', label: '換頁中', apply: () => { hideBanner(); setList(pagedList(), 'all', 1); setPaging(2); } },
     { key: 'paged-middle', label: '中間頁', apply: () => { hideBanner(); setList(pagedList(), 'all', 2); } },
     { key: 'paged-last', label: '最後一頁', apply: () => { hideBanner(); setList(pagedList(), 'all', 3); } },
+    { key: 'failed-last-page', label: '送出失敗最後一頁', apply: () => { hideBanner(); setList(failedPagedList(), 'failed', 3); } },
+    { key: 'page-overflow', label: '目前頁碼超過總頁數', apply: () => {
+      setList(withResent(failedPagedList(), 'RV-20261026-05'), 'failed', 3); showBanner('info', MOCK.messages.resent('RV-20261026-05'));
+    } },
     { key: 'filter-failed', label: '篩選送出失敗', apply: () => { hideBanner(); setList(initialList(), 'failed'); } },
     { key: 'other-failure-reasons', label: '其他失敗原因', apply: () => {
       const reasons = { 'RV-20261110-12': 'connection_failed', 'RV-20261110-05': 'webhook_not_configured', 'RV-20261108-07': 'message_rejected' };
