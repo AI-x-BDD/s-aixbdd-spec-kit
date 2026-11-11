@@ -70,19 +70,19 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 ### 資料庫（D1–D2 共用）
 
-- [ ] T003 在 `backend/prisma/schema.prisma` 新增 `enum overdue_notification_status`（`sending`、`sent`、`failed`、`unknown`）、`enum overdue_notification_failure_reason`（`rate_limited`、`discord_server_error`、`connection_failed`、`webhook_invalid`、`webhook_not_configured`、`message_rejected`），以及 `model overdue_notifications`：`id`（`Uuid`）、`reservation_id`（唯一，外鍵指向 `reservations.id`）、`status`（預設 `sending`）、`attempt_count` 與 `auto_retry_count`（`Int`，預設 0）、`next_attempt_at`、`last_attempted_at`、`sent_at`（`Timestamptz(6)`，可為空）、`failure_reason`（可為空）、`discord_message_id`（`Text`，可為空）、`created_at`、`updated_at`、`updated_by`、`deleted_at`；索引 `idx_overdue_notifications_status_created`（`status, created_at`）與 `idx_overdue_notifications_created`（`created_at`）；`reservations` 只加反向關聯欄位，不改任何既有欄位、Enum 與索引（FR-012、FR-017、FR-020、FR-021、NFR-003）
+- [X] T003 在 `backend/prisma/schema.prisma` 新增 `enum overdue_notification_status`（`sending`、`sent`、`failed`、`unknown`）、`enum overdue_notification_failure_reason`（`rate_limited`、`discord_server_error`、`connection_failed`、`webhook_invalid`、`webhook_not_configured`、`message_rejected`），以及 `model overdue_notifications`：`id`（`Uuid`）、`reservation_id`（唯一，外鍵指向 `reservations.id`）、`status`（預設 `sending`）、`attempt_count` 與 `auto_retry_count`（`Int`，預設 0）、`next_attempt_at`、`last_attempted_at`、`sent_at`（`Timestamptz(6)`，可為空）、`failure_reason`（可為空）、`discord_message_id`（`Text`，可為空）、`created_at`、`updated_at`、`updated_by`、`deleted_at`；索引 `idx_overdue_notifications_status_created`（`status, created_at`）與 `idx_overdue_notifications_created`（`created_at`）；`reservations` 只加反向關聯欄位，不改任何既有欄位、Enum 與索引（FR-012、FR-017、FR-020、FR-021、NFR-003）
   - **Must Read**
     - `data/data-model.dbml` → `Table overdue_notifications` — Why：欄位、預設值、可為空的條件、唯一約束與三個索引
     - `data/data-model.dbml` → `Enum overdue_notification_status`、`Enum overdue_notification_failure_reason` — Why：兩個 Enum 的值與每個值代表的情況
     - `data/data-model.dbml` → `Ref: reservations.id - overdue_notifications.reservation_id` — Why：通知與預約一對一的關聯
     - `research.md` → §1 — Why：`discord_message_id` 用 `Text` 而不用 `BigInt`、只新增不修改既有資料表
-- [ ] T004 在 `backend/` 以 `prisma migrate dev --create-only` 產生 008 的增量遷移到 `backend/prisma/migrations/`，檢查並修改 `migration.sql`：唯一約束命名為 `uq_overdue_notifications_reservation`；手動加上部分索引 `idx_overdue_notifications_due`（`next_attempt_at`，`WHERE status = 'sending'`）；SQL 只能有建立兩個 Enum、建立 `overdue_notifications`、建立索引與外鍵的語句，不得有修改或改寫 003～007 既有資料表與資料列的語句；確認後執行 `npm run db:migrate` 套用（FR-018、FR-020、US1 情境 10）
+- [X] T004 在 `backend/` 以 `prisma migrate dev --create-only` 產生 008 的增量遷移到 `backend/prisma/migrations/`，檢查並修改 `migration.sql`：唯一約束命名為 `uq_overdue_notifications_reservation`；手動加上部分索引 `idx_overdue_notifications_due`（`next_attempt_at`，`WHERE status = 'sending'`）；SQL 只能有建立兩個 Enum、建立 `overdue_notifications`、建立索引與外鍵的語句，不得有修改或改寫 003～007 既有資料表與資料列的語句；確認後執行 `npm run db:migrate` 套用（FR-018、FR-020、US1 情境 10）
   - **Must Read**
     - `research.md` → §1 — Why：以 `--create-only` 產生、檢查 SQL 後套用，以及部分索引與唯一約束的名稱
     - `data/data-model.dbml` → `Table overdue_notifications` 的 `idx_overdue_notifications_due` — Why：部分索引的欄位與 `WHERE status = 'sending'` 條件
   - **Optional**
     - `spec.md` → FR-020 — Why：需要確認無損遷移的範圍時
-- [ ] T005 在 `backend/prisma/seed.ts` 的 `seedDatabase()` 開頭，於 `prisma.reservations.deleteMany()` 之前加上 `prisma.overdue_notifications.deleteMany()`，讓已有通知時重設 demo seed 不會被外鍵擋下；既有 007 範例資料不變（FR-020）
+- [X] T005 在 `backend/prisma/seed.ts` 的 `seedDatabase()` 開頭，於 `prisma.reservations.deleteMany()` 之前加上 `prisma.overdue_notifications.deleteMany()`，讓已有通知時重設 demo seed 不會被外鍵擋下；既有 007 範例資料不變（FR-020）
   - **Must Read**
     - `research.md` → §8 — Why：demo seed 先清除 `overdue_notifications` 再清除 `reservations`
     - `data/data-model.dbml` → `Ref: reservations.id - overdue_notifications.reservation_id` — Why：清除順序依據的外鍵

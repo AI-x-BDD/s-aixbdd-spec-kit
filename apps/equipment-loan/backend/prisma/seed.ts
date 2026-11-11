@@ -37,6 +37,7 @@ function generateRescheduleRequestNo(appliedAt: Date): string {
 
 export async function seedDatabase(): Promise<void> {
   // 007：設備狀態變更紀錄只在 demo seed 重設時清除，必須排在 equipments、users 之前（tasks.md Notes 待確認 5）
+  await prisma.overdue_notifications.deleteMany();
   await prisma.equipment_status_changes.deleteMany();
   await prisma.reschedule_requests.deleteMany();
   await prisma.reservations.deleteMany();
