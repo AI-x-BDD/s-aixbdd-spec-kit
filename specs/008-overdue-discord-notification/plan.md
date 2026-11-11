@@ -61,7 +61,7 @@ apps/equipment-loan/
 │   │       ├── EquipmentStatusDialog.tsx # 設為送修或停用前的確認視窗元件
 │   │       └── ResendUnknownDialog.tsx   # 重送「結果不明」通知前提醒先到 Discord 頻道確認的確認視窗元件
 │   └── tests/
-│       └── unit/                    # 前五版既有的前端介面文字與繁體中文錯誤訊息對應單元測試，本次不新增
+│       └── unit/                    # 前五版既有的前端介面文字與繁體中文錯誤訊息對應單元測試；本次新增 overdueNotificationsPaging.test.ts，驗證目前頁碼超過總頁數時改載最後一頁（T041）
 └── backend/
     ├── package.json                 # 後端套件與腳本設定（dev、db:seed 加上 --env-file-if-exists=.env，新增 discord:sim）
     ├── tsconfig.json                # 後端 TypeScript 6.0 設定

@@ -225,7 +225,7 @@
 
 - `failTimes`：前 N 次請求依目前模式回應，之後自動改回 `success`。
 - 送出前連線失敗：停止模擬器，後端呼叫時得到 `ECONNREFUSED`。
-- 沒有對應模式的分類：其他 `4xx`、`401`、`403`、`200` 沒有 `id`、沒有等待秒數的 `429`，只能以單元測試直接把回應交給分類函式驗證（見 UC2）。
+- 沒有對應模式的分類：其他 `4xx`、`401`、`403`、`200` 沒有 `id`、沒有等待秒數的 `429`。依 `research.md` §6，整合測試以 `node:http` 在連接埠 `0` 臨時啟動只回傳固定回應的位址，`DISCORD_WEBHOOK_URL` 指向它，`discordWebhookClient.send` 經真實 `fetch` 收到回應後驗證分類；測試放在 `tests/integration/`，不新增單元測試（`plan.md` 的 `backend/tests/unit/` 本次不新增）。使用模擬器的整合情境與手動展示不涵蓋這 4 類（見 UC2）。
 - 模擬器的 log 只寫模式與收到的訊息數，不寫請求路徑（路徑含 Webhook token）。
 
 ## 6. 紀錄需求
@@ -327,9 +327,9 @@
 
 - 介面：N1
 - 需求：FR-015
-- Given 分類函式收到 `400` 回應（N2 沒有這個模式，以單元測試直接交給分類函式，見 UC2）
-- When N1 分類這個回應
-- Then 結果為不可重試的 `message_rejected`，S2 據此把通知標為 `failed`／`message_rejected`
+- Given 測試以 `node:http` 臨時啟動只回傳 `400` 的固定回應位址，`DISCORD_WEBHOOK_URL` 指向它（N2 沒有這個模式，依 `research.md` §6，見 UC2）
+- When `discordWebhookClient.send` 經真實 `fetch` 送出並分類回應
+- Then 結果為不可重試的 `message_rejected`，S2 據此把通知標為 `failed`／`message_rejected`；固定回應位址只收到 1 次請求
 
 ### NS12 等不到回應標為結果不明
 
@@ -359,9 +359,9 @@
 
 - 介面：N1
 - 需求：FR-016、FR-017
-- Given 分類函式收到 `200` 但回應 JSON 沒有 `id`（以單元測試直接交給分類函式，見 UC2）
-- When N1 分類這個回應
-- Then 結果為「結果不明」，通知標為 `unknown`，不自動重試
+- Given 測試以 `node:http` 臨時啟動回傳 `200` 但回應 JSON 沒有 `id` 的固定回應位址，`DISCORD_WEBHOOK_URL` 指向它（N2 沒有這個模式，依 `research.md` §6，見 UC2）
+- When `discordWebhookClient.send` 經真實 `fetch` 送出並分類回應
+- Then 結果為「結果不明」，通知標為 `unknown`，`failure_reason` 為空，不自動重試；固定回應位址只收到 1 次請求
 
 ### NS16 恢復時等待自動重試的通知繼續重試
 
@@ -433,8 +433,8 @@
 
 | 編號 | 位置 | 問題 | 處理 Skill |
 | ---- | ---- | ---- | ---------- |
-| UC1 | `ui/overdue-notifications.html` `MOCK.failureReasons` | 3 個失敗原因的畫面文字和 `data/data-model.dbml` 的 `Enum overdue_notification_failure_reason` note、`research.md` §1 不同：`connection_failed` 寫「無法連線到 Discord」（上游為「無法連線」）、`webhook_not_configured` 寫「通知設定有誤：沒有設定 Webhook」（上游為「通知設定有誤：沒有設定」）、`message_rejected` 寫「Discord 拒絕這則訊息的內容」（上游為「Discord 拒絕訊息內容」）；`ui/plan.md` 沒有列出這 3 個原因的文字。本文件只引用 Enum 值，不決定畫面文字 | `ui-plan` |
-| UC2 | `research.md` §6 模擬器模式表 | 6 種模式無法重現第 3 節的 4 類回應：其他 `4xx`（`message_rejected`）、`401`／`403`（`webhook_invalid`）、`200` 沒有 `id`（結果不明）、沒有等待秒數的 `429`（退避間隔）。本文件不自創模式，NS11、NS15 改以單元測試驗證分類函式；這幾類在整合測試與手動展示中無法重現 | `technical-research` |
+| UC1 | `ui/overdue-notifications.html` `MOCK.failureReasons`；`ui/plan.md` §5 | 已解決：原問題為 3 個失敗原因（`connection_failed`、`webhook_not_configured`、`message_rejected`）的畫面文字與 `data/data-model.dbml` 的 `Enum overdue_notification_failure_reason` note、`research.md` §1 不同，且 `ui/plan.md` 沒有列出。`ui/plan.md` §5「失敗原因的畫面文字」已列出 6 種文字，與資料模型、合約一致，雛形 `failureReasons` 已同步。失敗原因的畫面文字以 `ui/plan.md` §5「失敗原因的畫面文字」為準；本文件只引用 Enum 值 | `ui-plan` |
+| UC2 | `research.md` §6 模擬器模式表 | 已解決：原問題為 6 種模式無法重現第 3 節的 4 類回應：其他 `4xx`（`message_rejected`）、`401`／`403`（`webhook_invalid`）、`200` 沒有 `id`（結果不明）、沒有等待秒數的 `429`（退避間隔）。定案依 `research.md` §6：不新增模式；整合測試以 `node:http` 臨時固定回應位址經真實 `fetch` 驗證分類，不新增單元測試（與 `plan.md` 的 `backend/tests/unit/`「本次不新增」一致）；使用模擬器的整合情境與手動展示不涵蓋這 4 類。第 5.5 節、NS11、NS15 已依此改寫 | `technical-research` |
 
 ### 使用者決定
 
