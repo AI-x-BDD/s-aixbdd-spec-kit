@@ -277,7 +277,11 @@ export const UI_TEXT = {
     showAll: "顯示全部通知",
     emptyAllTitle: "目前沒有逾期通知",
     emptyAllHint: "借用中的設備超過時段結束時間還沒歸還時，系統會發 Discord 通知並列在這裡。",
+    runCheck: "立即檢查逾期",
+    checking: "檢查中…",
     banner: {
+      checkCreated: (count: number) => `這次建立 ${count} 則逾期通知`,
+      checkNone: "沒有新的逾期借用",
       resent: (reservationNo: string) =>
         `已重新送出 ${reservationNo} 的通知，目前為「送出中」。請稍後按「重新整理」查看送出結果。`,
     },

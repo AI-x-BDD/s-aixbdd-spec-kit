@@ -18,6 +18,7 @@ import {
 import {
   listOverdueNotifications,
   resendOverdueNotification,
+  runOverdueCheck,
 } from "../services/overdueNotificationService.js";
 import {
   approveRescheduleRequest,
@@ -408,3 +409,8 @@ adminRouter.post(
     res.status(202).json(result);
   },
 );
+
+adminRouter.post("/overdue-checks", requireAuth, requireAdmin, async (_req, res) => {
+  const createdCount = await runOverdueCheck(new Date());
+  res.status(200).json({ createdCount });
+});
