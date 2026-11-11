@@ -4,14 +4,18 @@
 # ///
 """Collect a coverage inventory from a spec directory for the analyze skill.
 
-Reads spec.md, plan.md, tasks.md and the Planner outputs under contracts/,
-data/ and ui/, then prints one JSON object to standard output:
+Reads spec.md, plan.md, tasks.md, the Planner outputs under contracts/,
+data/ and ui/, and notification/plan.md produced by notification-plan, then
+prints one JSON object to standard output:
 
   requirements        FR / NFR / SC defined in spec.md, with the ids of the tasks that cite them
   user_stories        User Story headings in spec.md
   tasks               every task in tasks.md: id, phase, story, requirements, interfaces
   interfaces          interfaces listed in plan.md "系統介面盤點", with the contracts operations,
-                      data tables, ui/plan.md sections and tasks that map to each interface
+                      data tables, ui/plan.md sections, notification/plan.md sections and
+                      tasks that map to each interface; a notification/plan.md section maps
+                      to an interface only when its heading starts with an optional
+                      "§", an optional section number and the interface id
   unmapped_tasks      tasks that cite no requirement and are not in a User Story phase
   pending_notes       "待確認 n" entries in the tasks.md Notes section
   placeholders        {{, TODO, TBD, TKTK and ??? found in any document of the spec directory
@@ -346,6 +350,23 @@ def parse_ui_sections(spec_dir: Path) -> list[dict]:
     return sections
 
 
+NOTIFICATION_HEADING_RE = re.compile(
+    r"^#+\s+((?:§\s*)?(?:\d+(?:\.\d+)*\.?\s+)?([A-Z]\d+)(?=\s|$).*?)\s*$"
+)
+
+
+def parse_notification_sections(spec_dir: Path) -> list[dict]:
+    sections: list[dict] = []
+    plan = spec_dir / "notification" / "plan.md"
+    if not plan.is_file():
+        return sections
+    for line in read_lines(plan):
+        h = NOTIFICATION_HEADING_RE.match(line)
+        if h:
+            sections.append({"section": h.group(1), "interface": h.group(2)})
+    return sections
+
+
 def scan_placeholders(spec_dir: Path) -> list[dict]:
     found: list[dict] = []
     for path in sorted(spec_dir.rglob("*")):
@@ -375,6 +396,7 @@ def build(spec_dir: Path) -> dict:
     contracts = parse_contracts(spec_dir)
     tables = parse_data(spec_dir)
     ui_sections = parse_ui_sections(spec_dir)
+    notification_sections = parse_notification_sections(spec_dir)
 
     defined = {r["id"] for r in requirements}
     undefined: list[dict] = []
@@ -400,13 +422,18 @@ def build(spec_dir: Path) -> dict:
             for s in ui_sections
             if iid in s["interfaces"]
         ]
+        iface["notification"] = [
+            {"file": "notification/plan.md", "section": s["section"]}
+            for s in notification_sections
+            if s["interface"] == iid
+        ]
         iface["tasks"] = [t["id"] for t in tasks if iid in t["interfaces"]]
         iface["expected_output"] = expected_output(iface["endpoint_type"])
 
     def has_output(iface: dict) -> bool:
         expected = iface["expected_output"]
         if expected == "any":
-            return bool(iface["contracts"] or iface["data"] or iface["ui"])
+            return bool(iface["contracts"] or iface["data"] or iface["ui"] or iface["notification"])
         return bool(iface[expected])
 
     unmapped = [
