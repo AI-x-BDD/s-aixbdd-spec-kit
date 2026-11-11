@@ -29,6 +29,7 @@ B 組 Skill 版本（2026-11-11，runbook 第 8 節第 5 點第 1 項）：
 - 檢查：`scripts/sync-skills.sh --check` 為「兩邊一致」；`git diff main HEAD -- .agents/skills .claude/skills` 沒有輸出，B 組的 Skill 和 `main` 的 `6d67e41` 相同。
 - `ab/group-b` 比 `origin/ab/group-b` 多 2 個 commit，還沒 push。步驟 5n 後多 3 個 commit（含 `f614f1a`），仍沒有 push。
 - 歸檔（runbook 第 8 節第 6 點，2026-11-11）：[`docs/ab-test/`](../ab-test/)，commit `3518920`。含共用輸入（`ae040c0`）、A 組 `tasks.md`（`8c4441c`）與 `analysis.md`（`b0cac59`）、B 組 `notification/plan.md`（`f614f1a`）、`tasks.md`（`513708a`）、`analysis.md`（`7cf0db8`）與步驟 8 決策清單；各組 `README.md` 記錄模型設定、Skill 版本與 sha256。歸檔後不再修改。
+- 合併回 `main`（runbook 第 8 節第 7 點，2026-11-11）：不 merge `ab/group-b`，以 `git cherry-pick -x` 只帶 spec 與實作的 9 個 commit，不帶 Skill commit `f603bb2`、`b17d451`（`main` 已有，且之後有 `880fcb7`、`ff0abeb` 的修正）。先在暫存 worktree 以 `--no-commit` 試做，沒有衝突。對照：`f614f1a`→`30db230`、`513708a`→`0ab38bf`、`7cf0db8`→`0c4e704`、`7dda70c`→`e683af0`、`c7e3a3c`→`2a548ed`、`abf9dc8`→`3bb452f`、`8729f4c`→`ea90959`、`8b7de36`→`4e4f3d0`、`0d60ce6`→`331f722`。`apps/` 與 `specs/008` 和 B 組 `0d60ce6` 相同；`git diff 62b3d87 -- .agents/skills .claude/skills` 為空，`sync-skills.sh --check` 兩邊一致。測試（17:23～17:27，`DATABASE_URL` 明確指向主目錄 `equipment_loan`，不讀 `.env`）：`db:migrate` 套用 `20261111000000_overdue_notifications`；`prisma generate` 後 `db:seed` 正常；`npm run check` 通過；後端 14 檔 76/76（含 007 遷移測試）、前端 4/4、e2e 5/5；結束後重跑 `db:seed`，沒有殘留程序。
 
 模型與 effort（兩組必須相同，runbook 第 8 節第 2、5 點）：
 
@@ -311,6 +312,7 @@ npm run db:seed
 | 8（B 組） | Phase 4 子代理用沒有限定目錄的 `pkill -f "src/server.ts"` 停止後端 | 可能停掉另一組或其他專案的同名程序 | 主 session 確認 5173 屬於其他專案、沒有受影響，並停掉 1 個殘留的 B 組 `tsx watch`。委派提示詞尚未加上「只停自己啟動的程序」的限制 |
 | 8（B 組） | 既有 `api.test.ts` 的 SC-001 & FR-001 & FR-002 和執行時間有關 | 11:50 左右失敗、12:00 之後通過，會被誤判成本次修改造成的錯誤 | 沒有修改，只在本檔 8（B 組）列記錄 |
 | 9（B 組） | 步驟 8 完成報告的「本機啟動」沒有寫 `DISCORD_WEBHOOK_URL`；B 組 `backend/.env` 也沒有它。前端預設的 5173 埠被其他專案佔用 | 照完成報告啟動時，通知會標成「送出失敗」（通知設定有誤：沒有設定），前端也無法用預設埠啟動 | 驗證說明的啟動指令直接帶入模擬器位址（同名環境變數優先於 `.env`，不必修改 `.env`），前端改用 `--port 5183 --strictPort` |
+| 合併回 `main`（第 8 節第 7 點） | Prisma Client 產生在各 worktree 被 git 忽略的 `backend/node_modules/.prisma/client`。cherry-pick 帶進新的 `schema.prisma` 與 migration 後，主目錄的 client 仍是 007 的版本；`prisma migrate deploy` 只改資料庫，不重新產生 client。runbook 第 8 節第 7 點沒有寫合併後要重新產生 | `db:seed` 在第一個動作 `overdue_notifications.deleteMany()` 失敗（沒有刪除或寫入資料）；`npm run check` 出現多個 `TS2339`（`PrismaClient` 沒有 `overdue_notifications`） | 使用者同意後，在 `backend/` 執行 `npx prisma generate`（只寫被忽略的 `node_modules`），再從 `db:seed` 接續，全部通過。runbook 尚未修改 |
 
 ## 影片素材清單
 
