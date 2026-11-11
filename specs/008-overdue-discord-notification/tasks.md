@@ -49,12 +49,12 @@ description: "Task list for 逾期借用的 Discord 通知、送出結果查看�
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 在 `backend/package.json` 的 scripts 把 `dev` 改為 `tsx watch --env-file-if-exists=.env src/server.ts`、`db:seed` 改為 `tsx --env-file-if-exists=.env prisma/seed.ts`，並新增 `discord:sim` 以 `tsx` 執行 `scripts/discordWebhookSimulator.ts`；不新增任何相依套件（research §5、§6）
+- [X] T001 在 `backend/package.json` 的 scripts 把 `dev` 改為 `tsx watch --env-file-if-exists=.env src/server.ts`、`db:seed` 改為 `tsx --env-file-if-exists=.env prisma/seed.ts`，並新增 `discord:sim` 以 `tsx` 執行 `scripts/discordWebhookSimulator.ts`；不新增任何相依套件（research §5、§6）
   - **Must Read**
     - `research.md` → §5 — Why：以 `--env-file-if-exists=.env` 載入 `.env` 的原因與 `dev`、`db:seed` 的新寫法
     - `research.md` → §6 — Why：`discord:sim` 指令執行的模擬器檔案
     - `techstack.md` → 本次開發不引入的技術 — Why：不得安裝的 dotenv、axios、`undici`、`node-cron` 等套件
-- [ ] T002 [P] 在 `backend/.env.example` 新增 `DISCORD_WEBHOOK_URL`（值為 `http://127.0.0.1:4010/api/webhooks/000000000000000000/simulator-token`）、`OVERDUE_AUTO_CHECK_ENABLED`（`true`）、`OVERDUE_CHECK_INTERVAL_SECONDS`（`60`），保留既有 `DATABASE_URL`、`PORT`；確認 `.gitignore` 已忽略 `.env`（research §5、NFR-003）
+- [X] T002 [P] 在 `backend/.env.example` 新增 `DISCORD_WEBHOOK_URL`（值為 `http://127.0.0.1:4010/api/webhooks/000000000000000000/simulator-token`）、`OVERDUE_AUTO_CHECK_ENABLED`（`true`）、`OVERDUE_CHECK_INTERVAL_SECONDS`（`60`），保留既有 `DATABASE_URL`、`PORT`；確認 `.gitignore` 已忽略 `.env`（research §5、NFR-003）
   - **Must Read**
     - `research.md` → §5 — Why：三個設定的名稱、預設值與 `.env` 不 commit 的規定
   - **Optional**
