@@ -24,8 +24,8 @@ const ATTEMPT_UNIT = "次";
 
 const STATUS_OPTIONS: OverdueNotificationStatus[] = ["sending", "sent", "failed", "unknown"];
 
-/** 單頁查詢筆數；ui/plan.md 沒有規劃分頁控制項，tasks.md Notes 待確認 4：以 page=1、pageSize=100 查詢。 */
-const PAGE_SIZE = 100;
+/** 每頁 20 則（ui/plan.md §3.3 A14、§4「通知超過一頁」）。 */
+const PAGE_SIZE = 20;
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -132,6 +132,11 @@ export function OverdueNotificationsView({
   const [filter, setFilter] = useState<OverdueNotificationStatus | "all">("all");
   const [items, setItems] = useState<OverdueNotification[]>([]);
   const [totalItems, setTotalItems] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  /** 目前顯示的頁碼；只在查詢成功後更新 */
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  /** 點擊「上一頁」「下一頁」後正在載入的頁碼；null 表示不是換頁造成的載入 */
+  const [pagingTo, setPagingTo] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   /** 已載入過一次：之後換篩選只淡化清單，不再回到整頁骨架 */
   const [loaded, setLoaded] = useState<boolean>(false);
@@ -147,7 +152,7 @@ export function OverdueNotificationsView({
   const [dialogTarget, setDialogTarget] = useState<OverdueNotification | null>(null);
 
   const load = useCallback(
-    async (status: OverdueNotificationStatus | "all") => {
+    async (status: OverdueNotificationStatus | "all", targetPage: number) => {
       if (currentUser.role !== "admin") {
         return;
       }
@@ -156,11 +161,13 @@ export function OverdueNotificationsView({
       try {
         const page = await listOverdueNotifications({
           status: status === "all" ? undefined : status,
-          page: 1,
+          page: targetPage,
           pageSize: PAGE_SIZE,
         });
         setItems(page.items);
         setTotalItems(page.totalItems);
+        setTotalPages(page.totalPages);
+        setCurrentPage(targetPage);
         setLoaded(true);
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
@@ -172,13 +179,14 @@ export function OverdueNotificationsView({
         }
       } finally {
         setLoading(false);
+        setPagingTo(null);
       }
     },
     [currentUser.role],
   );
 
   useEffect(() => {
-    void load(filter);
+    void load(filter, 1);
   }, [load, filter]);
 
   /** 重送：不等送出結果；202 顯示「送出中」橫幅，409 顯示後端訊息，兩者都重新查詢清單（FR-005、FR-007、FR-008、FR-018）。 */
@@ -200,7 +208,7 @@ export function OverdueNotificationsView({
     } finally {
       setResendingId(null);
     }
-    await load(filter);
+    await load(filter, currentPage);
   }
 
   function handleResendClick(item: OverdueNotification): void {
@@ -234,7 +242,7 @@ export function OverdueNotificationsView({
     } finally {
       setChecking(false);
     }
-    await load(filter);
+    await load(filter, 1);
   }
 
   function handleConfirmResend(): void {
@@ -247,7 +255,13 @@ export function OverdueNotificationsView({
 
   function handleRefresh(): void {
     setBanner(null);
-    void load(filter);
+    void load(filter, currentPage);
+  }
+
+  function goToPage(target: number): void {
+    setBanner(null);
+    setPagingTo(target);
+    void load(filter, target);
   }
 
   if (forbidden) {
@@ -271,6 +285,7 @@ export function OverdueNotificationsView({
   const hasFilter = filter !== "all";
   const initialLoading = loading && !loaded;
   const refreshing = loading && loaded;
+  const paging = refreshing && pagingTo !== null;
   const showEmptyAll = !loading && !loadError && items.length === 0 && !hasFilter;
   const showEmptyFilter = !loading && !loadError && items.length === 0 && hasFilter;
   const showTable = loaded && items.length > 0;
@@ -318,7 +333,7 @@ export function OverdueNotificationsView({
             <button
               type="button"
               className="btn btn-sm btn-primary"
-              disabled={checking}
+              disabled={checking || paging}
               onClick={() => void doRunCheck()}
               data-testid="overdue-check-btn"
             >
@@ -361,7 +376,7 @@ export function OverdueNotificationsView({
         {refreshing && (
           <div className="odn-refresh-line" data-testid="overdue-refreshing">
             <span className="odn-spinner" aria-hidden="true" />
-            <span>{TEXT.refreshingLine}</span>
+            <span>{paging ? TEXT.loadingPage(pagingTo) : TEXT.refreshingLine}</span>
           </div>
         )}
 
@@ -437,6 +452,38 @@ export function OverdueNotificationsView({
                 </tbody>
               </table>
             </div>
+            {totalPages > 1 && (
+              <div className="odn-pager" data-testid="overdue-pager">
+                <span data-testid="overdue-pager-text">
+                  {TEXT.pager(
+                    currentPage,
+                    totalPages,
+                    (currentPage - 1) * PAGE_SIZE + 1,
+                    Math.min(currentPage * PAGE_SIZE, totalItems),
+                  )}
+                </span>
+                <div className="odn-pager-actions">
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={refreshing || currentPage <= 1}
+                    onClick={() => goToPage(currentPage - 1)}
+                    data-testid="overdue-prev-btn"
+                  >
+                    {TEXT.prevPage}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={refreshing || currentPage >= totalPages}
+                    onClick={() => goToPage(currentPage + 1)}
+                    data-testid="overdue-next-btn"
+                  >
+                    {TEXT.nextPage}
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -482,6 +529,8 @@ const OVERDUE_NOTIFICATIONS_CSS = `
 .odn-count { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
 .odn-table-wrap { overflow-x: auto; transition: opacity .15s; }
 .odn-table-wrap.odn-refreshing { opacity: .45; pointer-events: none; }
+.odn-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--muted); }
+.odn-pager-actions { display: flex; gap: 8px; }
 .odn-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .odn-table th, .odn-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .odn-table th { color: var(--muted); font-size: 12px; font-weight: 600; background: var(--surface-muted); white-space: nowrap; }

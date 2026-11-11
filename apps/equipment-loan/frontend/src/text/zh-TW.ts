@@ -236,6 +236,11 @@ export const UI_TEXT = {
     filterAll: "全部",
     sortHint: "依通知建立時間由新到舊排列",
     totalCount: (count: number) => `共 ${count} 則通知`,
+    pager: (page: number, totalPages: number, from: number, to: number) =>
+      `第 ${page}／${totalPages} 頁，第 ${from}–${to} 則`,
+    prevPage: "上一頁",
+    nextPage: "下一頁",
+    loadingPage: (page: number) => `正在載入第 ${page} 頁…`,
     columns: {
       equipment: "設備",
       member: "借用成員",
