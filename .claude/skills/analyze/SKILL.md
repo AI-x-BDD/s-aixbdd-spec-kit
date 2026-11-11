@@ -1,6 +1,6 @@
 ---
 name: analyze
-description: 已有 spec.md、plan.md（含 system-analysis 委派產出的 ui/、data/、contracts/）與 tasks.md，要在實作前檢查這些文件是否一致時使用；不修改任何上游文件，比對 spec、plan、Planner 產出與 tasks 的重複、歧義、不足、涵蓋缺口與不一致（包括 API 合約、資料模型與 UI 規劃之間的命名與行為差異），並依 `.agents/constitution/` 檢查憲法遵循，違反必須／不得規則為 CRITICAL，每個問題標出位置、建議與處理 Skill，寫成 spec 目錄的 analysis.md。觸發關鍵字：analyze、analysis.md、一致性分析、檢查一致性、跨文件檢查、憲法檢查、實作前檢查。分流：要修正 spec 改用 `s-specify` 或 `clarify-over-specs`；要修正某一種 Planner 產出改用 `api-plan`、`data-plan` 或 `ui-plan`；要重新產生任務清單改用 `tasks`；要新增或修改憲法規則改用 `constitution`；依 tasks.md 實作改用 `implement`。
+description: 已有 spec.md、plan.md（含 system-analysis 委派產出的 ui/、data/、contracts/，以及 notification-plan 產出的 notification/）與 tasks.md，要在實作前檢查這些文件是否一致時使用；不修改任何上游文件，比對 spec、plan、Planner 產出與 tasks 的重複、歧義、不足、涵蓋缺口與不一致（包括 API 合約、資料模型與 UI 規劃之間的命名與行為差異），並依 `.agents/constitution/` 檢查憲法遵循，違反必須／不得規則為 CRITICAL，每個問題標出位置、建議與處理 Skill，寫成 spec 目錄的 analysis.md。觸發關鍵字：analyze、analysis.md、一致性分析、檢查一致性、跨文件檢查、憲法檢查、實作前檢查。分流：要修正 spec 改用 `s-specify` 或 `clarify-over-specs`；要修正某一種 Planner 產出改用 `api-plan`、`data-plan` 或 `ui-plan`；要修正通知規劃改用 `notification-plan`；要重新產生任務清單改用 `tasks`；要新增或修改憲法規則改用 `constitution`；依 tasks.md 實作改用 `implement`。
 ---
 
 # SOP
@@ -11,7 +11,7 @@ description: 已有 spec.md、plan.md（含 system-analysis 委派產出的 ui/�
 2. `THINK` 決定「目標 spec」：使用者指定 spec.md 路徑或功能目錄時使用該 spec，未指定且清單只有一份時使用該份，其餘情況視為未決定。
 3. `CHECK` 「目標 spec」不存在時，告知使用者需要先產出 spec.md（可使用 `s-specify`）並停止執行；清單有多份且使用者未指定時，列出清單請使用者指定並停止執行。
 4. `CHECK` 同目錄沒有 `plan.md` 時，告知使用者需要先做系統分析（可使用 `system-analysis`）並停止執行；沒有 `tasks.md` 時，告知使用者需要先拆解任務（可使用 `tasks`）並停止執行；停止時不建立任何檔案。
-5. `READ` 「目標 spec」全文，以及同目錄的 `plan.md`、`tasks.md`、`research.md`、`techstack.md` 與 `ui/`、`data/`、`contracts/` 下所有檔案的全文（不存在的略過），加入「分析輸入」。
+5. `READ` 「目標 spec」全文，以及同目錄的 `plan.md`、`tasks.md`、`research.md`、`techstack.md` 與 `ui/`、`data/`、`contracts/`、`notification/` 下所有檔案的全文（不存在的略過），加入「分析輸入」。
 6. `READ` 在專案根目錄執行 `find .agents/constitution -type f` 列出所有憲法檔（不截斷輸出）並讀取每個檔案；對 `skills/<Skill>/` 下的憲法檔，讀取專案 `.agents/skills/<Skill>/SKILL.md`（不存在時改讀 `.claude/skills/<Skill>/SKILL.md`）中列出鎖定項目的步驟；建立「憲法輸入」，沒有憲法檔時為空。
 
 完成條件：「目標 spec」、`plan.md`、`tasks.md` 與同目錄的上游文件已讀取，「憲法輸入」已建立；或缺少輸入，已停止執行並回報。
