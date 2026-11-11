@@ -4,7 +4,7 @@
 - 上一次 spec 目錄：`specs/007-equipment-maintenance-retire`
 - 本次功能：runbook 9.3「通知迭代」列（6 次路徑第 6 次）
 - 執行者：Claude Code＋Opus 5.5（runbook 第 6 節第 6 點：第 5 次迭代起全部改由 Claude Code 執行）
-- 開始／結束：2026-11-10／（未結束）
+- 開始／結束：2026-11-10／2026-11-12
 - A/B 流程：依 runbook 第 8 節。步驟 2～5 commit 後，從同一個 commit 建 A、B 兩組 git worktree；A/B 要在同一台電腦做完
 - A/B 共用起點：`ae040c0`（步驟 4～5 檢查點 commit，含 spec、research、techstack、plan 與三個 Planner 產出）
 
@@ -335,3 +335,5 @@ npm run db:seed
 | 管理員在畫面上看到逾期通知的送出結果，並在模擬器失敗後重送成功（F2～F6 的失敗分類與重試） | 本檔「使用者驗證」B 組段落（啟動方式、seed 重設、情境 S1～S6、F1～F7、R1～R7） | `0d60ce6`（`ab/group-b`） | 依 B 組「啟動方式」啟動，先做「demo seed 重設」，再切換模擬器模式，照 F2～F6 操作 | 否：依本檔步驟可以重現，但操作畫面要在重現時錄影 |
 | 以 `skill-engineering` 修正 `analyze` 的 `collect_coverage.py`（`interfaces_without_planner_output` 4 → 0） | `specs/skill-engineering/48-analyze-tags同縮排清單讀不到/`（`rca-report.md`、`blueprint.md`）；本檔問題 B-1 | `880fcb7` | 分別以修改前（`880fcb7^`）與修改後的 `collect_coverage.py`，對 B 組 008 的唯讀複本執行，比較輸出 | 否 |
 | 以 `skill-engineering` 為 `implement` 的 `check` 加上 Must Read 閘門（沒讀完且沒記為找不到時不打勾） | `specs/skill-engineering/49-implement-check未比對MustRead/`（`rca-report.md`、`blueprint.md` §8）；本檔問題 B-2 | `ff0abeb` | 建立一份含 2 項 Must Read 的 `tasks.md`，執行 `next` 後以 `check … --must-read 1` 執行，確認退出 1 並列出缺少的第 2 項 | 驗收用的 `/tmp/49-accept/` 是暫存目錄，可能被系統清除；結果已寫進 `blueprint.md` §8，可以依重現步驟重建 |
+| 合併後 `analyze` 找出換頁缺口，經 `ui-plan`、`tasks`、`implement` 補上 T040、T041，使用者實際驗證 T041 通過 | `specs/008-overdue-discord-notification/analysis.md`、`ui/plan.md` §3.3 A14 與 §4、`tasks.md` T040、T041；本檔「使用者驗證」合併後修正小節 | `faddff8`、`4255a2c`、`b1cbc6b` | 準備 40 則「送出失敗」通知，篩選「送出失敗」到最後一頁，重送唯一一則，看畫面改載第 2／2 頁 | 否：可依本檔步驟重現，畫面要在重現時錄影 |
+| 自動模式連續接續多步，以及它代使用者宣稱驗證的失誤與修正 | `.auto/next.log`（不進 git）；`scripts/hooks/auto_next.py`、`scripts/hooks/auto-clarify.sh`；`docs/dev/自動模式.md` §6 第 7、8 點 | `f95ff12`、`1b84b9c` | 依 `docs/dev/自動模式.md` §4 開啟自動模式，貼一個會連續多步的提示詞 | 是：`.auto/next.log` 不進 git，要保存請先複製 |
