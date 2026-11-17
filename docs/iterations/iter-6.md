@@ -311,6 +311,30 @@ npm run db:seed
 - T042（重新整理與換頁不跳動、不閃爍）：**未驗證**。第 1、2 次修正使用者回報仍閃爍、沒有反應；第 3 次（`a00eb91`）只有 agent 自動檢查。使用者決定先完成流程，留到換 UI 套件時處理（`docs/待確認.md` 第 32 項）。
 - 使用者回饋（2026-11-12）：修正過程思考太粗糙、浪費時間，開發成本太大。
 
+### 真實 Discord 送達（`main`，2026-11-17 補做）
+
+- 結果：**通過**。系統送出的 4 則逾期通知，使用者在真實 Discord 頻道看到 4 則，內容和系統紀錄一致。
+- 驗證的 commit：`c4971dc`（程式和 tag `iter-6-overdue-notification` 的 `5bf506b` 之後沒有修改，只差文件）。
+- 為什麼補做：選題規劃要求「失敗用模擬器驗證，成功送出用真實 Discord 驗證」。迭代 6 只用模擬器，就打了 tag。步驟見 `docs/discord/真實Discord連線步驟.md`。
+- 環境：使用者自建的 Discord 伺服器「設備借用通知」與 Webhook，網址只放在 `backend/.env`（被 git 忽略）。Claude Code 先以 GET 查詢 Webhook（不發訊息），回 200。後端啟動時只在指令帶 `OVERDUE_AUTO_CHECK_ENABLED=false`，沒有改 `.env`；不啟動模擬器。
+- 操作：`npm run db:seed` 重設 → Claude Code 以瀏覽器自動化用管理員吳承翰登入 →「逾期通知紀錄」→ 按「立即檢查逾期」。畫面顯示「這次建立 4 則逾期通知」，重新整理後 4 則都是「送出成功」、嘗試 1 次。第 4 則是林雅婷的 `RV-20261108-03`：seed 的借用日期隨執行日移動，今天 17:31 時下午時段已結束，所以比 README 預期的 3 則多 1 則。
+- 後端 log：4 次都是 `[discordWebhookClient] host=discord.com result=sent status=200`，log 沒有印出完整網址。
+- Discord 端確認：Claude Code 以 Message ID 向 Discord 查回 4 則訊息；使用者在 Discord 頻道親眼確認收到 4 則（下午 5:31）。
+
+| Message ID | 預約編號 | 設備 | 借用成員 | 已逾期 |
+|---|---|---|---|---|
+| `1572182326191071263` | `RV-20261108-03` | EQ-101 | 林雅婷 | 31 分鐘 |
+| `1572182327944151076` | `RV-20261107-05` | EQ-103 | 陳冠廷 | 20 小時 31 分鐘 |
+| `1572182330695487589` | `RV-20261109-19` | EQ-102 | 陳冠廷 | 20 小時 31 分鐘 |
+| `1572182332629192767` | `RV-20261110-23` | EQ-101 | 陳冠廷 | 1 天 0 小時 31 分鐘 |
+
+- 截圖：同框圖 `docs/iterations/assets/iter-6-real-discord.png`（左：Discord 頻道；右：系統逾期通知紀錄上半部）。原圖：`iter-6-real-discord-channel.png`（使用者提供）、`iter-6-real-discord-system.png`（Claude Code 以瀏覽器自動化截取整頁）。三張都沒有露出 Webhook 網址。
+- 發現：
+  1. 系統畫面沒有顯示 Message ID。選題規劃要求截圖「含 Message ID」，所以 Message ID 改由上表的查詢結果證明。
+  2. 清單「操作」欄的「重送」按鈕文字被擠成直的兩行（截圖最下面兩列）。不影響功能。
+  3. 使用者一開始看不到 Discord 訊息，原因是還沒按「立即檢查逾期」。清單裡 seed 建立的「送出成功」通知有 Message ID，但從來沒有送到 Discord，容易被誤認為已送出。
+- 使用者回饋：使用者回報「看到 Discord 了」，並提供 Discord 頻道截圖。
+
 ## 流程不足
 
 | 步驟 | 問題 | 影響 | 試過的優化 |
@@ -323,6 +347,8 @@ npm run db:seed
 | 合併回 `main`（第 8 節第 7 點） | Prisma Client 產生在各 worktree 被 git 忽略的 `backend/node_modules/.prisma/client`。cherry-pick 帶進新的 `schema.prisma` 與 migration 後，主目錄的 client 仍是 007 的版本；`prisma migrate deploy` 只改資料庫，不重新產生 client。runbook 第 8 節第 7 點沒有寫合併後要重新產生 | `db:seed` 在第一個動作 `overdue_notifications.deleteMany()` 失敗（沒有刪除或寫入資料）；`npm run check` 出現多個 `TS2339`（`PrismaClient` 沒有 `overdue_notifications`） | 使用者同意後，在 `backend/` 執行 `npx prisma generate`（只寫被忽略的 `node_modules`），再從 `db:seed` 接續，全部通過。runbook 尚未修改 |
 | 合併後（自動模式） | 自動接續的下一步提示詞由上一個 agent 撰寫，沒有限制寫法；agent 用使用者口吻寫了「我已在瀏覽器手動驗證 T041 通過」 | 下一步把它當成使用者的話，commit 了未經驗證的 T041（`4255a2c`） | `1b84b9c`：提示詞不得代使用者宣稱驗證或同意；下一步是使用者驗證、commit、push、打 tag 時停止接續 |
 | 合併後（T042） | 修畫面問題時，只依程式判斷使用者描述的現象，沒有先列出完整的預期行為；agent 自動檢查只量剛改的那一點 | T042 修了 3 次，第 2 次把回饋整個藏起來，使用者花約 60 分鐘反覆驗證 | 主 session 記下做法：先列出預期行為（有反應、不位移、不閃爍、看得出完成），一次改完並全部檢查後才交給使用者。runbook 尚未修改 |
+| 9、12（真實 Discord） | runbook 步驟 9 與 P9 沒有列出選題規劃要求的「成功送出用真實 Discord 驗證」；只用模擬器驗證就收尾、打 tag | 真實送達的證據在 2026-11-12 收尾時缺少，到 2026-11-17 才補做 | 依 `docs/discord/真實Discord連線步驟.md` 補做並通過（本檔「真實 Discord 送達」小節）。runbook 尚未修改 |
+| 9（真實 Discord） | demo seed 建立的「送出成功」通知帶有假的 Message ID，畫面看起來和真的送出一樣 | 使用者以為已送出，到 Discord 找不到訊息，誤以為功能壞了 | 驗證時口頭說明。seed 與畫面沒有修改 |
 
 ## 影片素材清單
 
@@ -337,3 +363,4 @@ npm run db:seed
 | 以 `skill-engineering` 為 `implement` 的 `check` 加上 Must Read 閘門（沒讀完且沒記為找不到時不打勾） | `specs/skill-engineering/49-implement-check未比對MustRead/`（`rca-report.md`、`blueprint.md` §8）；本檔問題 B-2 | `ff0abeb` | 建立一份含 2 項 Must Read 的 `tasks.md`，執行 `next` 後以 `check … --must-read 1` 執行，確認退出 1 並列出缺少的第 2 項 | 驗收用的 `/tmp/49-accept/` 是暫存目錄，可能被系統清除；結果已寫進 `blueprint.md` §8，可以依重現步驟重建 |
 | 合併後 `analyze` 找出換頁缺口，經 `ui-plan`、`tasks`、`implement` 補上 T040、T041，使用者實際驗證 T041 通過 | `specs/008-overdue-discord-notification/analysis.md`、`ui/plan.md` §3.3 A14 與 §4、`tasks.md` T040、T041；本檔「使用者驗證」合併後修正小節 | `faddff8`、`4255a2c`、`b1cbc6b` | 準備 40 則「送出失敗」通知，篩選「送出失敗」到最後一頁，重送唯一一則，看畫面改載第 2／2 頁 | 否：可依本檔步驟重現，畫面要在重現時錄影 |
 | 自動模式連續接續多步，以及它代使用者宣稱驗證的失誤與修正 | `.auto/next.log`（不進 git）；`scripts/hooks/auto_next.py`、`scripts/hooks/auto-clarify.sh`；`docs/dev/自動模式.md` §6 第 7、8 點 | `f95ff12`、`1b84b9c` | 依 `docs/dev/自動模式.md` §4 開啟自動模式，貼一個會連續多步的提示詞 | 是：`.auto/next.log` 不進 git，要保存請先複製 |
+| 逾期通知真的送到 Discord（真實送達，不是模擬器） | `docs/iterations/assets/iter-6-real-discord.png`（同框圖）；本檔「使用者驗證」真實 Discord 送達小節（4 則 Message ID） | `c4971dc` | 在 `backend/.env` 設真實 `DISCORD_WEBHOOK_URL`，`npm run db:seed`，以 `OVERDUE_AUTO_CHECK_ENABLED=false` 啟動後端，管理員按「立即檢查逾期」。影片要錄時重做一次即可，Message ID 會不同 | 否：可以重做。截圖與錄影都不能露出 Webhook 網址 |

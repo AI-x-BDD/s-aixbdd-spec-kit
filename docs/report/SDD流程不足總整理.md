@@ -36,4 +36,5 @@
 
 ## 4. 證據缺口
 
-- 選題討論「當下必須保存的證據」的「真實 Discord 送達」截圖（Discord 頻道訊息與系統通知紀錄同框，含 Message ID）在迭代紀錄中找不到。影片要用時，需要先在真實 Discord 頻道跑一次並截圖，截圖不能露出 Webhook URL。
+- ~~「真實 Discord 送達」截圖缺少~~：2026-11-17 已補做。同框圖為 `docs/iterations/assets/iter-6-real-discord.png`，4 則 Message ID 記在 `docs/iterations/iter-6.md`「真實 Discord 送達」小節。系統畫面不顯示 Message ID，所以 Message ID 不在截圖中。
+- 這個缺口的原因：runbook 步驟 9 沒有列出「成功送出用真實 Discord 驗證」，迭代 6 只用模擬器就收尾、打 tag。runbook 尚未修改。
