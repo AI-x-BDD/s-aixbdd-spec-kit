@@ -8,6 +8,12 @@
 | `.agents/skills/` | Codex／.agents 格式的 skills，與 `.claude/skills/` 實體相同 |
 | `.spec-kit/` | Spec-Kit 基因庫（Skills、commands、`.specify` 設定），MIT 授權 |
 | `specs/001-photo-album-organizer/` | 用 Spec-Kit 實際跑出的照片相簿 artifacts，作為基因樣本 |
+| [`apps/equipment-loan/`](apps/equipment-loan/) | 第三題作品「精密實驗設備借用中心」的原始碼；執行方式見該目錄的 [`README.md`](apps/equipment-loan/README.md) |
+| `specs/003-equipment-loan-booking/`～`specs/008-overdue-discord-notification/` | 6 次迭代的 SDD 產出（spec、技術研究、系統分析與 Planner 產出、tasks、analysis） |
+| [`docs/iterations/`](docs/iterations/) | 6 次迭代的紀錄：步驟、Skill 問題、驗證紀錄與影片素材 |
+| [`docs/iterations/iter-6-ab-比較.md`](docs/iterations/iter-6-ab-比較.md) | 第四題新 Skill `notification-plan` 的 A/B 比較報告 |
+| [`docs/ab-test/`](docs/ab-test/) | A/B 比較的原始產出歸檔（A 組、B 組與共用輸入） |
+| [`specs/skill-engineering/`](specs/skill-engineering/) | 用 `skill-engineering` 建立與優化 Skill 的紀錄（根因報告、工程藍圖、驗收結果） |
 | `docs/待確認.md` | 建立 repo 時尚未確認的事項 |
 | `scripts/sync-skills.sh` | 同步兩邊的 skills 與 `CLAUDE.md`／`AGENTS.md` |
 | `VERSION` | template 版本 |
