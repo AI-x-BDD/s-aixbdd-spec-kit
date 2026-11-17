@@ -4,6 +4,17 @@
 - 證據：只讀 `docs/ab-test/` 的歸檔（commit `3518920`）。下文路徑都相對 `docs/ab-test/`，並省略 `specs/008-overdue-discord-notification/`。例如 `A tasks.md:130` 指 `docs/ab-test/group-a/specs/008-overdue-discord-notification/tasks.md` 第 130 行；`B notif:80` 指 B 組 `notification/plan.md` 第 80 行；`input research.md:61` 指共用輸入。
 - 撰寫：主 session（Opus 5.5，effort high），2026-11-11。沒有獨立子代理評分。
 
+## 0. 第四題：問題與位置
+
+- 問題：`system-analysis` 只把前端、後端、資料庫介面委派給 Planner，其他介面在 `plan.md` 記為「沒有 Planner」。008 的排程 S1～S3、通知服務 N1、N2 因此沒有人規劃，Wave 3 跳過。這 5 個介面只有 `research.md` 的文字決策，沒有可交給 `tasks` 的規格。各 Skill 都照 SOP 執行，落差在 workflow 少一個步驟。
+- 位置：新 Skill `notification-plan`（`fd8e032`）放在 `system-analysis` 與 Planner（`ui-plan`、`api-plan`、`data-plan`）之後、`tasks` 之前，單獨執行，不由 `system-analysis` 委派。它產出 spec 目錄的 `notification/plan.md`。
+- 接入（`be648df`）：
+  - `tasks` 讀取 `notification/`，把 `notification/plan.md` 中以介面編號開頭的章節算成任務依據。
+  - `analyze` 讀取 `notification/`，E 類改為「介面沒有 Planner 或 `notification-plan` 產出」，`collect_coverage.py` 加入 `notification` 鍵。
+- 驗收：Sonnet、medium 子代理在暫存複本跑 6 個情境（E1～E12），全部通過。
+- 使用者驗證：2026-11-11 通過。E1～E7 符合，移除 description 的「（未驗證）」（`0ad3b3f`）。
+- 詳細內容：[`specs/skill-engineering/47-notification-plan-建立/blueprint.md`](../../specs/skill-engineering/47-notification-plan-建立/blueprint.md)（根因分析在同目錄的 `rca-report.md`）。
+
 ## 1. 目的與限制
 
 目的：比較 A 組（原 workflow）與 B 組（加入 `notification-plan`）在外部通知介面（S1～S3、N1、N2）上，「有沒有明確的決策與可執行的任務」。
@@ -14,7 +25,7 @@
 2. A 組沒有實作。本報告不宣稱 A 組「一定會出錯」，只比較規劃。
 3. 兩組都讀同一份 `research.md`。A 組的決策可以來自 research，只要任務有指到它，就算有決策。
 4. 防重複的設計不能寫成「保證不重複」。
-5. 真實 Discord 送達尚未驗證，執行結果只來自模擬器與自動測試。
+5. 真實 Discord 只驗證成功送出（4 則，2026-11-17）。失敗、重試、結果不明的執行結果只來自模擬器與自動測試。
 
 ## 2. 評分基準（判定前固定）
 
@@ -31,7 +42,7 @@
 2. 每個判定都附上歸檔檔案的路徑與行號。
 3. 兩組判定相同時寫「沒有差異」；A 組較好時照實寫。
 4. 決策只看歸檔產出與 A／B 共用的輸入；不使用 B 組實作或使用者驗證的結果補 A 組的判定。
-5. 「執行結果」只寫 B 組，並只引用 B 組的測試、使用者驗證與決策清單。
+5. 「執行結果」只寫 B 組，並只引用 B 組的測試、使用者驗證、決策清單，以及 B 組實作合併回 `main` 後、後端程式沒有修改時的驗證（真實 Discord 送達）。
 
 7 個評分項目（「A/B 比較設計」第 4 點）：
 
@@ -134,21 +145,22 @@
 
 ## 4. 執行結果（只有 B 組）
 
-A 組沒有實作，不評。以下只引用 B 組的使用者驗證（`docs/iterations/iter-6.md`「使用者驗證」B 組段落，驗證 commit `0d60ce6`）、步驟 8 的測試與 `group-b/implement/decisions.md`。
+A 組沒有實作，不評。以下只引用 B 組的使用者驗證（`docs/iterations/iter-6.md`「使用者驗證」B 組段落，驗證 commit `0d60ce6`）、步驟 8 的測試、`group-b/implement/decisions.md`，以及 B 組實作合併回 `main` 後的真實 Discord 送達驗證。
 
 | 項目 | 執行結果 | 證據 |
 |---|---|---|
-| P1 失敗分類 | 使用者驗證 F2（Webhook 失效不重試）、F3（持續伺服器錯誤，重試 3 次後失敗）符合。模擬器無法重現的回應，T031 以臨時固定回應的 HTTP 位址直接呼叫 `send` 驗證分類，沒有新增模擬器模式 | `iter-6.md:254`、`iter-6.md:257`；`group-b/implement/decisions.md:46` |
-| P2 逾時後結果不明 | 使用者驗證 F4（等不到回應標成結果不明）符合；T031 的 NS12、NS14 實際等待 10 秒 | `iter-6.md:260`；`group-b/implement/decisions.md:47` |
-| P3 重試條件 | 使用者驗證 F5（`429` 等待後重試成功）、F6（送出前連線失敗，恢復後重試成功）符合 | `iter-6.md:263`、`iter-6.md:266` |
-| P4 重複處理 | 使用者驗證 S5、S6（已有通知的逾期借用不再建立）、F7（借用已歸還不能重送）符合；T032 並發重送改以 Supertest 打路由，取得一個 `202`、一個 `409`。UD2（送出中時借用被歸還照常送出）沒有使用者驗證情境，只由 T031 的 NS21 自動測試涵蓋 | `iter-6.md:233`、`iter-6.md:236`、`iter-6.md:269`；`group-b/implement/decisions.md:48` |
-| P5 紀錄 | T034 搜尋 Webhook 路徑片段，出現次數為 0；使用者驗證 F2 確認畫面不顯示 Webhook 位址 | `group-b/implement/decisions.md:49`；`iter-6.md:254` |
+| P1 失敗分類 | 使用者驗證 F2（Webhook 失效不重試）、F3（持續伺服器錯誤，重試 3 次後失敗）符合。模擬器無法重現的回應，T031 以臨時固定回應的 HTTP 位址直接呼叫 `send` 驗證分類，沒有新增模擬器模式 | `iter-6.md:256`、`iter-6.md:259`；`group-b/implement/decisions.md:46` |
+| P2 逾時後結果不明 | 使用者驗證 F4（等不到回應標成結果不明）符合；T031 的 NS12、NS14 實際等待 10 秒 | `iter-6.md:262`；`group-b/implement/decisions.md:47` |
+| P3 重試條件 | 使用者驗證 F5（`429` 等待後重試成功）、F6（送出前連線失敗，恢復後重試成功）符合 | `iter-6.md:265`、`iter-6.md:268` |
+| P4 重複處理 | 使用者驗證 S5、S6（已有通知的逾期借用不再建立）、F7（借用已歸還不能重送）符合；T032 並發重送改以 Supertest 打路由，取得一個 `202`、一個 `409`。UD2（送出中時借用被歸還照常送出）沒有使用者驗證情境，只由 T031 的 NS21 自動測試涵蓋 | `iter-6.md:235`、`iter-6.md:238`、`iter-6.md:271`；`group-b/implement/decisions.md:48` |
+| P5 紀錄 | T034 搜尋 Webhook 路徑片段，出現次數為 0；使用者驗證 F2 確認畫面不顯示 Webhook 位址 | `group-b/implement/decisions.md:49`；`iter-6.md:256` |
 | P6 測試任務 | 步驟 8 結束時，後端 13 個測試檔 72/72（另以暫存複本跑 007 遷移測試 4/4）、前端 4/4、e2e 5/5 | `iter-6.md` 步驟紀錄 8（B 組）列 |
+| 成功送出（真實 Discord） | 系統送出 4 則逾期通知，使用者在真實 Discord 頻道看到 4 則，內容和系統紀錄一致。後端 log 4 次都是 `status=200`，沒有印出完整網址。驗證的 commit 為 `c4971dc`（`main`，2026-11-17） | `iter-6.md:314-336`（「真實 Discord 送達」）；`docs/iterations/assets/iter-6-real-discord.png` |
 | P7 來源追溯 | 任務有綁定 Must Read，但 `implement` 沒有強制讀取：T029 的子代理沒有讀 Must Read 的 `ui/overdue-notifications.html`，`check` 照常打勾（問題 B-2，`main` `ff0abeb` 已修正）。這是執行階段的問題，不影響第 3 節的規劃判定 | `iter-6.md` 問題 B-2 |
 
 限制：
 
-- 真實 Discord 送達尚未驗證；以上都是模擬器與自動測試的結果。
+- 真實 Discord 只驗證成功送出 4 則；P1～P6 的失敗、重試與結果不明都是模擬器與自動測試的結果。
 - 只有一次實作，不能說明 A 組依同樣的方式實作會得到不同結果。
 
 ## 5. 沒有差異或 A 組較好的項目
@@ -168,6 +180,6 @@ A 組沒有實作，不評。以下只引用 B 組的使用者驗證（`docs/ite
 
 ## 7. 後續
 
-1. 上游衝突 UC1（失敗原因的畫面文字，交 `ui-plan`）、UC2（模擬器模式，交 `technical-research`）依 runbook 第 8 節第 5 點第 2 項，在本報告確認後處理（`B notif:436-437`）。
-2. 真實 Discord 送達驗證（「A/B 比較設計」第 6 點）尚未做；影片第 5 段需要它的截圖。
-3. runbook 第 8 節第 7 點：把 B 組實作合併回 `main`。
+1. 上游衝突 UC1（失敗原因的畫面文字，交 `ui-plan`）、UC2（模擬器模式，交 `technical-research`）（`B notif:436-437`）：**不處理**。理由：程式已實作，UD1、UD2 已套用。UC1 的失敗原因文字已採資料模型與合約的寫法（`iter-6.md:303`）；UC2 的 4 類回應已由 T031 直接呼叫 `send` 驗證（`group-b/implement/decisions.md:46`）。
+2. 真實 Discord 送達驗證（「A/B 比較設計」第 6 點）：**已完成**（2026-11-17）。見 `iter-6.md:314-336`「真實 Discord 送達」；影片第 5 段的截圖用 `docs/iterations/assets/iter-6-real-discord.png`。
+3. runbook 第 8 節第 7 點：把 B 組實作合併回 `main`：**已完成**（2026-11-11）。
