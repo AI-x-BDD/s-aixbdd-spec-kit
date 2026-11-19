@@ -1,7 +1,7 @@
 # 迭代 Runbook（OpenCode＋Gemini Argon 執行用）
 
 - 建立日期：2026-11-08
-- 適用範圍：第三題「設備借用與預約審核系統」的每一次迭代（`s-specify` → `implement`）
+- 適用範圍：第三題「設備借用與預約審核系統」的每一次迭代（`s-specify` → `implement`）；第 10 節的錯誤修正流程也可以在迭代以外使用
 - 規劃依據：[第三題選題討論.md](./第三題選題討論.md)（題目、迭代內容、排程、證據保存、第四題 A/B）
 - 狀態：未驗證。第 1 次迭代跑完後依實際情況修正本文件
 
@@ -92,7 +92,7 @@
 |---|---|---|---|
 | 執行者 | OpenCode＋Gemini 4 Argon（下稱 Argon） | 依本 runbook 跑完一次迭代的所有步驟；寫迭代紀錄；記錄 Skill 的問題與證據 | 修改任何 Skill（`.claude/skills/`、`.agents/skills/`）；自行決定產品規則 |
 | 規劃、Skill 優化與最後報告 | Claude Code（Opus）、Codex | 排程調整；`skill-engineering` 根因分析與優化；第四題新 Skill 的設計。最後報告與內容由 Claude Code 負責：SDD 流程不足總整理、第四題前後比較報告、影片旁白稿與鏡頭清單、提交前核對 | 代替使用者做實際驗證；跑迭代的 `s-specify` → `implement` |
-| 使用者 | — | 回答 `clarify` 的問題；同意覆寫；實際操作驗證；同意 commit 與 tag | — |
+| 使用者 | — | 回答 `clarify` 的問題；同意覆寫；核准錯誤修正的修法與命令；實際操作驗證；同意 commit 與 tag | — |
 
 Argon 發現 Skill 問題時，只記錄問題與證據，交給 Claude Code 用 `skill-engineering` 處理（見第 6 節）。理由：專案規則規定 Skill 設計與根因分析由 Opus 在主 session 執行，修改 Skill 後還要同步兩邊目錄。
 
@@ -240,9 +240,10 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
 ### 步驟 10：檢查 Skill 的表現
 
 1. 填迭代紀錄的「Skill 表現檢查」表（第 7 節）。
-2. 每個問題先分類：需求缺漏、程式錯誤、Skill 缺陷。
-   - 需求缺漏：回到 `clarify-over-specs` 或下一次迭代處理。
-   - 程式錯誤：修程式。
+2. 每個問題先分類：需求缺漏、意圖改變、程式錯誤、Skill 缺陷。
+   - 需求缺漏：spec 沒寫到、`clarify` 也沒問到的規則。回到 `clarify-over-specs` 或下一次迭代處理。
+   - 意圖改變：要改變已同意的 `spec.md`、`ui/plan.md` 或雛形。不修程式，轉回 SDD 流程：由寫出該內容的 Skill（例如 `s-specify`、`ui-plan`）修改，或放進下一次迭代的功能描述。
+   - 程式錯誤：程式和已同意的文件不一致。走第 10 節的錯誤修正流程，不直接修程式。分不清是程式錯誤還是意圖改變時，也走錯誤修正流程，由 `bug-assess` 判定。
    - Skill 缺陷：進步驟 11。
 3. 沒有證據就不算 Skill 缺陷。沒有發現問題時，如實寫「沒有」，不為了作業硬找問題。
 4. 錯誤產出會被覆寫前，先保存到迭代紀錄，或先 commit。
@@ -313,7 +314,7 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
 
 ## Skill 表現檢查
 
-| Skill | 預期 | 實際 | 分類（需求缺漏／程式錯誤／Skill 缺陷／沒有問題） | 證據位置 |
+| Skill | 預期 | 實際 | 分類（需求缺漏／意圖改變／程式錯誤／Skill 缺陷／沒有問題） | 證據位置 |
 |---|---|---|---|---|
 
 ## Skill 問題（交給 skill-engineering）
@@ -396,6 +397,7 @@ fix(<skill>): <一句話說明修改>
 | `/implement` | 步驟 8 | P8 | 每次 |
 | 使用者驗證 | 步驟 9 | P9 | 每次 |
 | 檢查 Skill 是否照預期工作 | 步驟 10 | P10 | 每次 |
+| 錯誤修正 | 第 10 節 | B1～B5 | 步驟 10 有程式錯誤時；迭代外發現錯誤時 |
 | `/skill-engineering` 優化 | 步驟 11 | P11（Claude Code）、P11b | 有 Skill 缺陷時 |
 | 收尾 | 步驟 12 | P12 | 每次 |
 
@@ -628,8 +630,9 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 
 ```text
 請做 runbook 步驟 10：依 docs/iterations/iter-{N}.md 的步驟紀錄與本次產出，填「Skill 表現檢查」表。
-每個問題分類為需求缺漏、程式錯誤、Skill 缺陷或沒有問題，並附證據位置。沒有證據不算 Skill 缺陷；沒有問題就寫「沒有」。
+每個問題分類為需求缺漏、意圖改變、程式錯誤、Skill 缺陷或沒有問題，並附證據位置。沒有證據不算 Skill 缺陷；沒有問題就寫「沒有」。
 分類為 Skill 缺陷的，依第 7 節格式寫進「Skill 問題」。
+分類為程式錯誤的，寫出錯誤回報（症狀、在哪裡看到、證據位置），交給第 10 節 B1。
 ```
 
 #### P11 交給 Claude Code 優化 Skill（貼在 Claude Code，不是 OpenCode）
@@ -671,7 +674,95 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 8. P6 → P7（→ P7b）
 9. P8
 10. P9 → 你驗證 → 貼驗證結果
-11. P10 →（有 Skill 缺陷時）P11 在 Claude Code → P11b
+11. P10 →（有程式錯誤時）第 10 節 B1～B5 →（有 Skill 缺陷時）P11 在 Claude Code → P11b
 12. P12
 
 第 2 次以後：同樣順序，跳過 P1（除非有新的共同規則），P5 用「第 2 次以後」版。通知迭代依第 8 節的 A/B 流程，在 P5 之後分 A、B 兩組；B 組在 P6 之前先跑 P5n。
+
+## 10. 錯誤修正流程
+
+### 10.1 什麼時候用
+
+1. 步驟 10 分類為程式錯誤的問題。
+2. 迭代以外發現的錯誤，例如 `docs/待確認.md` 記下的測試問題。
+3. 不用於意圖改變、需求缺漏、Skill 缺陷（見步驟 10）。
+
+報告放在 `specs/bugs/<代號>/`。3 支 Skill 都不 commit。
+
+### 10.2 步驟
+
+1. `bug-assess`（B1）：寫 `assessment.md`。不改程式。
+   - 使用者要做：回答 `clarify` 的問題；核准修法與命令。
+   - 判定為成立、已核准：進第 2 步。
+   - 判定為待重現：先用 `bug-test` 做修正前實測（B3），再用 B1r 重新評估。
+   - 判定為意圖改變：結束這個流程。依「轉回 SDD 流程的項目」轉回 SDD 流程（步驟 10 的意圖改變）。
+   - 判定為不成立：結束這個流程。理由留在 `assessment.md`。
+2. `bug-fix`（B2）：只依已核准的修法修改列出的檔案。寫 `fix.md`。
+   - 狀態為已套用：進第 3 步。
+   - 狀態為部分套用或未套用：用 B1r 重新評估，並把 `fix.md` 的偏離當新證據。
+3. `bug-test`（B3）：在修正前和修正後各量一次。不改程式。寫 `test.md`。
+   - 結果為待使用者驗證：進第 4 步。
+   - 結果為部分：補齊 `test.md` 列出的條件後，重跑 B3。
+   - 結果為失敗、已重現或未重現：用 B1r 重新評估。
+4. 使用者驗證（B4）：使用者依 `test.md` 的驗證項目操作，回覆結果。`bug-test` 把結果寫進 `test.md`。
+   - 結果為使用者已驗證：進第 5 步。
+   - 結果為使用者驗證未通過：用 B1r 重新評估。
+5. 檢查點（B5）：commit 程式、測試與 `specs/bugs/<代號>/`。在迭代中使用時，把報告位置與 commit SHA 寫進迭代紀錄。
+
+### 10.3 變數
+
+| 變數 | 意思 | 例子 |
+|---|---|---|
+| `{BUG_SLUG}` | 代號；B1 沒有時由 `bug-assess` 擬定，之後沿用 | `pickup-test-time-dependent` |
+| `{BUG_REPORT}` | 錯誤回報：症狀、在哪裡看到、證據位置 | — |
+| `{NEW_EVIDENCE}` | 重新評估的新證據 | `specs/bugs/<代號>/test.md 的結果` |
+
+### 10.4 提示詞
+
+#### B1 `bug-assess`
+
+```text
+請做 runbook 第 10 節步驟 1：讀取 .agents/skills/bug-assess/SKILL.md 並依其 SOP 執行。
+錯誤回報：{BUG_REPORT}
+代號：{BUG_SLUG}（沒有時寫「由 bug-assess 擬定」）
+不修改程式，不 commit。依 SOP 請我核准修法與命令後停下來。
+```
+
+#### B1r 重新評估（第 1 步判定為待重現，或第 2～4 步要求重新評估時）
+
+```text
+請重新執行 runbook 第 10 節步驟 1：讀取 .agents/skills/bug-assess/SKILL.md 並依其 SOP 重新評估代號 {BUG_SLUG}。
+新證據：{NEW_EVIDENCE}
+不修改程式，不 commit。依 SOP 請我核准修法與命令後停下來。
+```
+
+#### B2 `bug-fix`
+
+```text
+請做 runbook 第 10 節步驟 2：讀取 .agents/skills/bug-fix/SKILL.md 並依其 SOP 執行，代號：{BUG_SLUG}。
+不 commit。完成後回報狀態與下一步，然後停下來。
+```
+
+#### B3 `bug-test`
+
+```text
+請做 runbook 第 10 節步驟 3：讀取 .agents/skills/bug-test/SKILL.md 並依其 SOP 執行，代號：{BUG_SLUG}。
+不修改程式，不 commit。結果是「待使用者驗證」時，列出驗證項目後停下來等我回覆。
+```
+
+#### B4 回覆驗證結果
+
+```text
+代號 {BUG_SLUG} 的驗證結果：<逐項寫通過或不通過，以及看到的情況>。
+請讀取 .agents/skills/bug-test/SKILL.md，依 Phase 4 把結果寫進 specs/bugs/{BUG_SLUG}/test.md。
+```
+
+要 agent 代為執行時，把第 1 行改成「請代為執行代號 {BUG_SLUG} 的驗證項目」。
+
+#### B5 檢查點
+
+```text
+請做 runbook 第 10 節步驟 5：確認 specs/bugs/{BUG_SLUG}/test.md 的結果是「使用者已驗證」，不是時停下來告訴我。
+1. 依 .agents/skills/conventional-commits/SKILL.md commit 程式、測試與 specs/bugs/{BUG_SLUG}/。訊息寫根本原因、修改內容、報告位置與使用者驗證結果。不 push。
+2. 在迭代中使用時，在 docs/iterations/iter-{N}.md「Skill 表現檢查」該列的證據位置，寫上 specs/bugs/{BUG_SLUG}/ 與 commit SHA。
+```
