@@ -219,7 +219,7 @@ npm --prefix backend run test -- tests/integration/equipmentStatusPerformance.te
 npx playwright test e2e/equipment-maintenance.spec.ts
 ```
 
-> 注意：前三次迭代的回歸測試 `backend/tests/integration/api.test.ts`、`e2e/equipment-loan.spec.ts` 與 `e2e/reschedule.spec.ts` 依賴執行當下的時刻（例如上午時段已結束、今天晚間尚未結束），只有在 `Asia/Taipei` 12:00–21:00 之間執行才會全部通過。迭代 4、5 新增的後端測試以 `vi.setSystemTime` 固定時間，不受執行時刻影響，但請避開午夜換日時執行。整合測試與 E2E 測試會重設 demo seed；E2E 會在 3000 埠（後端）與 5183 埠（前端）啟動伺服器，這兩個埠已有伺服器時會直接沿用。
+> 注意：前三次迭代的回歸測試依賴「今天上午時段已結束、今天晚間時段尚未結束」，所以測試會固定時刻：`backend/tests/integration/api.test.ts` 的 SC-001～SC-003 以 `vi.setSystemTime` 固定在當天 `Asia/Taipei` 14:30；E2E 啟動的後端預載 `e2e/support/fixed-clock.mjs`，把時間平移到當天 `Asia/Taipei` 14:30（可用環境變數 `E2E_FIXED_TAIPEI_TIME` 改成其他 `HH:MM`）。迭代 4、5 新增的後端測試同樣以 `vi.setSystemTime` 固定時間。測試結果不受執行時刻影響，但請避開午夜換日時執行。整合測試與 E2E 測試會重設 demo seed。E2E 會在 3000 埠啟動後端、5183 埠啟動前端：3000 埠已有後端時 E2E 會直接報錯（不沿用，因為手動啟動的後端沒有平移時鐘），請先停掉手動啟動的後端；5183 埠已有前端時會直接沿用。
 
 ## 5. 雙視窗展示改期流程
 
