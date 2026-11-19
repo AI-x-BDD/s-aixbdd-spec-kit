@@ -209,16 +209,18 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
    - 第 2 次迭代起，有沒有舊資料遷移與舊功能回歸的任務。
    - 有沒有擴充 demo seed 的任務。沒有時記進「Skill 問題」，並在步驟 9 手動補。
    - Notes 的待確認項目數量。
+   - 欄位引用：`tasks` 回報的「未通過項」沒有「受約束欄位 … 沒有任何任務在 Must Read … 引用」（`check_tasks.py` 輸出的 `uncited` 為空），也就是資料模型的每個受約束欄位（`note` 以「驗證：」「轉換：」開頭，或列在「跨欄位：」）都有實作任務在 Must Read 以 `` `data/data-model.dbml` → `table.column` `` 引用。不是空的時，記進「Skill 問題」。
 
 ### 步驟 7：`analyze`
 
 1. 指令：「讀取 `.agents/skills/analyze/SKILL.md` 並依其 SOP 執行，目標 spec：<路徑>」。
 2. 產出：`analysis.md`。
-3. 有 CRITICAL 時：
+3. 結束後的檢查：「欄位涵蓋」的列數等於資料模型的受約束欄位數（沒有受約束欄位時寫「不適用」），而且問題清單沒有欄位缺引用或找不到引用的 E 類問題；有的話，依處理 Skill（通常是 `tasks`）修正後重跑步驟 7。
+4. 有 CRITICAL 時：
    1. 依 `analysis.md` 標出的處理 Skill 修正上游文件（例如 `api-plan`、`tasks`）。
    2. 重跑 `analyze`。
    3. 在迭代紀錄寫下：問題、哪支 Skill 修、重跑結果。
-4. 檢查點（步驟 6～7 結束）：commit `docs(specs): ...`。
+5. 檢查點（步驟 6～7 結束）：commit `docs(specs): ...`。
 
 ### 步驟 8：`implement`
 
