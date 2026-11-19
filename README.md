@@ -13,6 +13,7 @@
 | [`docs/iterations/`](docs/iterations/) | 6 次迭代的紀錄：步驟、Skill 問題、驗證紀錄與影片素材 |
 | [`docs/iterations/iter-6-ab-比較.md`](docs/iterations/iter-6-ab-比較.md) | 第四題新 Skill `notification-plan` 的 A/B 比較報告 |
 | [`docs/ab-test/`](docs/ab-test/) | A/B 比較的原始產出歸檔（A 組、B 組與共用輸入） |
+| [`specs/bugs/`](specs/bugs/) | 錯誤修正流程的報告（`assessment.md`、`fix.md`、`test.md`） |
 | [`specs/skill-engineering/`](specs/skill-engineering/) | 用 `skill-engineering` 建立與優化 Skill 的紀錄（根因報告、工程藍圖、驗收結果） |
 | `docs/待確認.md` | 建立 repo 時尚未確認的事項 |
 | `scripts/sync-skills.sh` | 同步兩邊的 skills 與 `CLAUDE.md`／`AGENTS.md` |
@@ -27,6 +28,7 @@
 | `skill-engineering` | 自建（第二份作業） | 建立或優化 Skill，編排下列 `skill-form-*`、`skill-derive-*` |
 | `skill-form-description`、`skill-form-sop`、`skill-form-rule`、`skill-form-template`、`skill-form-script` | 自建（第二份作業） | 撰寫 Skill 單一部位 |
 | `skill-derive-rule`、`skill-derive-template`、`skill-derive-script` | 自建（第二份作業） | 為 SOP 步驟抽出部位 |
+| `bug-assess`、`bug-fix`、`bug-test` | 自建，含 [github/spec-kit](https://github.com/github/spec-kit) bug extension 的衍生內容（MIT） | 錯誤修正流程：評估、修正、實測（未驗證） |
 | `clarify` | [Waterball-Software-Academy/aixbdd](https://github.com/Waterball-Software-Academy/aixbdd)，Apache-2.0，原樣複製 | 需求訪談，供其他 Skill 委派 |
 
 ## 待確認
