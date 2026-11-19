@@ -1,0 +1,34 @@
+本 skill（bug-fix）為自建 Skill，含下列來源的衍生內容：
+
+1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）的 bug extension
+   （tag v1.4.2，commit 1e421b58805e33507258d917a16e4d2a403e8358）的 `speckit.bug.fix` 命令：
+   以評估報告為契約修正、只改列出的檔案、偏離時停止並建議重新評估、
+   修正報告的段落與三種狀態的概念。修正報告範例改寫自以該版本實際產生的 fix.md。
+   SOP、`rules/` 下的 RuleFile、`templates/fix.md` 樣板組，以及偏離分級、核准檢查、
+   本機驗證範圍等做法為重新撰寫，未直接複製上述專案的檔案。
+
+以下依授權要求，保留其原始授權全文。
+
+---
+
+MIT License
+
+Copyright GitHub, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
