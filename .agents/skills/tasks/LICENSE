@@ -12,6 +12,10 @@
    寫出前確認每個受約束欄位都有引用。本 Skill 改寫為 `data/data-model.dbml` 的 `table.column` 引用，
    受約束欄位以 data-plan 的「驗證」「轉換」「跨欄位」界定；RuleFile 條列、範例與 `scripts/check_tasks.py`
    的檢查為重新撰寫，未直接複製上游檔案。
+3. GitHub Spec Kit v1.4.2（tag `v1.4.2`，commit `1e421b5`）的 `speckit.converge` 命令：
+   實作後把缺口附加為 `tasks.md` 檔尾的新 Phase、附加前的內容不變的做法。
+   本 Skill 改寫為讀取 `converge` 產出的 `convergence.md`，只附加最新一輪「附加任務」且未被引用的缺口；
+   Phase 4 的 SOP、RuleFile 的 Rule 6 與 `scripts/pending_gaps.py` 為重新撰寫，未直接複製上游檔案。
 
 以下依授權要求，保留其原始授權全文。
 
