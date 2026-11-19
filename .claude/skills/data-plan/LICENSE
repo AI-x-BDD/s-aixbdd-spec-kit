@@ -1,0 +1,35 @@
+本 skill（data-plan）為自建 Skill，含下列來源的衍生內容：
+
+1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.），tag `v1.4.2`
+   （commit `1e421b58805e33507258d917a16e4d2a403e8358`）：
+   `rules/資料模型-格式規範.md` Rule 2 的欄位驗證規則、跨欄位規則，以及 Rule 3 的狀態轉換，參考
+   `templates/commands/plan.md` Phase 1「Validation rules from requirements」「State transitions if applicable」，
+   以及 `templates/commands/tasks.md` 把 data-model 當成欄位約束唯一來源的做法。
+   「驗證」「轉換」「跨欄位」的 DBML 寫法、本 Skill 的 SOP、RuleFile、樣板與 `scripts/check_data_model.py`
+   為重新撰寫，未直接複製上述專案的檔案。
+
+以下依授權要求，保留其原始授權全文。
+
+---
+
+MIT License
+
+Copyright GitHub, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

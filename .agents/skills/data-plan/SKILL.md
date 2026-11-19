@@ -1,6 +1,6 @@
 ---
 name: data-plan
-description: 已有 plan.md、要為資料庫介面設計資料模型時使用：依 plan.md 系統介面盤點中端點類型為資料庫的介面，或 system-analysis 委派的介面編號，參考 spec.md 的 Key Entities 與需求、技術研究採用的資料庫與前面 Wave 的產出，以 DBML 寫出資料表、欄位約束、Enum 與關聯，存成 spec 目錄的 data/data-model.dbml，每張資料表標出所屬介面與需求依據。通常由 system-analysis 依 Wave 委派，也可以單獨使用。使用者提到 data-plan、資料模型、data model、DBML、資料表設計、ER 圖時使用。盤點介面與安排 Wave 改用 system-analysis；設計 API 合約改用 api-plan；設計畫面與雛形改用 ui-plan。
+description: 已有 plan.md、要為資料庫介面設計資料模型時使用：依 plan.md 系統介面盤點中端點類型為資料庫的介面，或 system-analysis 委派的介面編號，參考 spec.md 的 Key Entities 與需求、技術研究採用的資料庫與前面 Wave 的產出，以 DBML 寫出資料表、欄位約束、驗證規則、狀態轉換、Enum 與關聯，存成 spec 目錄的 data/data-model.dbml，每張資料表標出所屬介面與需求依據。通常由 system-analysis 依 Wave 委派，也可以單獨使用。使用者提到 data-plan、資料模型、data model、DBML、資料表設計、ER 圖、驗證規則、狀態轉換時使用。盤點介面與安排 Wave 改用 system-analysis；設計 API 合約改用 api-plan；設計畫面與雛形改用 ui-plan。
 ---
 
 # SOP
@@ -23,7 +23,7 @@ description: 已有 plan.md、要為資料庫介面設計資料模型時使用�
 ## Phase 2 -- 設計資料模型
 
 1. `READ` 設計資料模型時，讀取 `rules/資料模型-格式規範.md` 的所有 Rule，建立「資料模型檢查清單」。
-2. `THINK` 依「規劃輸入」、「憲法檢查清單」與已載入的「資料模型檢查清單」，為「負責介面」設計資料表、欄位、Enum、索引與關聯，欄位型別使用技術研究採用的資料庫支援的型別，不設計 API 或程式實作，建立「資料模型設計」。
+2. `THINK` 依「規劃輸入」、「憲法檢查清單」與已載入的「資料模型檢查清單」，為「負責介面」設計資料表、欄位、Enum、索引、關聯、欄位驗證規則、跨欄位規則與狀態轉換，欄位型別使用技術研究採用的資料庫支援的型別，不設計 API 或程式實作，建立「資料模型設計」。
 3. `THINK` 比對「憲法檢查清單」的必須／不得規則與「規劃輸入」，列出和 spec、`plan.md` 或技術研究無法同時滿足的項目，建立「憲法衝突」。
 4. `DELEGATE` 「憲法衝突」不為空時，讀取專案根目錄的 `.agents/skills/clarify/SKILL.md`（不存在時改讀 `.claude/skills/clarify/SKILL.md`）並依其 SOP 執行，不使用 Skill 工具呼叫 `clarify`，以「憲法衝突」為優先提問面向、不要求詳記問答紀錄，取得使用者的決定，依決定調整「資料模型設計」；「憲法衝突」為空時略過本步驟與下一步。
 5. `CHECK` 兩個 `SKILL.md` 都不存在時，回報需要先在專案加入 `clarify`、沒有產出任何檔案，並停止執行；使用者未回覆時停止執行，回報沒有產出任何檔案。

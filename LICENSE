@@ -45,6 +45,8 @@ SOFTWARE.
   （MIT License，Copyright GitHub, Inc.）的衍生內容，衍生部分依其授權，見該目錄的 LICENSE
 - .claude/skills/system-analysis/ 與 .agents/skills/system-analysis/：自建 Skill，含 https://github.com/github/spec-kit
   （MIT License，Copyright GitHub, Inc.）的衍生內容，衍生部分依其授權，見該目錄的 LICENSE
+- .claude/skills/data-plan/ 與 .agents/skills/data-plan/：自建 Skill，含 https://github.com/github/spec-kit
+  （MIT License，Copyright GitHub, Inc.）的衍生內容，衍生部分依其授權，見該目錄的 LICENSE
 - .claude/skills/tasks/ 與 .agents/skills/tasks/：自建 Skill，含 https://github.com/github/spec-kit
   （MIT License，Copyright GitHub, Inc.）的衍生內容，衍生部分依其授權，見該目錄的 LICENSE
 - .claude/skills/analyze/ 與 .agents/skills/analyze/：自建 Skill，含 https://github.com/github/spec-kit
