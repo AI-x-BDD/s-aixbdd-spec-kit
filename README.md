@@ -6,7 +6,7 @@
 |---|---|
 | `.claude/skills/` | Claude Code 格式的 skills |
 | `.agents/skills/` | Codex／.agents 格式的 skills，與 `.claude/skills/` 實體相同 |
-| `.spec-kit/` | Spec-Kit 基因庫（Skills、commands、`.specify` 設定），MIT 授權 |
+| `.spec-kit/` | Spec-Kit 基因庫（Skills、commands、`.specify` 設定，版本 `1.2.2.dev0`），MIT 授權；`v1.4.2/` 子目錄放調整計畫用到的 v1.4.2 部分（bug、assess extension 與 converge、tasks、analyze 等），來源見該目錄的 README |
 | `specs/001-photo-album-organizer/` | 用 Spec-Kit 實際跑出的照片相簿 artifacts，作為基因樣本 |
 | [`apps/equipment-loan/`](apps/equipment-loan/) | 第三題作品「精密實驗設備借用中心」的原始碼；執行方式見該目錄的 [`README.md`](apps/equipment-loan/README.md) |
 | `specs/003-equipment-loan-booking/`～`specs/008-overdue-discord-notification/` | 6 次迭代的 SDD 產出（spec、技術研究、系統分析與 Planner 產出、tasks、analysis） |
