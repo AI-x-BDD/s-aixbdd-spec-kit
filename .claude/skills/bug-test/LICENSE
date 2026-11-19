@@ -1,0 +1,35 @@
+本 skill（bug-test）為自建 Skill，含下列來源的衍生內容：
+
+1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）的 bug extension
+   （tag v1.4.2，commit 1e421b58805e33507258d917a16e4d2a403e8358）的 `speckit.bug.test` 命令：
+   重跑重現步驟、新測試與回歸檢查、修正前後對照、實測報告的段落與結果的概念。
+   實測報告範例改寫自以該版本實際產生的 test.md。
+   SOP、`rules/` 下的 RuleFile、`templates/test.md` 樣板組，以及修正前實測與修正後實測兩種模式、
+   以 git worktree 取出修正前版本、由使用者回覆後記錄驗證結果等做法為重新撰寫，
+   未直接複製上述專案的檔案。
+
+以下依授權要求，保留其原始授權全文。
+
+---
+
+MIT License
+
+Copyright GitHub, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
