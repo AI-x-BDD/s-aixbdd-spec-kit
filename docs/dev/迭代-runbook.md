@@ -708,6 +708,7 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
    - 結果為使用者已驗證：進第 5 步。
    - 結果為使用者驗證未通過：用 B1r 重新評估。
 5. 檢查點（B5）：commit 程式、測試與 `specs/bugs/<代號>/`。在迭代中使用時，把報告位置與 commit SHA 寫進迭代紀錄。
+6. 判定為成立、`assessment.md` 的「轉回 SDD 流程的項目」不是「無」時（例如回報同時要求新功能），第 5 步之後，把這些項目照步驟 10 的意圖改變處理。
 
 ### 10.3 變數
 
@@ -765,4 +766,5 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 請做 runbook 第 10 節步驟 5：確認 specs/bugs/{BUG_SLUG}/test.md 的結果是「使用者已驗證」，不是時停下來告訴我。
 1. 依 .agents/skills/conventional-commits/SKILL.md commit 程式、測試與 specs/bugs/{BUG_SLUG}/。訊息寫根本原因、修改內容、報告位置與使用者驗證結果。不 push。
 2. 在迭代中使用時，在 docs/iterations/iter-{N}.md「Skill 表現檢查」該列的證據位置，寫上 specs/bugs/{BUG_SLUG}/ 與 commit SHA。
+3. specs/bugs/{BUG_SLUG}/assessment.md 的「轉回 SDD 流程的項目」不是「無」時，列出每一項與處理 Skill，依 runbook 第 10 節步驟 6 交給 SDD 流程。
 ```
