@@ -1,0 +1,36 @@
+---
+name: converge
+description: （未驗證）implement 完成後，要確認程式是否已做到 spec 目錄所有文件的要求時使用：讀取 spec.md、plan.md、tasks.md、research.md 與 ui/、data/、contracts/、notification/，以及 .agents/constitution/ 的 shared.md 與 skills/implement/code.md，逐項對照程式找出缺口；勾選不算證據，每個任務都重新對照程式；不啟動系統、不跑測試、執行中不提問，只新增或修改 spec 目錄的 convergence.md，每個缺口寫出類型（缺少、部分、矛盾、未要求）、嚴重度（CRITICAL～LOW）、來源、附行號的證據、剩餘工作與處理（附加任務，或上游缺口並指名 Skill）；重跑時在檔尾新增一輪，舊輪次不動，缺口編號跨輪接續。觸發關鍵字：converge、convergence.md、收斂評估、收斂檢查、實作後檢查、缺口盤點、程式與規格對照。分流：實作前檢查文件之間的一致性改用 analyze；把附加任務寫進 tasks.md 改用 tasks 的附加模式；依任務實作改用 implement；修正上游文件改用處理欄指名的 Skill。
+---
+
+# SOP
+
+## Phase 1 -- 確認評估輸入
+
+1. `READ` 使用者需求，以及專案根目錄下符合 `specs/<三位數編號>-<名稱>/spec.md` 的檔案清單（以 `ls specs/[0-9][0-9][0-9]-*/spec.md` 取得；沒有符合的檔案時清單為空），建立「評估輸入」。
+2. `THINK` 決定「目標 spec 目錄」：使用者指定 spec.md 路徑或 spec 目錄時用該目錄；沒有指定且清單只有一份時用該份所在的目錄；其餘情況視為未決定。
+3. `CHECK` 依序檢查，第一個不通過時回報原因與要先執行的 Skill 並停止，不建立或修改任何檔案：清單有多份且使用者沒有指定時，列出清單，請使用者指定 spec 目錄後重新執行；「目標 spec 目錄」未決定或沒有 `spec.md` 時，先執行 `s-specify`；沒有 `plan.md` 時，先執行 `system-analysis`；沒有 `tasks.md` 時，先執行 `tasks`。
+4. `READ` 「目標 spec 目錄」的 `spec.md`、`plan.md`、`tasks.md`、`research.md`、`techstack.md` 與 `ui/`、`data/`、`contracts/`、`notification/` 下所有檔案的全文，以及專案根目錄的 `.agents/constitution/shared.md` 與 `.agents/constitution/skills/implement/code.md`，不存在的略過並記下略過的檔案，建立「評估文件」；「目標 spec 目錄」有 `convergence.md` 時讀取全文，建立「既有評估」。
+5. `READ` 在專案根目錄執行 `git rev-parse --short HEAD` 與 `git status --short`，建立「評估狀態」與「變更基準」。
+6. `WRITE` 「既有評估」存在時，以 `cp` 把 `convergence.md` 複製到系統暫存目錄，記為「既有評估備份」。
+
+完成條件：「目標 spec 目錄」已決定且有 `spec.md`、`plan.md`、`tasks.md`，「評估文件」、「評估狀態」與「變更基準」已建立，「既有評估」存在時已建立「既有評估備份」；或缺少輸入，已回報並停止。
+
+## Phase 2 -- 對照程式找出缺口
+
+1. `THINK` 依「評估文件」與「既有評估」建立「檢查項目」：`spec.md` 的每個功能需求、非功能需求、成功標準與 User Story 情境，`plan.md` 系統介面盤點的每個介面，`research.md` 的每個技術決定，憲法檔的每條 Rule，`tasks.md` 的每個任務（勾選不算證據，不論是否勾選都要對照程式），`tasks.md` Notes 的每項待確認，以及「既有評估」最後一輪中處理不是「不處理」的每個缺口；並依 `plan.md` 的 Source Code 與任務引用的路徑，以端點類型分組列出要讀的程式與測試檔，建立「程式範圍」。
+2. `READ` 「程式範圍」中的每個檔案，以 `grep -n` 找出每個「檢查項目」對應的程式位置，建立「程式證據」；只讀檔案與搜尋，不啟動系統、不執行測試。
+3. `READ` 判定缺口時，讀取 `rules/缺口判定-格式規範.md` 的所有 Rule，建立「缺口判定檢查清單」。
+4. `THINK` 依「檢查項目」、「程式證據」與已載入的「缺口判定檢查清單」，為每個有缺口的檢查項目寫出缺口類型、嚴重度、來源、證據、剩餘工作與處理，建立「缺口清單」：還沒有上游決定的待確認，每項至少是一個缺口的來源；前一輪的缺口已解決時，寫進「前一輪重新確認」並附證據，沒有解決時寫成新缺口，來源寫「第 N 輪 G#」；缺口依嚴重度由高到低編號，從「既有評估」的最大 G 編號往後接，沒有「既有評估」時從 G1 開始。
+5. `CHECK` 逐條驗證「缺口判定檢查清單」；以 `sed -n '<起>,<迄>p' <檔案>` 確認「缺口清單」與「前一輪重新確認」的每個行號都存在，且內容支持描述；確認每項還沒有上游決定的待確認都是缺口的來源；未通過時修正「缺口清單」與「前一輪重新確認」後重新驗證。
+
+完成條件：「檢查項目」的每一項都已對照「程式證據」，「缺口清單」與「前一輪重新確認」已通過步驟 5 的檢查。
+
+## Phase 3 -- 寫入 convergence.md
+
+1. `READ` `templates/convergence.md` 與 `templates/convergence.example.md`，建立「收斂評估樣板組」。
+2. `WRITE` 依「收斂評估樣板組」、「評估文件」、「評估狀態」、「程式範圍」、「缺口清單」與「前一輪重新確認」寫入「目標 spec 目錄」的 `convergence.md`：「既有評估」不存在時建立檔案，輪次為 1；存在時只把開頭的「輪次」改為新輪次，並在檔尾新增「第 N 輪」（N 為既有最大輪次加 1），其他內容不動。本輪的評估狀態寫 HEAD commit 與工作目錄有沒有未 commit 的變更；結果在「缺口清單」不為空時寫「有缺口」，為空時寫「已收斂」，括號寫各處理的筆數；檢查範圍表每類檢查項目一列，寫數量與說明，憲法規則列寫明略過的憲法檔，第 2 輪起加「前一輪缺口」列；程式範圍和前一輪相同時寫「和第 N 輪相同」；第 1 輪不寫前一輪缺口的重新確認段；下一步：有上游缺口時列出要執行的 Skill 與 G 編號，完成後再執行 `converge`；有附加任務時依序執行 `tasks` 附加模式、執行 `implement` 只跑新 Phase、再執行 `converge`；沒有附加任務時寫明不執行 `tasks` 附加模式；已收斂時寫明不需要再執行 `converge`。
+3. `CHECK` 確認 `convergence.md` 的標題、開頭欄位、輪次標題、輪次欄位、段落順序與表格欄位和「收斂評估樣板組」一致，沒有殘留 `{{`；「既有評估備份」存在時，以 `diff` 比對備份與 `convergence.md`，確認只有「輪次」那一行改變，其他差異都是檔尾新增；執行 `git status --short` 和「變更基準」比對，確認只有 `convergence.md` 被建立或修改，而且沒有 commit；未通過時返回步驟 2。
+4. `WRITE` 刪除「既有評估備份」，向使用者回報 `convergence.md` 路徑、本輪輪次、結果、各處理的筆數、CRITICAL 與 HIGH 缺口的 G 編號與摘要，以及下一步。
+
+完成條件：`convergence.md` 已寫入「目標 spec 目錄」並通過步驟 3 的檢查，其他檔案沒有被修改，已回報使用者。
