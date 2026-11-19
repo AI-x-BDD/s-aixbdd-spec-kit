@@ -5,6 +5,12 @@
    Coverage Summary 與 Metrics 的概念。
    SOP、跨 Planner 比對、憲法對照、`analysis.md` 樣板組、RuleFile 與
    `scripts/collect_coverage.py` 為重新撰寫，未直接複製上述專案的檔案。
+2. GitHub Spec Kit v1.4.2（tag `v1.4.2`，commit `1e421b5`）`templates/commands/analyze.md` 第 105-106、116、119-120、
+   152-155、161、163-164、171、192-197 行：受約束欄位盤點與引用對照、缺引用與找不到的引用列為涵蓋問題、
+   任務限制和資料模型矛盾列為不一致、任務順序矛盾、安全或效能描述模糊與欄位問題列 HIGH、
+   上線後指標不計入 SC 分母、Constrained-Field Coverage 表。本 Skill 改寫為 `data/data-model.dbml` 的
+   `table.column`，受約束欄位以 data-plan 的「驗證」「轉換」「跨欄位」界定；RuleFile 條列、樣板組、範例與
+   `scripts/collect_coverage.py` 的盤點為重新撰寫，未直接複製上游檔案。
 
 以下依授權要求，保留其原始授權全文。
 

@@ -9,6 +9,7 @@ data/ and ui/, and notification/plan.md produced by notification-plan, then
 prints one JSON object to standard output:
 
   requirements        FR / NFR / SC defined in spec.md, with the ids of the tasks that cite them
+                      and "counted" (false for an SC given in --exclude-sc)
   user_stories        User Story headings in spec.md
   tasks               every task in tasks.md: id, phase, story, requirements, interfaces
   interfaces          interfaces listed in plan.md "系統介面盤點", with the contracts operations,
@@ -20,10 +21,36 @@ prints one JSON object to standard output:
   pending_notes       "待確認 n" entries in the tasks.md Notes section
   placeholders        {{, TODO, TBD, TKTK and ??? found in any document of the spec directory
   undefined_requirement_refs  requirement ids cited by a task but not defined in spec.md
-  metrics             counts and the coverage rate
+  field_coverage      constrained fields of the data models under data/ and the tasks that
+                      cite them (see below)
+  metrics             counts and the coverage rate; requirements_total counts every requirement,
+                      requirements_counted leaves out the SCs given in --exclude-sc, and
+                      requirements_with_tasks and coverage_rate use the counted requirements only
 
-Exit status is 0 on success. When spec.md, plan.md or tasks.md is missing, or the
-directory does not exist, the script prints the reason to standard error and exits 2.
+--exclude-sc takes comma-separated SC ids (for example SC-001,SC-004) that do not count toward
+the coverage rate. Every id must be an SC defined in spec.md.
+
+Constrained fields: in each .dbml file under data/, a column whose note (after leading spaces)
+starts with "驗證：" (kind 驗證) or "轉換：" (kind 轉換), and every table.column listed inside the
+parentheses of a "跨欄位：...（...；...）" sentence in a table Note, before the first semicolon,
+separated by "、" or "," (kind 跨欄位). Kinds of the same column are merged.
+field_coverage has:
+  data_models         .dbml files under data/
+  constrained         one entry per constrained field: field (table.column), file, line, kinds,
+                      must_read_tasks and optional_tasks (tasks whose Must Read or Optional
+                      reference to that .dbml file cites the field in backticks)
+  unresolved          table.column citations in a .dbml reference that the data model does not
+                      define: task, file, field and reason; references to a file that does not
+                      exist are not checked
+In a reference line "- `file` -> part -- Why: ...", only backticked strings in the part of the form
+identifier.identifier that do not start with "Ref" count as field citations. The DBML reader
+handles quoted and schema-qualified table names, "as" aliases, indexes blocks, braces inside
+strings, escaped quotes, triple-quoted strings, and both the "Note: '...'" and the
+"Note { '''...''' }" table note forms.
+
+Exit status is 0 on success. When spec.md, plan.md or tasks.md is missing, the directory does
+not exist, or --exclude-sc names an id that is not an SC defined in spec.md, the script prints
+the reason to standard error and exits 2.
 Contracts are read as YAML text (OpenAPI and AsyncAPI); JSON contracts are not parsed.
 Operation tags may be a flow list, an indented block list or an indentless block list
 (items at the same indent as "tags:"); each item may be a string or a "name:" object.
@@ -393,7 +420,267 @@ def scan_placeholders(spec_dir: Path) -> list[dict]:
     return found
 
 
-def build(spec_dir: Path) -> dict:
+IDENT_FIELD_RE = re.compile(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)")
+SECTION_MARK_RE = re.compile(r"^\s*-\s*\*\*(Must Read|Optional)\*\*\s*$")
+REF_LINE_RE = re.compile(r"^\s*-\s+`([^`]+)`\s*→\s*(.*)$")
+WHY_RE = re.compile(r"\s+—\s+Why\s*[:：]")
+CROSS_FIELD_RE = re.compile(r"跨欄位[：:][^（(]*[（(]([^）)]*)[）)]")
+DBML_PUNCT = "{}[]:,"
+TRIPLE_QUOTE = "'''"
+
+
+def lex_dbml(text: str) -> list[tuple[str, str, int]]:
+    """Split DBML text into (kind, value, line) tokens; kinds are word, str, punct and nl."""
+    tokens: list[tuple[str, str, int]] = []
+    i, line, n = 0, 1, len(text)
+    while i < n:
+        c = text[i]
+        if c == "\n":
+            tokens.append(("nl", c, line))
+            line += 1
+            i += 1
+        elif c in " \t\r":
+            i += 1
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            end = n if j < 0 else j + 2
+            line += text.count("\n", i, end)
+            i = end
+        elif text.startswith(TRIPLE_QUOTE, i):
+            j = text.find(TRIPLE_QUOTE, i + 3)
+            end = n if j < 0 else j
+            tokens.append(("str", text[i + 3 : end], line))
+            line += text.count("\n", i, end)
+            i = end + 3
+        elif c in "'\"`":
+            start_line, j, buf = line, i + 1, []
+            while j < n and text[j] != c:
+                if text[j] == "\\" and j + 1 < n:
+                    buf.append(text[j + 1])
+                    j += 2
+                    continue
+                if text[j] == "\n":
+                    line += 1
+                buf.append(text[j])
+                j += 1
+            # a double-quoted string is a quoted identifier in DBML
+            tokens.append(("word" if c == '"' else "str", "".join(buf), start_line))
+            i = j + 1
+        elif c in DBML_PUNCT:
+            tokens.append(("punct", c, line))
+            i += 1
+        else:
+            j = i
+            while (
+                j < n
+                and text[j] not in DBML_PUNCT
+                and text[j] not in " \t\r\n'\"`"
+                and not text.startswith("//", j)
+            ):
+                j += 1
+            tokens.append(("word", text[i:j], line))
+            i = j
+    return tokens
+
+
+def is_punct(token: tuple[str, str, int], value: str) -> bool:
+    return token[0] == "punct" and token[1] == value
+
+
+def skip_block(tokens: list, i: int) -> int:
+    """tokens[i] is "{"; return the index after its matching "}"."""
+    depth = 0
+    while i < len(tokens):
+        if is_punct(tokens[i], "{"):
+            depth += 1
+        elif is_punct(tokens[i], "}"):
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return i
+
+
+def parse_table_body(tokens: list, i: int, table: dict) -> int:
+    """Read a Table body that starts after "{"; return the index after the closing "}"."""
+    n = len(tokens)
+    while i < n:
+        if tokens[i][0] == "nl":
+            i += 1
+            continue
+        if is_punct(tokens[i], "}"):
+            return i + 1
+        # one logical line: up to a newline outside brackets, a "}" or a sub-block "{"
+        row: list = []
+        bracket = 0
+        while i < n:
+            token = tokens[i]
+            if bracket == 0 and (token[0] == "nl" or is_punct(token, "}") or is_punct(token, "{")):
+                break
+            if is_punct(token, "["):
+                bracket += 1
+            elif is_punct(token, "]"):
+                bracket -= 1
+            if token[0] != "nl":
+                row.append(token)
+            i += 1
+        head = row[0][1].lower() if row and row[0][0] == "word" else ""
+        if i < n and is_punct(tokens[i], "{"):
+            end = skip_block(tokens, i)
+            if head == "note":
+                strings = [v for k, v, _ in tokens[i:end] if k == "str"]
+                if strings:
+                    table["notes"].append((strings[0], row[0][2]))
+            i = end  # indexes { ... } and other sub-blocks are skipped
+            continue
+        if not row or row[0][0] != "word":
+            continue
+        if head == "note" and len(row) >= 3 and is_punct(row[1], ":") and row[2][0] == "str":
+            table["notes"].append((row[2][1], row[0][2]))
+            continue
+        note = None
+        for j in range(len(row) - 2):
+            if (
+                row[j][0] == "word"
+                and row[j][1].lower() == "note"
+                and is_punct(row[j + 1], ":")
+                and row[j + 2][0] == "str"
+            ):
+                note = row[j + 2][1]
+                break
+        table["columns"].setdefault(row[0][1], {"line": row[0][2], "note": note})
+    return i
+
+
+def parse_dbml(path: Path) -> dict[str, dict]:
+    """Return {table: {"line", "columns": {column: {"line", "note"}}, "notes": [(text, line)]}}."""
+    tokens = lex_dbml(path.read_text(encoding="utf-8"))
+    tables: dict[str, dict] = {}
+    i, n = 0, len(tokens)
+    while i < n:
+        kind, value, line = tokens[i]
+        if is_punct(tokens[i], "{"):
+            i = skip_block(tokens, i)
+            continue
+        if kind != "word" or value.lower() != "table":
+            i += 1
+            continue
+        j, name_parts = i + 1, []
+        while j < n and not (is_punct(tokens[j], "{") or is_punct(tokens[j], "[")):
+            if tokens[j][0] == "word" and tokens[j][1].lower() == "as":
+                break
+            if tokens[j][0] == "word":
+                name_parts.append(tokens[j][1])
+            j += 1
+        while j < n and not is_punct(tokens[j], "{"):
+            j += 1
+        name = "".join(name_parts).split(".")[-1]
+        table = tables.setdefault(name, {"line": line, "columns": {}, "notes": []})
+        i = parse_table_body(tokens, j + 1, table)
+    return tables
+
+
+def parse_field_citations(lines: list[str], task_ids: set[str]) -> list[dict]:
+    """Return {task, section, file, field} for each backticked table.column in a .dbml reference."""
+    citations: list[dict] = []
+    task: str | None = None
+    section: str | None = None
+    for line in lines:
+        if line.startswith("#"):
+            task, section = None, None
+            continue
+        t = TASK_RE.match(line)
+        if t:
+            task = t.group(1) if t.group(1) in task_ids else None
+            section = None
+            continue
+        mark = SECTION_MARK_RE.match(line)
+        if mark and task:
+            section = "must_read" if mark.group(1) == "Must Read" else "optional"
+            continue
+        ref = REF_LINE_RE.match(line)
+        if not (ref and task and section):
+            continue
+        file = ref.group(1).strip().removeprefix("./")
+        if not file.endswith(".dbml"):
+            continue
+        part = WHY_RE.split(ref.group(2), maxsplit=1)[0]
+        for candidate in re.findall(r"`([^`]+)`", part):
+            candidate = candidate.strip()
+            if candidate.startswith("Ref") or not IDENT_FIELD_RE.fullmatch(candidate):
+                continue
+            citations.append({"task": task, "section": section, "file": file, "field": candidate})
+    return citations
+
+
+def build_field_coverage(spec_dir: Path, task_lines: list[str], task_ids: set[str]) -> dict:
+    data_dir = spec_dir / "data"
+    model_paths = sorted(data_dir.rglob("*.dbml")) if data_dir.is_dir() else []
+    models = {p.relative_to(spec_dir).as_posix(): parse_dbml(p) for p in model_paths}
+
+    constrained: dict[tuple[str, str], dict] = {}
+
+    def add(file: str, field: str, line: int, kind: str) -> None:
+        entry = constrained.setdefault(
+            (file, field),
+            {"field": field, "file": file, "line": line, "kinds": [],
+             "must_read_tasks": [], "optional_tasks": []},
+        )
+        if kind not in entry["kinds"]:
+            entry["kinds"].append(kind)
+
+    for file, tables in models.items():
+        for tname, table in tables.items():
+            for cname, column in table["columns"].items():
+                note = (column["note"] or "").lstrip()
+                for kind in ("驗證", "轉換"):
+                    if note.startswith(f"{kind}："):
+                        add(file, f"{tname}.{cname}", column["line"], kind)
+            for text, note_line in table["notes"]:
+                for m in CROSS_FIELD_RE.finditer(text):
+                    head = re.split(r"[；;]", m.group(1), maxsplit=1)[0]
+                    for item in re.split(r"[、,，]", head):
+                        item = item.strip().strip("`")
+                        fm = IDENT_FIELD_RE.fullmatch(item)
+                        if not fm:
+                            continue
+                        column = tables.get(fm.group(1), {}).get("columns", {}).get(fm.group(2))
+                        add(file, item, column["line"] if column else note_line, "跨欄位")
+
+    cache: dict[str, dict | None] = dict(models)
+    unresolved: list[dict] = []
+    for c in parse_field_citations(task_lines, task_ids):
+        file = c["file"]
+        if file not in cache:
+            path = spec_dir / file
+            cache[file] = parse_dbml(path) if path.is_file() else None
+        tables = cache[file]
+        if tables is None:
+            continue
+        tname, cname = c["field"].split(".", 1)
+        if tname not in tables:
+            reason = f"沒有資料表 `{tname}`"
+        elif cname not in tables[tname]["columns"]:
+            reason = f"資料表 `{tname}` 沒有欄位 `{cname}`"
+        else:
+            entry = constrained.get((file, c["field"]))
+            if entry is not None:
+                key = "must_read_tasks" if c["section"] == "must_read" else "optional_tasks"
+                if c["task"] not in entry[key]:
+                    entry[key].append(c["task"])
+            continue
+        item = {"task": c["task"], "file": file, "field": c["field"], "reason": reason}
+        if item not in unresolved:
+            unresolved.append(item)
+
+    ordered = sorted(constrained.values(), key=lambda e: (e["file"], e["line"], e["field"]))
+    return {"data_models": list(models), "constrained": ordered, "unresolved": unresolved}
+
+
+def build(spec_dir: Path, exclude_sc: list[str] | None = None) -> dict:
     spec_lines = read_lines(spec_dir / "spec.md")
     plan_lines = read_lines(spec_dir / "plan.md")
     task_lines = read_lines(spec_dir / "tasks.md")
@@ -407,6 +694,14 @@ def build(spec_dir: Path) -> dict:
     notification_sections = parse_notification_sections(spec_dir)
 
     defined = {r["id"] for r in requirements}
+    excluded = set(exclude_sc or [])
+    for rid in sorted(excluded):
+        if rid not in defined:
+            raise ValueError(f"--exclude-sc: {rid} is not defined in spec.md")
+        if not rid.startswith("SC-"):
+            raise ValueError(f"--exclude-sc: {rid} is not an SC")
+    for r in requirements:
+        r["counted"] = r["id"] not in excluded
     undefined: list[dict] = []
     for task in tasks:
         for rid in task["requirements"]:
@@ -450,8 +745,10 @@ def build(spec_dir: Path) -> dict:
         if not t["requirements"] and not t["story_phase"]
     ]
     placeholders = scan_placeholders(spec_dir)
-    covered = sum(1 for r in requirements if r["tasks"])
     total = len(requirements)
+    counted = sum(1 for r in requirements if r["counted"])
+    covered = sum(1 for r in requirements if r["counted"] and r["tasks"])
+    field_coverage = build_field_coverage(spec_dir, task_lines, {t["id"] for t in tasks})
 
     for task in tasks:
         del task["story_phase"]
@@ -470,10 +767,13 @@ def build(spec_dir: Path) -> dict:
         "pending_notes": pending,
         "placeholders": placeholders,
         "undefined_requirement_refs": undefined,
+        "field_coverage": field_coverage,
         "metrics": {
             "requirements_total": total,
+            "requirements_excluded": total - counted,
+            "requirements_counted": counted,
             "requirements_with_tasks": covered,
-            "coverage_rate": round(covered / total * 100, 1) if total else 0.0,
+            "coverage_rate": round(covered / counted * 100, 1) if counted else 0.0,
             "tasks_total": len(tasks),
             "interfaces_total": len(interfaces),
             "interfaces_without_planner_output": sum(1 for i in interfaces if not has_output(i)),
@@ -481,16 +781,33 @@ def build(spec_dir: Path) -> dict:
             "unmapped_tasks": len(unmapped),
             "pending_notes": len(pending),
             "placeholders": len(placeholders),
+            "constrained_fields": len(field_coverage["constrained"]),
+            "constrained_fields_without_must_read": sum(
+                1 for f in field_coverage["constrained"] if not f["must_read_tasks"]
+            ),
+            "unresolved_field_citations": len(field_coverage["unresolved"]),
         },
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Collect a coverage inventory (JSON) from a spec directory."
+        description=(
+            "Collect a coverage inventory (JSON) from a spec directory: requirements, tasks, "
+            "interfaces, constrained data-model fields (field_coverage) and metrics."
+        )
     )
     parser.add_argument("--spec-dir", required=True, type=Path, help="spec directory containing spec.md")
+    parser.add_argument(
+        "--exclude-sc",
+        default="",
+        help=(
+            "comma-separated SC ids that do not count toward the coverage rate "
+            "(for example SC-001,SC-004); each must be an SC defined in spec.md, otherwise exit 2"
+        ),
+    )
     args = parser.parse_args()
+    exclude_sc = [item.strip() for item in args.exclude_sc.split(",") if item.strip()]
 
     spec_dir: Path = args.spec_dir.expanduser().resolve()
     if not spec_dir.is_dir():
@@ -504,7 +821,11 @@ def main() -> int:
         )
         return 2
 
-    result = build(spec_dir)
+    try:
+        result = build(spec_dir, exclude_sc)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     sys.stdout.reconfigure(encoding="utf-8")
     json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")

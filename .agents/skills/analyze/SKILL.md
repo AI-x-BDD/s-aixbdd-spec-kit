@@ -1,6 +1,6 @@
 ---
 name: analyze
-description: 已有 spec.md、plan.md（含 system-analysis 委派產出的 ui/、data/、contracts/，以及 notification-plan 產出的 notification/）與 tasks.md，要在實作前檢查這些文件是否一致時使用；不修改任何上游文件，比對 spec、plan、Planner 產出與 tasks 的重複、歧義、不足、涵蓋缺口與不一致（包括 API 合約、資料模型與 UI 規劃之間的命名與行為差異），並依 `.agents/constitution/` 檢查憲法遵循，違反必須／不得規則為 CRITICAL，每個問題標出位置、建議與處理 Skill，寫成 spec 目錄的 analysis.md。觸發關鍵字：analyze、analysis.md、一致性分析、檢查一致性、跨文件檢查、憲法檢查、實作前檢查。分流：要修正 spec 改用 `s-specify` 或 `clarify-over-specs`；要修正某一種 Planner 產出改用 `api-plan`、`data-plan` 或 `ui-plan`；要修正通知規劃改用 `notification-plan`；要重新產生任務清單改用 `tasks`；要新增或修改憲法規則改用 `constitution`；依 tasks.md 實作改用 `implement`。
+description: 已有 spec.md、plan.md（含 system-analysis 委派產出的 ui/、data/、contracts/，以及 notification-plan 產出的 notification/）與 tasks.md，要在實作前檢查這些文件是否一致時使用；不修改任何上游文件，比對 spec、plan、Planner 產出與 tasks 的重複、歧義、不足、涵蓋缺口與不一致（包括 API 合約、資料模型與 UI 規劃之間的命名與行為差異、資料模型受約束欄位的任務引用與矛盾，以及任務順序），並依 `.agents/constitution/` 檢查憲法遵循，違反必須／不得規則為 CRITICAL，每個問題標出位置、建議與處理 Skill，寫成 spec 目錄的 analysis.md。觸發關鍵字：analyze、analysis.md、一致性分析、檢查一致性、跨文件檢查、欄位涵蓋、憲法檢查、實作前檢查。分流：要修正 spec 改用 `s-specify` 或 `clarify-over-specs`；要修正某一種 Planner 產出改用 `api-plan`、`data-plan` 或 `ui-plan`；要修正通知規劃改用 `notification-plan`；要重新產生任務清單改用 `tasks`；要新增或修改憲法規則改用 `constitution`；依 tasks.md 實作改用 `implement`。
 ---
 
 # SOP
@@ -18,19 +18,19 @@ description: 已有 spec.md、plan.md（含 system-analysis 委派產出的 ui/�
 
 ## Phase 2 -- 偵測問題
 
-1. `DELEGATE` 在本 Skill 目錄執行 `uv run --script scripts/collect_coverage.py --spec-dir <目標 spec 目錄絕對路徑>`，取得「涵蓋盤點」；若缺少 `uv`，依 https://docs.astral.sh/uv/getting-started/installation/ 的目前平台安裝說明安裝後重試，安裝失敗時回報原因並停止。
+1. `DELEGATE` 在本 Skill 目錄執行 `uv run --script scripts/collect_coverage.py --spec-dir <目標 spec 目錄絕對路徑>`（「不計入的 SC」已建立且不為空時，加上 `--exclude-sc <以逗號分隔的 SC 編號>`），取得「涵蓋盤點」；若缺少 `uv`，依 https://docs.astral.sh/uv/getting-started/installation/ 的目前平台安裝說明安裝後重試，安裝失敗時回報原因並停止。
 2. `CHECK` 退出狀態為零且標準輸出為可解析的 JSON；因參數或環境錯誤而失敗時修正後重新執行上一步，仍失敗時回報原因並停止執行，不建立任何檔案。
 3. `READ` 偵測問題時，讀取 `rules/分析問題-格式規範.md` 的所有 Rule，建立「問題檢查清單」。
-4. `THINK` 依「分析輸入」、「憲法輸入」、「涵蓋盤點」與已載入的「問題檢查清單」，比對各文件找出問題，為每個問題決定類別、嚴重度、位置、建議與處理 Skill，建立「問題清單」；並逐份憲法檔、逐條 Rule 記下對照結果，建立「憲法遵循結果」。
-5. `CHECK` 逐條驗證「問題檢查清單」，並以 `grep -n` 確認「問題清單」每個位置的識別字都能在該檔案搜尋到；未通過時修正「問題清單」後重新驗證。
+4. `THINK` 依「分析輸入」、「憲法輸入」、「涵蓋盤點」與已載入的「問題檢查清單」，比對各文件找出問題，為每個問題決定類別、嚴重度、位置、建議與處理 Skill，建立「問題清單」；判斷 spec.md 的每個 SC 是否計入涵蓋率，建立「不計入的 SC」；並逐份憲法檔、逐條 Rule 記下對照結果，建立「憲法遵循結果」。
+5. `CHECK` 逐條驗證「問題檢查清單」，並以 `grep -n` 依「問題檢查清單」確認「問題清單」每個位置的識別字都能在該檔案搜尋到；未通過時修正「問題清單」後重新驗證。「不計入的 SC」和取得「涵蓋盤點」時使用的 `--exclude-sc` 不同時，重新執行步驟 1、2 取得「涵蓋盤點」，再驗證本步驟。
 
-完成條件：「涵蓋盤點」已取得，「問題清單」與「憲法遵循結果」已通過「問題檢查清單」，且每個位置都能搜尋到。
+完成條件：已依「不計入的 SC」取得「涵蓋盤點」，「問題清單」與「憲法遵循結果」已通過「問題檢查清單」，且每個位置都能搜尋到。
 
 ## Phase 3 -- 產出 analysis.md
 
 1. `READ` `templates/analysis.md` 與 `templates/analysis.example.md`，載入骨架與範例，命名載入結果為「分析報告樣板組」。
-2. `WRITE` 依「分析報告樣板組」、「問題清單」、「憲法遵循結果」與「涵蓋盤點」，將 `analysis.md` 寫入「目標 spec」所在目錄（已存在時直接覆寫），不建立或修改其他檔案：說明文字使用繁體中文；問題清單依嚴重度由高到低排列，最多 50 筆，超過的部分在表格下方依類別與嚴重度摘要筆數；「需求涵蓋」、「介面涵蓋」與「統計」的數字取自「涵蓋盤點」。
-3. `CHECK` 比對 `analysis.md` 與「分析報告樣板組」的區塊結構，確認沒有殘留的 `{{`、「統計」的數字與「涵蓋盤點」一致、步驟 2 的填寫要求均已滿足，且目標 spec 目錄只有 `analysis.md` 被建立或修改；未通過時修正 `analysis.md` 後重新驗證。
+2. `WRITE` 依「分析報告樣板組」、「問題清單」、「憲法遵循結果」與「涵蓋盤點」，將 `analysis.md` 寫入「目標 spec」所在目錄（已存在時直接覆寫），不建立或修改其他檔案：說明文字使用繁體中文；問題清單依嚴重度由高到低排列，最多 50 筆，超過的部分在表格下方依類別與嚴重度摘要筆數；「需求涵蓋」、「介面涵蓋」、「欄位涵蓋」與「統計」的需求、任務、介面與欄位數字取自「涵蓋盤點」，問題件數取自「問題清單」。
+3. `CHECK` 比對 `analysis.md` 與「分析報告樣板組」的區塊結構，確認沒有殘留的 `{{`、「統計」的數字與「涵蓋盤點」、「問題清單」一致、步驟 2 的填寫要求均已滿足，且目標 spec 目錄只有 `analysis.md` 被建立或修改；未通過時修正 `analysis.md` 後重新驗證。
 4. `WRITE` 向使用者回報 `analysis.md` 路徑、各嚴重度的問題數、CRITICAL 問題的 ID 與摘要，以及「下一步」，並說明本 Skill 沒有修改任何上游文件，要修正時依各問題的處理 Skill 執行。
 
 完成條件：`analysis.md` 已寫入目標 spec 目錄且通過步驟 3 的檢查，其他檔案沒有被修改，且已回報。
