@@ -1,6 +1,6 @@
 ---
 name: tasks
-description: 已有 spec.md、plan.md 及 system-analysis 委派產出的 API 合約、資料模型與 UI 規劃（有通知類介面時另含 notification-plan 產出的通知規劃 notification/plan.md），要拆成可執行的任務清單時使用：依 spec 的 User Story 與 plan.md 系統介面盤點，把工作排成 Setup、Foundational、每個 User Story 一個 Phase 與 Polish，Phase 內依資料庫、後端、前端分組並標出介面編號，每個任務列出執行時要讀的文件部位（Must Read／Optional，檔案 → 部位 — Why），寫成 spec 目錄的 tasks.md；上游缺少的介面部位寫成 Notes 的待確認，不自行虛構。使用者提到 tasks、tasks.md、任務清單、任務拆解、implementation tasks、Reference Loading Contract 時使用。盤點介面與產出 plan.md 改用 system-analysis；只補單一種上游產出（UI 雛形、API 合約、資料模型）改用 ui-plan、api-plan 或 data-plan；通知類介面沒有規劃時改用 notification-plan；規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；依既有 tasks.md 實作任務時不使用此 Skill。
+description: 已有 spec.md、plan.md 及 system-analysis 委派產出的 API 合約、資料模型與 UI 規劃（有通知類介面時另含 notification-plan 產出的通知規劃 notification/plan.md），要拆成可執行的任務清單時使用：依 spec 的 User Story 與 plan.md 系統介面盤點，把工作排成 Setup、Foundational、每個 User Story 一個 Phase 與 Polish，Phase 內依資料庫、後端、前端分組並標出介面編號，每個任務列出執行時要讀的文件部位（Must Read／Optional，檔案 → 部位 — Why），資料模型的受約束欄位以 table.column 引用、不在任務描述重抄約束，寫成 spec 目錄的 tasks.md；上游缺少的介面部位寫成 Notes 的待確認，不自行虛構。使用者提到 tasks、tasks.md、任務清單、任務拆解、implementation tasks、Reference Loading Contract、欄位引用時使用。盤點介面與產出 plan.md 改用 system-analysis；只補單一種上游產出（UI 雛形、API 合約、資料模型）改用 ui-plan、api-plan 或 data-plan；通知類介面沒有規劃時改用 notification-plan；規劃類別、先畫類別圖再寫程式時改用 plan-with-class-diagram；依既有 tasks.md 實作任務時不使用此 Skill。
 ---
 
 # SOP
@@ -21,8 +21,8 @@ description: 已有 spec.md、plan.md 及 system-analysis 委派產出的 API �
 ## Phase 2 -- 規劃任務
 
 1. `READ` 規劃任務時，讀取 `rules/任務清單-格式規範.md` 的所有 Rule，建立「任務清單檢查清單」。
-2. `THINK` 依「任務輸入」與已載入的「任務清單檢查清單」，為 `plan.md`「系統介面盤點」的每個介面找出 contracts、data、ui 中的 operation、資料表或畫面，以及 `notification/plan.md` 中以介面編號開頭的章節，並記下上游缺口，建立「介面對照」。
-3. `THINK` 依「任務輸入」、「介面對照」、「憲法檢查清單」與已載入的「任務清單檢查清單」，把工作排入 Setup、Foundational、spec.md 每個 User Story 一個 Phase（依 spec 順序）與 Polish，逐一寫出任務描述與 Must Read／Optional 參考，建立「任務規劃」。
+2. `THINK` 依「任務輸入」與已載入的「任務清單檢查清單」，為 `plan.md`「系統介面盤點」的每個介面找出 contracts、data、ui 中的 operation、資料表（含受約束欄位）或畫面，以及 `notification/plan.md` 中以介面編號開頭的章節，並記下上游缺口，建立「介面對照」。
+3. `THINK` 依「任務輸入」、「介面對照」、「憲法檢查清單」與已載入的「任務清單檢查清單」，把工作排入各 Phase，逐一寫出任務描述與 Must Read／Optional 參考，建立「任務規劃」。
 4. `READ` 「任務規劃」中有任務修改專案中已存在的程式檔時，依已載入的「任務清單檢查清單」，在專案既有的自動化測試中查找依賴這些任務所改變之行為的測試，讀取命中的段落，建立「既有測試依賴」；專案沒有既有的自動化測試，或沒有任務修改已存在的程式檔時，「既有測試依賴」為空。
 5. `THINK` 依「既有測試依賴」與已載入的「任務清單檢查清單」，調整「任務規劃」中更新既有測試的任務、`**Tests**:` 說明與 Polish 的回歸驗證任務；「既有測試依賴」為空時略過本步驟。
 6. `THINK` 比對「憲法檢查清單」的必須／不得規則與「任務輸入」，列出和 spec 或上游產出無法同時滿足的項目，建立「憲法衝突」。
@@ -34,7 +34,7 @@ description: 已有 spec.md、plan.md 及 system-analysis 委派產出的 API �
 ## Phase 3 -- 產出 tasks.md
 
 1. `READ` `templates/tasks.md` 與 `templates/tasks.example.md`，載入骨架與範例，命名載入結果為「tasks 樣板組」。
-2. `WRITE` 依「tasks 樣板組」與「任務規劃」，將 `tasks.md` 寫入「目標 spec」所在目錄，不建立或修改其他檔案：標題填 spec.md 的功能名稱與英文名稱，spec 目錄填目錄名稱；Reference Loading Contract 第 4 點只列出目標 spec 目錄中存在的文件；User Story Phase 數依 spec.md 調整，Polish 的 Phase 編號接在最後一個 User Story 之後；樣板的英文固定段落保留原文，其餘說明文字的語言依「憲法檢查清單」，沒有規定時使用繁體中文。
+2. `WRITE` 依「tasks 樣板組」與「任務規劃」，將 `tasks.md` 寫入「目標 spec」所在目錄，不建立或修改其他檔案：標題填 spec.md 的功能名稱與英文名稱，spec 目錄填目錄名稱；Reference Loading Contract 第 4 點只列出目標 spec 目錄中存在的文件；樣板的英文固定段落保留原文，其餘說明文字的語言依「憲法檢查清單」，沒有規定時使用繁體中文。
 3. `DELEGATE` 在本 Skill 目錄執行 `uv run --script scripts/check_tasks.py --spec-dir <目標 spec 目錄絕對路徑> <tasks.md 絕對路徑>`，取得「任務清單檢查結果」；若缺少 `uv`，依 https://docs.astral.sh/uv/getting-started/installation/ 的目前平台安裝說明安裝後重試，安裝失敗時回報原因並停止。
 4. `CHECK` 「任務清單檢查結果」沒有 `issues`，逐條驗證「憲法檢查清單」與「任務清單檢查清單」（衝突時以「憲法檢查清單」為準，規則會改變鎖定項目時不套用並記入「未套用規則」，偏離「應」規則時把規則與理由記入「憲法偏離」），比對 `tasks.md` 與「tasks 樣板組」的區塊順序與固定段落，確認步驟 2 的填寫要求均已滿足；腳本因參數或環境錯誤而失敗時修正後重新執行步驟 3；未通過時修正 `tasks.md` 後返回步驟 3，最多 3 輪，第 3 輪仍未通過時將未通過的項目記為「未通過項」。
 5. `WRITE` 向使用者回報 `tasks.md` 路徑、各 Phase 的任務數、Notes 中的待確認項目、「任務清單檢查結果」的 `warnings`，以及「未通過項」（沒有時說明全部通過）與「憲法遵循」（已讀取的憲法檔路徑，都不存在時寫「沒有憲法檔」；必須／不得規則是否全部通過；「憲法偏離」；「未套用規則」；經 `clarify` 決定的「憲法衝突」）。

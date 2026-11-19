@@ -9,6 +9,15 @@ referenced file exists (or is created by an earlier task) and that the
 identifiers named in each reference can be found in that file, that endpoint
 group headings cover the interfaces listed in plan.md, that every FR / NFR in
 spec.md is cited, and that every "待確認 n" has a matching Notes entry.
+
+For references to a .dbml file, every `table.column` identifier must name a
+table in that data model and a column of that table. Constrained fields of
+data/data-model.dbml (columns whose note starts with "驗證：" or "轉換：", and
+every table.column listed inside a table Note "跨欄位：…（…；…）") must each be
+cited as `table.column` in at least one task's Must Read reference to that
+file; Optional references do not count. A missing data model, or one without
+constrained fields, adds no coverage issue. The JSON report lists them under
+field_citations. The DBML is parsed as text; no external tool is used.
 Reads files only; writes nothing and makes no network access.
 """
 
@@ -36,6 +45,14 @@ QUOTE_RE = re.compile(r"「([^」]+)」")
 BACKTICK_RE = re.compile(r"`([^`]+)`")
 PENDING_REF_RE = re.compile(r"待確認\s*(\d+)")
 PENDING_DEF_RE = re.compile(r"^- 待確認\s*(\d+)：")
+FIELD_TOKEN_RE = re.compile(r'"?([A-Za-z_]\w*)"?\."?([A-Za-z_]\w*)"?')
+FIELD_IN_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_.])([A-Za-z_]\w*)\.([A-Za-z_]\w*)(?![A-Za-z0-9_])")
+DBML_TABLE_RE = re.compile(r"^[ \t]*Table[ \t]+([^{\n]+?)[ \t]*\{", re.M)
+DBML_STRING_RE = re.compile(r"'''.*?'''|'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"", re.S)
+DBML_NOTE_RE = re.compile(r"\bnote\s*:\s*('''.*?'''|'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")", re.S | re.I)
+CROSS_FIELD_RE = re.compile(r"跨欄位：")
+CROSS_FIELD_PAREN_RE = re.compile(r"（([^（）]*?)；[^（）]*）")
+DATA_MODEL = Path("data") / "data-model.dbml"
 
 
 def requirement_exists(requirement: str, text: str) -> bool:
@@ -65,6 +82,116 @@ def token_exists(token: str, text: str) -> bool:
     return False
 
 
+def unquote(literal: str) -> str:
+    if literal.startswith("'''"):
+        return literal[3:-3]
+    return re.sub(r"\\(.)", r"\1", literal[1:-1])
+
+
+def split_dbml_block(body: str) -> tuple[list[str], list[tuple[str, str]]]:
+    """Split a table body into top-level statements and sub-blocks (header, content)."""
+    statements: list[str] = []
+    blocks: list[tuple[str, str]] = []
+    current = ""
+    header = ""
+    content = ""
+    depth = 0
+    i = 0
+    while i < len(body):
+        m = DBML_STRING_RE.match(body, i)
+        if m:
+            if depth:
+                content += m.group(0)
+            else:
+                current += m.group(0)
+            i = m.end()
+            continue
+        ch = body[i]
+        if ch == "{":
+            if depth == 0:
+                header, content = current.strip(), ""
+                current = ""
+            else:
+                content += ch
+            depth += 1
+        elif ch == "}" and depth:
+            depth -= 1
+            if depth == 0:
+                blocks.append((header, content))
+            else:
+                content += ch
+        elif depth:
+            content += ch
+        elif ch == "\n":
+            statements.append(current)
+            current = ""
+        else:
+            current += ch
+        i += 1
+    statements.append(current)
+    return [st.strip() for st in statements if st.strip() and not st.strip().startswith("//")], blocks
+
+
+def parse_dbml(text: str) -> dict[str, dict]:
+    """Return {table: {"columns": {column: note}, "note": table note}} parsed from DBML text."""
+    tables: dict[str, dict] = {}
+    for m in DBML_TABLE_RE.finditer(text):
+        head = re.sub(r"\[.*?\]", "", m.group(1)).split()
+        if not head:
+            continue
+        name = head[0].split(".")[-1].strip('"')
+        i, depth = m.end(), 1
+        while i < len(text) and depth:
+            sm = DBML_STRING_RE.match(text, i)
+            if sm:
+                i = sm.end()
+                continue
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            i += 1
+        statements, blocks = split_dbml_block(text[m.end():i - 1])
+        columns: dict[str, str] = {}
+        note = ""
+        for statement in statements:
+            nm = re.match(r"^Note\s*:\s*(.+)$", statement, re.S)
+            if nm:
+                sm = DBML_STRING_RE.match(nm.group(1).strip())
+                note = unquote(sm.group(0)) if sm else nm.group(1)
+                continue
+            cm = re.match(r'^("[^"]+"|[A-Za-z_]\w*)\s+\S', statement)
+            if not cm:
+                continue
+            nm = DBML_NOTE_RE.search(statement)
+            columns[cm.group(1).strip('"')] = unquote(nm.group(1)) if nm else ""
+        for header, content in blocks:
+            if header.lower() == "note":
+                sm = DBML_STRING_RE.search(content)
+                note = unquote(sm.group(0)) if sm else content.strip()
+        tables[name] = {"columns": columns, "note": note}
+    return tables
+
+
+def constrained_fields(tables: dict[str, dict]) -> list[str]:
+    fields: list[str] = []
+    for table, info in tables.items():
+        for column, note in info["columns"].items():
+            if note.lstrip().startswith(("驗證：", "轉換：")):
+                fields.append(f"{table}.{column}")
+        for segment in CROSS_FIELD_RE.split(info["note"])[1:]:
+            paren = CROSS_FIELD_PAREN_RE.search(segment)
+            if paren:
+                fields.extend(f"{t}.{c}" for t, c in FIELD_IN_TEXT_RE.findall(paren.group(1)))
+    return list(dict.fromkeys(fields))
+
+
+def field_problem(token: str, tables: dict[str, dict]) -> str | None:
+    table, column = FIELD_TOKEN_RE.fullmatch(token).groups()
+    if table not in tables:
+        return f"沒有資料表 `{table}`"
+    if column not in tables[table]["columns"]:
+        return f"資料表 `{table}` 沒有欄位 `{column}`"
+    return None
+
+
 def section_exists(number: str, text: str) -> bool:
     n = re.escape(number)
     return (
@@ -73,12 +200,19 @@ def section_exists(number: str, text: str) -> bool:
     )
 
 
-def check_locator(locator: str, text: str) -> tuple[list[str], bool]:
-    """Return (missing identifiers, whether any identifier was extracted)."""
+def check_locator(locator: str, text: str, tables: dict[str, dict] | None = None
+                  ) -> tuple[list[str], bool, list[str]]:
+    """Return (missing identifiers, whether any identifier was extracted, unresolved table.column)."""
     missing: list[str] = []
+    unresolved: list[str] = []
     found_any = False
     for token in BACKTICK_RE.findall(locator):
         found_any = True
+        if tables is not None and not token.startswith("Ref") and FIELD_TOKEN_RE.fullmatch(token):
+            problem = field_problem(token, tables)
+            if problem:
+                unresolved.append(f"`{token}`（{problem}）")
+            continue
         if not token_exists(token, text):
             missing.append(f"`{token}`")
     for quoted in QUOTE_RE.findall(locator):
@@ -94,7 +228,7 @@ def check_locator(locator: str, text: str) -> tuple[list[str], bool]:
         found_any = True
         if not requirement_exists(requirement, text):
             missing.append(requirement)
-    return missing, found_any
+    return missing, found_any, unresolved
 
 
 def plan_interfaces(plan_text: str) -> list[str]:
@@ -199,6 +333,9 @@ def check(spec_dir: Path, tasks_path: Path) -> dict:
             issues.append(f"第 {number} 行參考格式不符 `檔案` → 部位 — Why：理由：{raw}")
 
     cache: dict[Path, str] = {}
+    dbml_cache: dict[Path, dict[str, dict]] = {}
+    data_model = (spec_dir / DATA_MODEL).resolve()
+    cited: set[str] = set()
     reference_count = 0
     for index, task in enumerate(tasks):
         earlier = " ".join(t["text"] for t in tasks[:index])
@@ -214,13 +351,34 @@ def check(spec_dir: Path, tasks_path: Path) -> dict:
                 continue
             if path not in cache:
                 cache[path] = path.read_text(encoding="utf-8", errors="replace")
-            missing, found_any = check_locator(ref["locator"], cache[path])
+            tables = None
+            if path.suffix == ".dbml":
+                if path not in dbml_cache:
+                    dbml_cache[path] = parse_dbml(cache[path])
+                tables = dbml_cache[path]
+                if path.resolve() == data_model and ref in task["must"]:
+                    for token in BACKTICK_RE.findall(ref["locator"]):
+                        m = FIELD_TOKEN_RE.fullmatch(token)
+                        if m and not token.startswith("Ref"):
+                            cited.add(f"{m.group(1)}.{m.group(2)}")
+            missing, found_any, unresolved = check_locator(ref["locator"], cache[path], tables)
+            if unresolved:
+                issues.append(f"第 {ref['line']} 行（{task['id']}）在 {ref['file']} 找不到欄位：{'、'.join(unresolved)}")
             if missing:
                 issues.append(f"第 {ref['line']} 行（{task['id']}）在 {ref['file']} 找不到：{'、'.join(missing)}")
             elif not found_any:
                 plain = re.sub(r"（[^）]*）", "", ref["locator"]).strip()
                 if plain not in cache[path]:
                     warnings.append(f"第 {ref['line']} 行（{task['id']}）無法在 {ref['file']} 確認部位：{ref['locator']}")
+
+    constrained: list[str] = []
+    if data_model.is_file():
+        if data_model not in dbml_cache:
+            dbml_cache[data_model] = parse_dbml(data_model.read_text(encoding="utf-8", errors="replace"))
+        constrained = constrained_fields(dbml_cache[data_model])
+    uncited = [field for field in constrained if field not in cited]
+    for field in uncited:
+        issues.append(f"受約束欄位 `{field}` 沒有任何任務在 Must Read 以 `{DATA_MODEL.as_posix()}` → `{field}` 引用")
 
     plan_path = spec_dir / "plan.md"
     if plan_path.is_file():
@@ -258,13 +416,23 @@ def check(spec_dir: Path, tasks_path: Path) -> dict:
         "tasks": len(tasks),
         "references": reference_count,
         "phases": [{"title": p["title"], "tasks": p["tasks"]} for p in phases],
+        "field_citations": {
+            "data_model": DATA_MODEL.as_posix() if data_model.is_file() else None,
+            "constrained": constrained,
+            "uncited": uncited,
+        },
         "issues": issues,
         "warnings": warnings,
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Check tasks.md against its spec package.")
+    parser = argparse.ArgumentParser(
+        description="Check tasks.md against its spec package. Also checks that `table.column` references to a "
+                    ".dbml file name an existing column of that table, and that every constrained field of "
+                    "data/data-model.dbml (column note starting with 驗證： or 轉換：, or listed in a table Note "
+                    "跨欄位：) is cited as `table.column` in some task's Must Read. Prints a JSON report including "
+                    "field_citations; exits 1 when issues exist.")
     parser.add_argument("--spec-dir", required=True, type=Path, help="spec 目錄（含 spec.md、plan.md）")
     parser.add_argument("tasks", type=Path, help="要檢查的 tasks.md")
     args = parser.parse_args()

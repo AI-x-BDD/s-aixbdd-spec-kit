@@ -23,7 +23,7 @@ description: "Task list for 購物車與結帳 implementation"
 4. 只讀列出的部位，不讀整份文件。部位以文件內可搜尋的識別字定位：
    - `contracts/openapi.yaml`：operationId，或 `components` 底下的 schema、response 名稱
    - `contracts/asyncapi.yaml`：operation 名稱、`components.schemas` 名稱，或 `info.description`
-   - `data/data-model.dbml`：`Table`、`Enum`、`Ref`
+   - `data/data-model.dbml`：`Table`、`Enum`、`Ref`，以及單一欄位的 `table.column`
    - `spec.md`：US 情境、FR／NFR／SC 編號、Edge Cases 項目
    - `research.md`、`ui/plan.md`：章節編號（§），以及表格中的畫面、狀態或操作編號
    - `techstack.md`、`plan.md`：章節標題
@@ -88,10 +88,11 @@ description: "Task list for 購物車與結帳 implementation"
 
 ### 資料庫（D1）
 
-- [ ] T008 在 `backend/src/db/schema.sql` 開頭以 `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` 重建 schema，並建立 `products`：`id uuid [pk]`；`name varchar(200) [not null]`；`is_listed boolean [not null, default: true]`「下架商品不可加入購物車」；`created_at timestamptz [not null, default: now()]`；以及 `product_variants`：`id uuid [pk]`；`product_id uuid [not null]`；`sku varchar(64) [not null, unique]`；`spec_label varchar(100) [not null]`「例如「黑色 / M」」；`unit_price integer [not null]`「新台幣，以元為單位」；`stock_quantity integer [not null, default: 0]`；索引 `product_id`；`Ref: product_variants.product_id > products.id`（research §3）
+- [ ] T008 在 `backend/src/db/schema.sql` 開頭以 `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` 重建 schema，並建立 `products` 與 `product_variants`：欄位、型別、預設值、唯一約束、`product_id` 索引與 `Ref: product_variants.product_id > products.id` 依 Must Read；`product_variants.stock_quantity` 的「驗證」以 `CHECK` 實作（research §3、FR-003）
   - **Must Read**
-    - `data/data-model.dbml` → `Table products`、`Table product_variants` — Why：欄位、約束與各欄位的用途
+    - `data/data-model.dbml` → `Table products`、`Table product_variants` — Why：要建立的欄位、型別、預設值、唯一約束與索引
     - `data/data-model.dbml` → `Ref: product_variants.product_id > products.id` — Why：規格與商品的關聯
+    - `data/data-model.dbml` → `product_variants.stock_quantity` — Why：庫存數量的「驗證」，以 `CHECK` 實作
     - `research.md` → §3 — Why：DDL 寫在 `schema.sql`，開發期每次重建
 - [ ] T009 在 `backend/src/db/seed.sql` 寫入開發用商品：「亞麻短袖襯衫」（含「黑色 / M」NT$1,280、庫存 2 件，以及至少一個庫存為 0 的規格）、「帆布托特包」（「墨綠 / 單一尺寸」NT$890）、「陶瓷馬克杯 350ml」（「灰藍」NT$420）、已下架的「手沖咖啡濾杯組」，名稱、規格與價格與雛形一致（plan.md 未列此檔，見 Notes）
   - **Must Read**
@@ -147,9 +148,10 @@ description: "Task list for 購物車與結帳 implementation"
 
 ### 資料庫（D1）
 
-- [ ] T016 [US1] 在 `backend/src/db/schema.sql` 建立 `carts`：`id uuid [pk]`；`customer_id uuid [not null, unique]`「每位顧客只有一個進行中的購物車」；`updated_at timestamptz [not null, default: now()]`；以及 `cart_items`：`id uuid [pk]`；`cart_id uuid [not null]`；`variant_id uuid [not null]`；`quantity integer [not null]`「必須大於 0，以 `CHECK (quantity > 0)` 保證」；`added_at timestamptz [not null, default: now()]`；唯一索引 `(cart_id, variant_id)` 名稱 `uq_cart_items_cart_variant`；`Ref: cart_items.cart_id > carts.id [delete: cascade]`、`Ref: cart_items.variant_id > product_variants.id`；執行 `npm run db:reset` 確認建立成功
+- [ ] T016 [US1] 在 `backend/src/db/schema.sql` 建立 `carts` 與 `cart_items`：欄位、型別、預設值、唯一索引 `uq_cart_items_cart_variant` 與兩個 `Ref` 依 Must Read；`cart_items.quantity` 的「驗證」以 `CHECK` 實作；執行 `npm run db:reset` 確認建立成功（FR-001、FR-002）
   - **Must Read**
-    - `data/data-model.dbml` → `Table carts`、`Table cart_items` — Why：欄位、約束與唯一索引 `uq_cart_items_cart_variant`
+    - `data/data-model.dbml` → `Table carts`、`Table cart_items` — Why：要建立的欄位、型別、預設值與唯一索引 `uq_cart_items_cart_variant`
+    - `data/data-model.dbml` → `cart_items.quantity` — Why：購物車數量的「驗證」，以 `CHECK` 實作
     - `data/data-model.dbml` → `Ref: cart_items.cart_id > carts.id`、`Ref: cart_items.variant_id > product_variants.id` — Why：刪除購物車時連帶刪除項目
 
 ### 後端（B1）
@@ -163,7 +165,7 @@ description: "Task list for 購物車與結帳 implementation"
     - `contracts/openapi.yaml` → `addCartItem`（含 `NotFound`、`Conflict`） — Why：累加數量的規則與各錯誤碼
     - `research.md` → §4 — Why：加入購物車只比對庫存，下單時才鎖定並扣減
     - `spec.md` → FR-001、FR-003、Edge Cases「商品已下架」 — Why：庫存不足與已下架時都要拒絕並提示
-    - `data/data-model.dbml` → `Table products` 的 `is_listed`、`Table cart_items` 的 `uq_cart_items_cart_variant` — Why：判斷下架與累加數量依據的欄位
+    - `data/data-model.dbml` → `products.is_listed`、`Table cart_items` 的 `uq_cart_items_cart_variant` — Why：判斷下架與累加數量依據的欄位
 - [ ] T019 [US1] 在 `backend/src/services/cartService.js` 實作 `updateQuantity(customerId, itemId, quantity)` 與 `removeItem(customerId, itemId)`：項目不在該顧客的購物車時拋出 `CART_ITEM_NOT_FOUND`（404）；新數量超過 `stock_quantity` 時拋出 `INSUFFICIENT_STOCK`（409）、數量維持原值，訊息為「庫存只剩 <n> 件」；兩者都更新 `carts.updated_at` 並回傳最新的 `Cart`（FR-002、FR-003、Edge Cases 數量超過庫存）
   - **Must Read**
     - `contracts/openapi.yaml` → `updateCartItemQuantity`、`removeCartItem` — Why：兩個操作的回應與錯誤碼
@@ -219,10 +221,12 @@ description: "Task list for 購物車與結帳 implementation"
 
 ### 資料庫（D2）
 
-- [ ] T026 [US2] 在 `backend/src/db/schema.sql` 建立 enum `order_status`（`pending_payment`、`paid`、`payment_failed`、`expired`）與 `payment_status`（`pending`、`succeeded`、`failed`），以及 `orders`：`id uuid [pk]`；`order_no varchar(20) [not null, unique]`「綠界 MerchantTradeNo，限 20 字元英數」；`customer_id uuid [not null]`；`status order_status [not null, default: 'pending_payment']`；`recipient_name varchar(50) [not null]`；`recipient_phone varchar(20) [not null]`；`shipping_address varchar(200) [not null]`；`total_amount integer [not null]`；`created_at timestamptz [not null, default: now()]`；索引 `(customer_id, created_at)` 名稱 `idx_orders_customer_created`；`order_items`：`id`、`order_id`、`variant_id`、`spec_label`「下單當下的規格快照」、`unit_price`「下單當下的單價快照」、`quantity`；`payments`：`id`、`order_id`、`ecpay_trade_no varchar(20) [unique]`「重複的付款通知以此去重」、`status payment_status [not null, default: 'pending']`、`amount`、`check_mac_verified boolean [not null, default: false]`、`notified_at timestamptz`、`created_at`，索引 `order_id` 名稱 `idx_payments_order`；`Ref: order_items.order_id > orders.id [delete: cascade]`、`Ref: order_items.variant_id > product_variants.id`、`Ref: payments.order_id > orders.id`；執行 `npm run db:reset` 確認建立成功
+- [ ] T026 [US2] 在 `backend/src/db/schema.sql` 建立 Enum `order_status`、`payment_status` 與 `orders`、`order_items`、`payments`：欄位、型別、預設值、唯一約束、快照欄位、索引 `idx_orders_customer_created`、`idx_payments_order` 與三個 `Ref` 依 Must Read；`orders.order_no` 的「驗證」與 `payments` 的「跨欄位」以 `CHECK` 實作；執行 `npm run db:reset` 確認建立成功（FR-004、FR-005、FR-006）
   - **Must Read**
     - `data/data-model.dbml` → `Enum order_status`、`Enum payment_status` — Why：兩個 enum 的值與每個值代表的情況
-    - `data/data-model.dbml` → `Table orders`、`Table order_items`、`Table payments` — Why：欄位、快照欄位、`ecpay_trade_no` 唯一約束與索引
+    - `data/data-model.dbml` → `Table orders`、`Table order_items`、`Table payments` — Why：要建立的欄位、型別、預設值、快照欄位、`ecpay_trade_no` 唯一約束與索引
+    - `data/data-model.dbml` → `orders.order_no` — Why：訂單編號的「驗證」，以 `CHECK` 實作
+    - `data/data-model.dbml` → `payments.status`、`payments.notified_at` — Why：兩個欄位之間的「跨欄位」規則，以 `CHECK` 實作
     - `data/data-model.dbml` → `Ref: order_items.order_id > orders.id`、`Ref: order_items.variant_id > product_variants.id`、`Ref: payments.order_id > orders.id` — Why：三個關聯與刪除行為
 
 ### 後端（B2、B3、B4、P1）
@@ -235,11 +239,12 @@ description: "Task list for 購物車與結帳 implementation"
     - `spec.md` → NFR-001 — Why：付款通知必須驗證 CheckMacValue
   - **Optional**
     - `plan.md` → 系統介面盤點 — Why：需要確認 P1 綠界付款串接的需求依據時
-- [ ] T028 [US2] 在 `backend/src/services/orderService.js` 實作 `createOrder(customerId, recipient)`：以 `withTransaction` 執行；購物車沒有項目拋出 `CART_EMPTY`（422）；以 `SELECT … FROM product_variants … FOR UPDATE` 鎖定購物車內的規格，商品已下架拋出 `PRODUCT_UNAVAILABLE`、庫存不足拋出 `INSUFFICIENT_STOCK`（409），訊息寫出商品、規格與剩餘數量並說明「訂單沒有建立」；通過後扣減 `stock_quantity`，以 `SC` 加 `yyyyMMdd` 加 5 碼英數產生 `order_no`，寫入 `orders`、`order_items`（規格與單價快照）與一筆 `pending` 的 `payments`，最後清空購物車項目（research §4、§5、FR-004、Edge Cases 數量超過庫存、商品已下架）
+- [ ] T028 [US2] 在 `backend/src/services/orderService.js` 實作 `createOrder(customerId, recipient)`：以 `withTransaction` 執行；購物車沒有項目拋出 `CART_EMPTY`（422）；以 `SELECT … FROM product_variants … FOR UPDATE` 鎖定購物車內的規格，商品已下架拋出 `PRODUCT_UNAVAILABLE`、庫存不足拋出 `INSUFFICIENT_STOCK`（409），訊息寫出商品、規格與剩餘數量並說明「訂單沒有建立」；通過後扣減 `stock_quantity`，任務限定：`order_no` 以 `SC` 加 `yyyyMMdd` 加 5 碼英數產生（research §5），寫入 `orders`、`order_items`（規格與單價快照）與一筆 `pending` 的 `payments`，最後清空購物車項目（research §4、§5、FR-004、Edge Cases 數量超過庫存、商品已下架）
   - **Must Read**
     - `research.md` → §4 — Why：下單時在交易內鎖定規格、再次檢查並扣減庫存
     - `contracts/openapi.yaml` → `createOrder`（含 `Conflict`、`CartEmpty`） — Why：拒絕下單的情況與錯誤碼
     - `data/data-model.dbml` → `Table orders`、`Table order_items`、`Table payments` — Why：建立訂單時要寫入的欄位與快照
+    - `data/data-model.dbml` → `orders.order_no`、`product_variants.stock_quantity` — Why：訂單編號的「驗證」，以及扣減後的庫存不得違反「驗證」
     - `spec.md` → US2 情境 1、FR-004 — Why：以收件資料與購物車內容建立待付款訂單
   - **Optional**
     - `research.md` → §5 — Why：需要確認 `order_no` 的格式與長度限制時
@@ -256,7 +261,8 @@ description: "Task list for 購物車與結帳 implementation"
 - [ ] T031 [US2] 在 `backend/src/services/orderService.js` 實作 `applyPaymentResult(notification)`：以 `withTransaction` 依 `MerchantTradeNo` 鎖定訂單；該訂單的 `payments.ecpay_trade_no` 已有值時視為重複通知，不改變任何資料並回 `{ changed: false }`；`RtnCode` 為 `1` 時 `payments` 設為 `succeeded`、訂單設為 `paid`，否則 `payments` 設為 `failed`、訂單設為 `payment_failed` 並回補庫存；兩種情況都寫入 `ecpay_trade_no`、`check_mac_verified = true` 與 `notified_at`（research §4、FR-006、Edge Cases 重複的付款通知）
   - **Must Read**
     - `contracts/openapi.yaml` → `receiveEcpayPaymentResult`、`EcpayPaymentNotification` — Why：通知欄位與重複通知的處理
-    - `data/data-model.dbml` → `Table payments`（`ecpay_trade_no`、`check_mac_verified`）、`Enum order_status` — Why：去重依據與要更新的欄位
+    - `data/data-model.dbml` → `payments.ecpay_trade_no`、`payments.check_mac_verified` — Why：去重依據與要更新的欄位
+    - `data/data-model.dbml` → `orders.status`、`payments.status`、`payments.notified_at` — Why：訂單與付款允許的轉換，以及 `notified_at` 的「跨欄位」規則
     - `spec.md` → FR-006、Edge Cases「重複的付款通知」 — Why：依付款結果更新訂單，重複通知不得重複入帳
     - `research.md` → §4 — Why：付款失敗時回補庫存
 - [ ] T032 [US2] 在 `backend/src/routes/ecpayRouter.js` 實作 `POST /api/payments/ecpay/notify`（`receiveEcpayPaymentResult`）：先以 `ecpayService.verifyCheckMacValue()` 驗證，失敗時回 `400` `CHECKSUM_INVALID` 且不更新訂單；通過後呼叫 `orderService.applyPaymentResult()`，交易提交後若有變更則呼叫 `orderEvents.publishPaymentUpdated()`（失敗時帶 `RtnMsg` 為 `failureReason`）；最後回 `200` 純文字 `1|OK`；在 `backend/src/server.js` 掛上此 router（FR-006、FR-007、NFR-001）
@@ -271,6 +277,7 @@ description: "Task list for 購物車與結帳 implementation"
     - `research.md` → §4 — Why：逾時取消時回補庫存
     - `spec.md` → Edge Cases「付款逾時」 — Why：逾時後訂單取消、不會扣款
     - `contracts/asyncapi.yaml` → `sendOrderPaymentUpdated` — Why：逾時時推播 `expired`
+    - `data/data-model.dbml` → `orders.status` — Why：`pending_payment → expired` 的轉換
 
 ### 前端（F3）
 

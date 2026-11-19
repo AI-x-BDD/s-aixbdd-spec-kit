@@ -7,6 +7,11 @@
    範例最早由 Spec Kit 的 speckit-tasks 產出，經使用者改寫為「購物車與結帳」情境後定稿。
    Reference Loading Contract、依技術端點分組、Must Read／Optional 參考、本 Skill 的 SOP、RuleFile 與
    `scripts/check_tasks.py` 為重新撰寫，未直接複製上述專案的檔案。
+2. GitHub Spec Kit v1.4.2（tag `v1.4.2`，commit `1e421b5`）`templates/commands/tasks.md` 第 74、81、201-204 行：
+   以資料模型為欄位約束的唯一來源、任務以欄位引用取代重抄的約束、任務自己新增或收窄的限制要標出且不得矛盾、
+   寫出前確認每個受約束欄位都有引用。本 Skill 改寫為 `data/data-model.dbml` 的 `table.column` 引用，
+   受約束欄位以 data-plan 的「驗證」「轉換」「跨欄位」界定；RuleFile 條列、範例與 `scripts/check_tasks.py`
+   的檢查為重新撰寫，未直接複製上游檔案。
 
 以下依授權要求，保留其原始授權全文。
 
