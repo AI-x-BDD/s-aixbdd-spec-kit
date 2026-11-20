@@ -1,0 +1,33 @@
+本 skill（api-plan）為自建 Skill，含下列來源的衍生內容：
+
+1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）：
+   `docs/how-to/contract-driven-development.md` 的概念——合約要寫出的行為語意（副作用、冪等、事件順序、
+   重試、逾時、版本相容），以及「一個介面一個權威擁有者、權威方不得單方修改」。
+   本專案改寫為 `rules/API合約-格式規範.md` Rule 3 的資料模型條列與 Rule 5。
+   本 Skill 的 SOP、RuleFile、樣板與腳本為重新撰寫，未直接複製上述專案的檔案。
+
+以下依授權要求，保留其原始授權全文。
+
+---
+
+MIT License
+
+Copyright GitHub, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -125,13 +125,16 @@ paths:
                     type: string
 ```
 
-# Rule 3 - 合約必須依上游決策與 spec 撰寫，上游問題必須記為上游衝突
+# Rule 3 - 合約必須依上游決策、spec 與資料模型撰寫，上游問題必須記為上游衝突
 
 - 合約中的規則（`info.description`、operation 的 `description`、request 與 response 欄位、錯誤碼與狀態碼）必須與 `research.md` 各主題的 `Decision` 及 spec 的需求一致，不得寫出相反的規則，也不得把 `Decision` 採用的機制換成另一種機制（例如把資料庫鎖換成樂觀鎖重試）。
 - 合約為了滿足 spec 的必須／不得規則而寫出的每一項操作、檢查、執行路徑或鎖，必須和 `research.md` 對應主題的 `Decision` 比對。`Decision` 已列出清單（例如鎖定清單、檢查項目、適用路徑），清單卻沒有這個 operation，或對同一個 operation 沒有這一項時；或照 `Decision` 的寫法會讓該規則無法滿足時，合約中受影響的 operation 必須依 spec 寫出滿足該規則的行為，並把這件事記為一項上游衝突。補上的行為必須優先沿用 `Decision` 已採用的機制；沒有可沿用的機制時，只寫出 spec 要求的結果，不自行選定新技術。依本點補上的行為不算第 1 點的另一種機制。
 - 前面 Wave 的產出與 `research.md`／spec 不一致時，合約必須依第 1、2 點處理，不沿用前面 Wave 的寫法，並把這件事記為一項上游衝突。
+- 目標 spec 目錄有 `data/data-model.dbml` 時，對應資料表欄位的 request、response 與事件 schema 欄位，必須使用資料模型的同一個字詞、同一種型別與同一組 Enum 值。名稱可以依合約的命名風格轉換大小寫與底線（例如 `loan_no` 寫成 `loanNo`）；不得換字詞（`loan_no` 寫成 `loanNumber`）、換型別（Enum `status` 寫成布林 `isAvailable`），也不得換值（`on_loan` 寫成 `ON_LOAN`）。
+- 合約需要保存在資料庫、資料模型卻沒有的欄位或 Enum 值，或資料模型和 `research.md`／spec 不一致時，不得修改 `data-model.dbml`；合約依第 1～3 點與 spec 撰寫，並記為一項上游衝突，上游位置寫 `data-model.dbml` 的資料表與欄位，建議處理 Skill 為 `data-plan`。不保存在資料庫、由後端計算的回應欄位（例如可否續借）不算。
+- spec 要求向下相容，且合約延續其他 spec 目錄的既有合約時，既有合約已有的欄位必須沿用既有的名稱、型別與 Enum 值，不依前兩點修改。這些沿用欄位仍必須逐一和 `data-model.dbml` 的對應欄位比對；字詞、型別或 Enum 值不同時，每個欄位各記為一項上游衝突，上游位置寫 `data-model.dbml` 的資料表與欄位，建議處理 Skill 為 `data-plan`。和既有合約一致，不代表和資料模型一致。
 - 每項上游衝突必須寫出四件事：衝突內容、上游位置（`research.md` 的 § 編號、spec 的需求編號或前面 Wave 產出的檔案與位置；第 2 點的情況必須同時寫出 `research.md` 的 § 編號與 spec 的需求編號）、合約中受影響的 `operationId`，以及建議的處理 Skill（`research.md` 為 `technical-research`，spec 為 `clarify-over-specs`，前面 Wave 的產出為產出它的 Planner）。
-- 補上 `research.md` 與 spec 都沒有規定的細節（例如欄位、錯誤碼、檢查先後），且沒有與上游相反時，不算上游衝突。spec 的必須／不得規則要求、`Decision` 卻漏列的操作、檢查、執行路徑或鎖不算細節，必須依第 2 點處理。
+- 補上 `research.md`、spec 與資料模型都沒有規定的細節（例如錯誤碼、檢查先後、計算出的回應欄位），且沒有與上游相反時，不算上游衝突。spec 的必須／不得規則要求、`Decision` 卻漏列的操作、檢查、執行路徑或鎖不算細節，必須依第 2 點處理；需要保存、資料模型卻沒有的欄位也不算細節，必須依前面的資料模型條列處理。
 
 ## Good Example
 
@@ -173,6 +176,84 @@ paths:
 上游衝突：無
 ```
 
+### Example 3
+
+- 圖書館借閱的 `data-model.dbml` 有 `loans.loan_no`、`books.status`（Enum `available`、`on_loan`、`lost`）；spec FR-011 要求借閱紀錄保存「到期提醒已寄出」，資料模型沒有這個欄位。合約用 `loanNo`，館藏的 `book.status` 沿用同一組 Enum 值；到期提醒欄位照 spec 寫進回應，並記一項上游衝突。`canRenew` 是後端計算的欄位，不記衝突。
+
+```yaml
+paths:
+  /loans/{loanNo}:
+    get:
+      operationId: getLoan
+      description: 依 FR-011 回傳借閱紀錄，含到期提醒是否已寄出（reminderSent）；canRenew 由後端依 FR-007 計算。
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  loanNo: { type: string }
+                  book:
+                    type: object
+                    properties:
+                      status: { type: string, enum: [available, on_loan, lost] }
+                  reminderSent: { type: boolean }
+                  canRenew: { type: boolean }
+```
+
+```markdown
+上游衝突：
+1. 內容：spec FR-011 要求借閱紀錄保存到期提醒已寄出，`data-model.dbml` 的 loans 沒有這個欄位。合約依 FR-011 寫入 reminderSent。
+   上游位置：`data-model.dbml` → `Table loans`、spec FR-011；受影響 operation：getLoan；建議處理 Skill：data-plan。
+```
+
+### Example 4
+
+- 圖書館借閱第 2 版，spec FR-015 要求向下相容第 1 版的借閱 API。第 1 版合約的 `getLoan` 有 `loanNumber`、館藏 `book.status` 值 `ON_LOAN`；`data-model.dbml` 是 `loans.loan_no`、`books.status`（Enum `available`、`on_loan`、`lost`）。本次新增的 `listDueReminders` 用 `loanNo`。合約 `getLoan` 沿用第 1 版的 `loanNumber` 與 `ON_LOAN`，並把這 2 個欄位逐一和資料模型比對，各記為一項上游衝突。
+
+```yaml
+paths:
+  /loans/{loanNumber}:
+    get:
+      operationId: getLoan
+      description: 依 FR-015 向下相容第 1 版，沿用 loanNumber 與館藏狀態值 ON_LOAN。
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  loanNumber: { type: string }
+                  book:
+                    type: object
+                    properties:
+                      status: { type: string, enum: [ON_LOAN] }
+  /loans/due-reminders:
+    get:
+      operationId: listDueReminders
+      description: 依 FR-016 列出到期前 3 天的借閱；本次新增的 loanNo 依資料模型 loans.loan_no 命名。
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    loanNo: { type: string }
+```
+
+```markdown
+上游衝突：
+1. 內容：第 1 版合約的 `loanNumber` 與資料模型的 `loan_no` 字詞不同。合約依 FR-015 沿用 `loanNumber`。
+   上游位置：`data-model.dbml` → `Table loans` 的 `loan_no`、spec FR-015；受影響 operation：getLoan；建議處理 Skill：data-plan。
+2. 內容：第 1 版合約的 `ON_LOAN` 與資料模型 `books.status` 的值 `on_loan` 不同。合約依 FR-015 沿用 `ON_LOAN`。
+   上游位置：`data-model.dbml` → `Table books` 的 `status` 值 `on_loan`、spec FR-015；受影響 operation：getLoan；建議處理 Skill：data-plan。
+```
+
 ## Bad Example
 
 ### Example 1
@@ -203,6 +284,41 @@ paths:
     post:
       operationId: createLoan
       description: 依 FR-005 每張借書證最多同時借 5 本；借書證以 version 欄位做樂觀鎖，版本衝突時重試 3 次。
+```
+
+### Example 3
+
+- 同 Good Example 3 的資料模型，合約寫 `loanNumber`、布林 `isAvailable`、大寫 `ON_LOAN`；缺少的到期提醒欄位直接在回報寫「已補上欄位」，沒有列為上游衝突，也沒有指名 `data-plan`。
+
+```yaml
+paths:
+  /loans/{loanNumber}:
+    get:
+      operationId: getLoan
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  loanNumber: { type: string }
+                  isAvailable: { type: boolean }
+                  loanStatus: { type: string, enum: [ON_LOAN] }
+                  reminderSent: { type: boolean }
+```
+
+```markdown
+上游衝突：無
+已補上欄位 reminderSent。
+```
+
+### Example 4
+
+- 同 Good Example 4 的情境，合約內容相同，但回報只和第 1 版合約比對，沒有和資料模型比對，漏列 2 項上游衝突（`loanNumber` ↔ `loan_no`、`ON_LOAN` ↔ `on_loan`）。
+
+```markdown
+上游衝突：無。`getLoan` 和第 1 版合約逐欄比對一致。
 ```
 
 # Rule 4 - 同一 operation 的同一分支不得寫出相反的行為
@@ -249,4 +365,54 @@ paths:
       responses:
         '200':
           description: 續借不檢查借書證狀態，直接延長到期日 14 天
+```
+
+# Rule 5 - spec 要求的互動語意必須寫進合約，沒有要求的不得自行加入
+
+- 可規劃介面需求依據中的需求（FR、NFR、Edge Cases、Clarifications）對某個 operation 要求下列任一種語意時，該 operation 的 `description` 必須寫出這項語意與對應結果，並引用需求編號：副作用（會改變或不改變哪些資料、會不會觸發其他動作）、冪等（重複送出的結果）、事件順序、重試、逾時、版本相容（延續哪個既有合約、哪些行為不變）。
+- 同一項語意適用多個 operation 時，可以寫在 `info.description`，並依 Rule 4 寫出例外。
+- 語意的實作機制依 Rule 3 處理；`research.md` 沒有決定機制時，只寫 spec 要求的結果，不自行選定機制。
+- spec 沒有要求上述語意時，不得自行加入冪等鍵、重試次數、逾時秒數、版本協商參數等機制或數值。
+
+## Good Example
+
+- 圖書館借閱 spec FR-012「同一張借書證對同一館藏重複送出預約時，不建立第二筆預約」、Clarifications「預約保留 3 天，逾時自動取消」。`createHold` 的 `description` 寫出重複送出時回 200 並回傳既有預約（FR-012），以及保留 3 天、逾時取消（Clarifications）；spec 沒有要求重試，合約不寫重試。
+
+```yaml
+paths:
+  /holds:
+    post:
+      operationId: createHold
+      description: 依 FR-012，同一張借書證對同一館藏重複送出預約時，不建立第二筆預約，回 200 並回傳既有預約；依 Clarifications，預約保留 3 天，逾時自動取消。
+```
+
+## Bad Example
+
+### Example 1
+
+- 同一份 spec，`createHold` 只寫「依 FR-012 建立預約」，沒有寫重複送出的結果。
+
+```yaml
+paths:
+  /holds:
+    post:
+      operationId: createHold
+      description: 依 FR-012 建立預約。
+```
+
+### Example 2
+
+- spec 沒有任何冪等或重試要求，合約自行加入 `Idempotency-Key` header，並寫「失敗時用戶端重試 3 次」。
+
+```yaml
+paths:
+  /holds:
+    post:
+      operationId: createHold
+      description: 依 FR-012 建立預約；失敗時用戶端重試 3 次。
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string }
 ```
