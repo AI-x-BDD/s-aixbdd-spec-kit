@@ -533,7 +533,7 @@ fix(<skill>): <一句話說明修改>
 ```text
 請做 runbook 步驟 2：讀取 .agents/skills/s-specify/SKILL.md 並依其 SOP 執行。
 功能描述：{FEATURE}
-完成後告訴我 spec 目錄路徑，並依步驟 2 的「結束後的檢查」，對照 runbook 第 5 節第 {N} 列「本次要觀察的規則」，寫進 docs/iterations/iter-{N}.md。
+完成後告訴我 spec 目錄路徑與 `checklists/requirements.md` 的通過數，並依步驟 2 的「結束後的檢查」，對照 runbook 第 5 節第 {N} 列「本次要觀察的規則」，寫進 docs/iterations/iter-{N}.md。
 ```
 
 #### P3 `clarify-over-specs`（P2 回報有推定需求、未確認事項，或有規則沒被問到時）
