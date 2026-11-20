@@ -23,6 +23,10 @@
     --success-soft: #DCFCE7;
     --occupied: #64748B;
     --occupied-soft: #F1F5F9;
+    --badge-sending-ink: #1D4ED8;
+    --badge-sent-ink: #166534;
+    --badge-failed-ink: #B91C1C;
+    --badge-unknown-ink: #92400E;
     --radius: 12px;
     --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
     --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
@@ -98,10 +102,10 @@
   .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
   .badge-member { background: var(--success-soft); color: var(--success); }
   .badge-admin { background: var(--primary-soft); color: var(--primary); }
-  .badge-sending { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
-  .badge-sent { background: var(--success-soft); color: var(--success); }
-  .badge-failed { background: var(--danger-soft); color: var(--danger); }
-  .badge-unknown { background: var(--pending-soft); color: var(--pending); border-color: var(--pending); }
+  .badge-sending { background: var(--primary-soft); color: var(--badge-sending-ink); border-color: var(--primary); }
+  .badge-sent { background: var(--success-soft); color: var(--badge-sent-ink); }
+  .badge-failed { background: var(--danger-soft); color: var(--badge-failed-ink); }
+  .badge-unknown { background: var(--pending-soft); color: var(--badge-unknown-ink); border-color: var(--pending); }
   .badge-loan { background: var(--primary); color: #FFFFFF; }
   .badge-returned { background: var(--occupied-soft); color: var(--occupied); border-color: var(--line); }
   [data-theme="dark"] .badge-member, [data-theme="dark"] .badge-admin, [data-theme="dark"] .badge-sending, [data-theme="dark"] .badge-sent, [data-theme="dark"] .badge-failed, [data-theme="dark"] .badge-unknown { color: var(--ink); }

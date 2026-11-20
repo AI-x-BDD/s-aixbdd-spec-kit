@@ -1,6 +1,6 @@
 # UI 規劃：逾期借用的 Discord 通知、送出結果查看與重送、手動逾期檢查 (Overdue Discord Notification)
 
-**Spec**: [spec.md](../spec.md) | **Plan**: [plan.md](../plan.md) | **Date**: 2026-11-11
+**Spec**: [spec.md](../spec.md) | **Plan**: [plan.md](../plan.md) | **Date**: 2026-11-20
 
 - 負責介面：F1 管理員「逾期通知紀錄」頁籤的通知清單與狀態篩選介面、F2 通知重送操作與「結果不明」確認視窗介面、F3 「立即檢查逾期」操作與建立數量提示介面、F4 前五版成員與管理員既有畫面（登入、設備預約、我的預約、管理員總覽）
 - 雛形入口：[index.html](./index.html)
@@ -48,9 +48,13 @@
   | 結果不明柔和底（`--pending-soft`，Light ／ Dark） | `#FEF3C7` 淺琥珀 ／ `#78350F` 深琥珀底 |
   | 送出失敗／錯誤（`--danger`，Light ／ Dark） | `#DC2626` 珊瑚紅 ／ `#EF4444` 亮紅 |
   | 送出失敗／錯誤柔和底（`--danger-soft`，Light ／ Dark） | `#FEE2E2` 淺珊瑚紅 ／ `#7F1D1D` 深紅底 |
+  | 「送出中」徽章文字（`--badge-sending-ink`，Light ／ Dark） | `#1D4ED8` 深靛藍（在 `--primary-soft` 上對比 5.49:1） ／ Dark Mode 沿用 `--ink` |
+  | 「送出成功」徽章文字（`--badge-sent-ink`，Light ／ Dark） | `#166534` 深翠綠（在 `--success-soft` 上對比 6.49:1） ／ Dark Mode 沿用 `--ink` |
+  | 「送出失敗」徽章文字（`--badge-failed-ink`，Light ／ Dark） | `#B91C1C` 深珊瑚紅（在 `--danger-soft` 上對比 5.30:1） ／ Dark Mode 沿用 `--ink` |
+  | 「結果不明」徽章文字（`--badge-unknown-ink`，Light ／ Dark） | `#92400E` 深琥珀（在 `--pending-soft` 上對比 6.37:1） ／ Dark Mode 沿用 `--ink` |
 
 - 字體：介面內文使用 `"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif`；驗證碼、設備編號、預約編號、時段時間與通知的嘗試及送出時間使用 `"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`。
-- 版面：內容最大寬度 1120px，手機寬度 360px 仍可完整操作；卡片圓角 12px；每頁頂部導覽列提供品牌標題、2 個頁面導覽連結、目前登入角色徽章、Light Mode／Dark Mode 切換按鈕與登出連結。通知狀態以徽章標示：「送出中」為靛藍底加轉圈、「送出成功」為綠色、「送出失敗」為紅色、「結果不明」為琥珀色；失敗原因以帶左側紅色條的說明列顯示在狀態下方。「立即檢查逾期」與「重新整理」放在清單標題列右側，狀態篩選下拉選單在清單上方。重送「結果不明」的確認視窗為置中彈窗，手機寬度改為全螢幕；通知清單在 720px 以下改為一則通知一張卡片。
+- 版面：內容最大寬度 1120px，手機寬度 360px 仍可完整操作；卡片圓角 12px；每頁頂部導覽列提供品牌標題、2 個頁面導覽連結、目前登入角色徽章、Light Mode／Dark Mode 切換按鈕與登出連結。通知狀態以徽章標示：「送出中」為靛藍底加轉圈、「送出成功」為綠色、「送出失敗」為紅色、「結果不明」為琥珀色；Light Mode 下 4 種徽章的底色與邊框沿用對應的柔和底與狀態色，文字改用上表的 4 個徽章文字色，和底色的對比都在 WCAG AA 4.5:1 以上，Dark Mode 的徽章文字沿用 `--ink`；4 個徽章文字色只用在通知狀態徽章，其他元件仍用原本的色彩變數；失敗原因以帶左側紅色條的說明列顯示在狀態下方。「立即檢查逾期」與「重新整理」放在清單標題列右側，狀態篩選下拉選單在清單上方。重送「結果不明」的確認視窗為置中彈窗，手機寬度改為全螢幕；通知清單在 720px 以下改為一則通知一張卡片。
 
 ## 3. 畫面與流程
 
