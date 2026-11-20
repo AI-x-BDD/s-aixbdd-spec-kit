@@ -16,7 +16,7 @@
 | 子代理模型 | 本機設定 `CLAUDE_CODE_SUBAGENT_MODEL=sonnet`。委派 SOP 執行的子代理要明確指定 Opus，才能和 iter-6 的模型一致 |
 | Skill 版本（開始時） | `ee48eef`（`scripts/sync-skills.sh --check`：兩邊一致） |
 | 其他 | `git config --global core.hooksPath` = `~/dotfiles/git/hooks`；`git status` 只有已知的未 commit 目錄 `docs/wb-secret-formula/`（不讀、不改、不 commit） |
-| 中途變動 | 沒有 |
+| 中途變動 | 2026-11-20 P8c：`converge` 改由子代理執行（Agent 工具 `general-purpose`，明確指定 Opus），理由是要對照 008 全部文件與程式，主 session 的上下文不夠。主 session 核對子代理的結果。電腦、Skill 版本不變，commit 為 `9586fc7` |
 | 臨時改寫的提示詞 | P0s 改寫：比 runbook 9.5 的 P0s 多 2 句。① 規則多一條「docs/wb-secret-formula/ 是已知的未 commit 檔案，不算 git status 不乾淨；不要讀取、修改或 commit 它。」② 結尾多一句「完成後依 CLAUDE.md 格式附上下一步提示詞。」其餘依 9.5 原文，`{N}`=`small-1`、`{SPEC_DIR}`=`specs/008-overdue-discord-notification`。實際貼上的內容見下方「P0s 實際貼上的內容」 |
 
 ### P0s 實際貼上的內容
@@ -81,6 +81,7 @@
 |---|---|---|---|---|---|
 | 準備（P0s） | — | `docs/iterations/iter-small-1.md` | 貼 P0s | 沒有 | 不 commit（小變更路徑第 3 點第 1 步沒有檢查點） |
 | 重跑 Planner（P5b） | ui-plan | `ui/plan.md`、`ui/index.html`、`ui/overdue-notifications.html` | 貼 P5b；同意覆寫 `ui/` 的 3 個檔案 | 見問題 1（候選） | P5b 檢查點 commit（標題「docs(specs): 調高 008 通知狀態徽章 Light Mode 文字對比至 WCAG AA」） |
+| 收斂評估（P8c） | converge | `convergence.md` 第 1 輪：有缺口（附加任務 3、上游缺口 0、不處理 0） | 還沒確認缺口 | 子代理回報 4 項 Skill 問題，主 session 判斷 3 項成立（見問題 2～4） | P8c 檢查點 commit（標題「docs(specs): 新增 008 小變更 small-1 第 1 輪收斂評估」） |
 
 ### P5b 重跑紀錄
 
@@ -97,6 +98,20 @@
   7. `git diff` 只有 `ui/` 的 3 個檔案（另有本紀錄檔）。
 - 執行方式：依 SOP 重寫 `ui/plan.md` 與兩個 HTML 時，保留原有內容，只改動和本次變更有關的段落（見流程不足第 1 列）。
 
+### P8c 收斂評估紀錄
+
+- 結果：第 1 輪，有缺口（附加任務 3、上游缺口 0、不處理 0）。沒有 CRITICAL 與 HIGH。
+- 檢查範圍：FR 21、NFR 3、SC 7（沒有排除）、US 情境 37、Edge Case 13、介面 15、技術決定 8、憲法規則 1（`skills/implement/code.md` 不存在）、任務 42（T001～T042）、待確認 4（都已有上游決定）。
+- 主 session 以 `sed -n` 抽查 G1～G3 的程式與文件行號，內容支持描述。`git status` 只多了 `convergence.md`，HEAD 仍為 `9586fc7`。
+
+| G 編號 | 類型 | 嚴重度 | 摘要 | 處理（converge 寫的） | 和本次變更的關係 |
+|---|---|---|---|---|---|
+| G1 | 部分 | MEDIUM | `frontend/src/views/OverdueNotificationsView.tsx:637-640` 的 4 種通知狀態徽章文字仍用 `--primary`／`--success`／`--danger`／`--pending`，沒有改用 `ui/plan.md:51-54` 的 4 個徽章文字色 | 附加任務 | 本次變更要落到程式的部分 |
+| G2 | 部分 | MEDIUM | 送出程序與恢復處理寫入 `overdue_notifications` 時沒有把 `updated_by` 設為 null（`backend/src/jobs/overdueScheduler.ts:43-56`、`:88-150`；`data/data-model.dbml:85`），重送後保留管理員 ID | 附加任務 | 不屬於本次變更，iter-6 既有的缺口 |
+| G3 | 部分 | MEDIUM | 啟動時沒有驗證 `DISCORD_WEBHOOK_URL`，位址沒有設定時要等第一則通知送出才寫 log（`backend/src/config/notificationConfig.ts:23-35`、`backend/src/jobs/overdueScheduler.ts:225-234`；`notification/plan.md:242`） | 附加任務 | 不屬於本次變更，iter-6 既有的缺口 |
+
+- 等待使用者確認：每個缺口是不是真的缺口；G2、G3 要在 small-1 處理，還是改為「不處理」並記為第 5 節第 6 列的遺留項。
+
 ## Skill 表現檢查
 
 | Skill | 預期 | 實際 | 分類（需求缺漏／意圖改變／程式錯誤／Skill 缺陷／沒有問題） | 證據位置 |
@@ -112,6 +127,32 @@
 - 影響：低對比在批 7 驗收前才被量出，要另走小變更路徑修正；同一套配色沿用到之後的迭代時會重複發生。
 - 分類待定：spec 與憲法都沒有對比需求。這可能是 Skill 缺陷（`ui-plan` 應檢查可讀性），也可能屬於憲法（`constitution` 新增 `ui-plan` 的可及性規則）。步驟 10 再判斷。
 - 處理結果：<由 Claude Code 填>
+
+### 問題 2：converge（範例缺少 Edge Case 列）
+
+- 發生了什麼：SOP Phase 2 步驟 1 把 Edge Case 列為檢查項目，Phase 3 步驟 2 規定檢查範圍表每類一列，但範例的檢查範圍表沒有 Edge Case 列。子代理依 SOP 自行加上。
+- 原本預期：範例和 SOP 一致。
+- 證據：`.agents/skills/converge/SKILL.md:21`、`:32`；`.agents/skills/converge/templates/convergence.example.md` 搜尋「Edge Case」為 0 筆。
+- 影響：照範例填寫的執行者可能漏掉 Edge Case 的計數。
+- 處理結果：<由 Claude Code 填>
+
+### 問題 3：converge（全目錄關鍵字搜尋沒有定義關鍵字與排除目錄）
+
+- 發生了什麼：Phase 2 步驟 2 要以 `grep -rln` 在 Source Code 根目錄搜尋「每個檢查項目的關鍵字」，但沒有定義約 190 個項目的關鍵字來源，也沒有排除 `node_modules/`、`test-results/`。子代理改用主題關鍵字（overdue、discord、webhook、逾期），並排除這些目錄。
+- 原本預期：SOP 寫明關鍵字來源與排除的目錄。
+- 證據：`.agents/skills/converge/SKILL.md:22`；`apps/equipment-loan/` 下有 `node_modules/`、`test-results/`。
+- 影響：不同執行者的搜尋範圍不同，找到的「未要求」缺口可能不同。
+- 處理結果：<由 Claude Code 填>
+
+### 問題 4：converge（其他 Skill 的憲法檔不在讀取範圍，待確認是否刻意）
+
+- 發生了什麼：SOP 只讀 `shared.md` 與 `skills/implement/code.md`。`.agents/constitution/skills/` 另有 `api-plan/openapi.md`、`data-plan/data-model.md`，程式違反它們時 converge 不會發現。
+- 原本預期：SOP 寫明這兩個檔要不要納入。
+- 證據：`.agents/skills/converge/SKILL.md:13`；`.agents/constitution/skills/` 底下有 `api-plan`、`data-plan`。
+- 影響：可能是刻意設計（這兩個檔約束的是 Planner 產出，由 `analyze` 檢查）。步驟 10 再判斷。
+- 處理結果：<由 Claude Code 填>
+
+子代理另回報「樣板的結果欄位有『不處理 N』，但 Rule 3 禁止寫『不處理』」。主 session 判斷不成立：「不處理」由使用者在確認缺口時手動改寫（runbook 步驟 8c），converge 本身不寫，所以樣板保留這個計數是合理的。
 
 ## 使用者驗證
 
