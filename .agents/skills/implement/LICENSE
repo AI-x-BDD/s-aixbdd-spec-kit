@@ -3,7 +3,7 @@
 1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）：
    `speckit-implement`（`templates/commands/implement.md`）的行為約束——逐 Phase 執行並遵守任務依賴、
    修改同一檔案的任務循序執行、完成的任務在 tasks.md 標為 `[X]`、每個任務回報進度、
-   依專案技術建立或補齊 ignore 檔、完成時驗證實作符合規格與計畫、可指定任務範圍。
+   依專案技術建立或補齊 ignore 檔（含 `.npmignore`、`.terraformignore`、`.helmignore` 的建立條件，以及 Kubernetes、Terraform 機密檔要忽略的樣式）、完成時驗證實作符合規格與計畫、可指定任務範圍。
    本 Skill 的 SOP、`rules/` 下的 RuleFile 與 `scripts/tasks_state.py` 為重新撰寫，未直接複製上述專案的檔案；
    Extension hooks、`.specify/` 腳本、checklists 閘門、全文預載與強制 TDD 等內容未納入。
 
