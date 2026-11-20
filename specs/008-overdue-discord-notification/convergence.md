@@ -2,7 +2,7 @@
 
 - **spec 目錄**：`specs/008-overdue-discord-notification/`
 - **程式目錄**：`apps/equipment-loan/`
-- **輪次**：1
+- **輪次**：2
 
 ## 第 1 輪
 
@@ -47,3 +47,45 @@
 2. 執行 `implement`，只跑新的 Phase。
 3. 執行第 2 輪 `converge`。
 4. 本輪沒有上游缺口，不需要執行其他上游 Skill。
+
+## 第 2 輪
+
+- **日期**：2026-11-20
+- **評估狀態**：程式與文件都是 commit `4dab6ec`；工作目錄只有未追蹤的 `docs/wb-secret-formula/`，不在程式目錄與 spec 目錄內
+- **結果**：已收斂（附加任務 0、上游缺口 0、不處理 0）
+
+### 檢查範圍
+
+| 項目 | 數量 | 說明 |
+|---|---|---|
+| 功能需求 | 21 | FR-001～FR-021 |
+| 非功能需求 | 3 | NFR-001～NFR-003 |
+| 成功標準 | 7 | SC-001～SC-007，都是可以實作與量測的項目，沒有排除上線後指標 |
+| User Story 情境 | 37 | US1 15、US2 16、US3 6 |
+| Edge Case | 13 | `spec.md` Edge Cases 的 13 項 |
+| 系統介面 | 15 | `plan.md` 系統介面盤點 F1～F4、B1～B4、D1～D2、S1～S3、N1～N2 |
+| 技術決定 | 8 | `research.md` §1～§8；`techstack.md`「本次開發不引入的技術」也對照了前後端 `package.json`，沒有新增套件 |
+| 憲法規則 | 1 | `.agents/constitution/shared.md` Rule 1，只約束文件的說明文字，不適用於程式碼與註解；`skills/implement/code.md` 不存在，略過 |
+| 任務 | 45 | T001～T045 全部已勾選；勾選不算證據，每個任務都對照程式重新確認。T037～T039 是執行檢查、測試與手動驗證的任務，依 SOP 不執行，只確認指令與測試檔存在。T040～T042 改變 T023 的分頁與載入呈現，T043 改變 T023 的徽章文字色，依任務說明與 Must Read 引用的 G1，以最終行為評估 |
+| 待確認 | 4 | `tasks.md` Notes 待確認 1～4，上游決定都已寫入 `ui/plan.md` 與 `research.md`，程式都已照決定實作 |
+| 前一輪缺口 | 3 | 第 1 輪 G1、G2、G3 由 Phase 7 的 T043～T045 處理，重新確認後都已沒有缺口 |
+
+程式範圍：和第 1 輪相同。第 1 輪的 commit `9586fc7` 到本輪的 `4dab6ec` 之間，程式只修改了 `frontend/index.html`、`frontend/src/views/OverdueNotificationsView.tsx`、`backend/src/config/notificationConfig.ts`、`backend/src/jobs/overdueScheduler.ts`；入口點和第 1 輪相同，沒有找不到對應的入口點。
+
+前一輪缺口的重新確認：
+
+- G1：`frontend/index.html:25-28` 在 `:root`（`:8`）定義 `--badge-sending-ink` `#1d4ed8`、`--badge-sent-ink` `#166534`、`--badge-failed-ink` `#b91c1c`、`--badge-unknown-ink` `#92400e`，和 `ui/plan.md:51-54` 的色碼相同，Dark Mode 區塊沒有定義這 4 色；`OverdueNotificationsView.tsx:637-640` 的 4 個 `.odn-badge-*` 文字改用這 4 個變數，底色與邊框不變；`:643` 的 Dark Mode 仍沿用 `--ink`，符合 `ui/plan.md:57`。
+- G2：`backend/src/jobs/overdueScheduler.ts` 的恢復處理 `:45`、領取 `:57`、送出成功 `:105`、安排自動重試 `:119`、重試用完改 `failed` `:133`、不可重試 `failed` `:148`、結果不明 `:158` 都寫 `updated_by` 為 null；`backend/src/services/overdueNotificationService.ts:185` 的 B2 重送仍寫管理員 ID，`:135-137` 的建立通知不寫 `updated_by`。和 `data/data-model.dbml:85`、`notification/plan.md:239` 一致。
+- G3：`backend/src/config/notificationConfig.ts:50-52` 新增 `checkWebhookUrlAtStartup()`，以 `:23-35` 的同一個驗證規則檢查位址，沒有設定或格式錯誤時 `:32` 以 `console.warn` 寫固定文字「DISCORD_WEBHOOK_URL 沒有設定或格式不正確」，不寫輸入值；`overdueScheduler.ts:241` 在 `start()` 開頭、`:248` 恢復處理之前呼叫它，`backend/src/server.ts:11` 啟動時呼叫 `start()`。符合 `research.md:139` 與 `notification/plan.md:242`。
+
+### 缺口
+
+| ID | 缺口類型 | 嚴重度 | 來源 | 證據 | 剩餘工作 | 處理 |
+|---|---|---|---|---|---|---|
+| — | — | — | — | 本輪沒有缺口 | — | — |
+
+### 下一步
+
+1. 本輪已收斂，不需要再執行 `converge`。
+2. 本輪沒有「附加任務」，不執行 `tasks` 附加模式。
+3. 本輪沒有上游缺口，不需要執行其他上游 Skill。

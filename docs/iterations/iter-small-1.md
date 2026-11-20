@@ -106,6 +106,7 @@
   2. 執行方式：`implement` 的規則禁止在 SOP 中 commit；runbook 要求每個 Phase 結束 commit。完成報告後，由主 session 依檢查點 commit，不在任務執行中 commit。
 - 觀察（不在本次範圍，沒有修改）：同一頁的其他徽章對比也低於 4.5:1：「已歸還」徽章 Light Mode 4.34:1，「借用中」徽章 Dark Mode 3.68:1（白字在 `--primary` `#3B82F6` 上）。本次依 P0s 只改 4 種通知狀態徽章，記為遺留項候選，步驟 12 決定去向。
 - 驗證時寫入資料庫的資料：臨時測試與 e2e 結束時都執行 `seedDatabase` 重設，開發資料庫為 demo seed 狀態。PostgreSQL 容器 `equipment-loan-postgres` 保持運行。
+| 收斂評估第 2 輪（P8c） | converge | `convergence.md` 第 2 輪：已收斂（附加任務 0、上游缺口 0、不處理 0） | 沒有 | 子代理回報 2 項 Skill 問題，主 session 判斷 1 項成立（見問題 5） | P8c 檢查點 commit（標題「docs(specs): 新增 008 小變更 small-1 第 2 輪收斂評估，已收斂」） |
 
 ### P5b 重跑紀錄
 
@@ -135,6 +136,14 @@
 | G3 | 部分 | MEDIUM | 啟動時沒有驗證 `DISCORD_WEBHOOK_URL`，位址沒有設定時要等第一則通知送出才寫 log（`backend/src/config/notificationConfig.ts:23-35`、`backend/src/jobs/overdueScheduler.ts:225-234`；`notification/plan.md:242`） | 附加任務 | 不屬於本次變更，iter-6 既有的缺口 |
 
 - 等待使用者確認：每個缺口是不是真的缺口；G2、G3 要在 small-1 處理，還是改為「不處理」並記為第 5 節第 6 列的遺留項。
+
+### P8c 第 2 輪紀錄
+
+- 執行方式：和第 1 輪相同，由 Opus 子代理執行，主 session 核對。
+- 結果：已收斂，沒有新缺口。前一輪重新確認：G1（`frontend/index.html:25-28`、`OverdueNotificationsView.tsx:637-640`）、G2（`overdueScheduler.ts:45`、`:57`、`:105`、`:119`、`:133`、`:148`、`:158`）、G3（`notificationConfig.ts:50-52`、`overdueScheduler.ts:241`）都已解決。主 session 抽查 `index.html:25-28` 與 `overdueScheduler.ts:241`，內容相符。
+- 檢查範圍：和第 1 輪相同，任務改為 45（T001～T045），另加「前一輪缺口 3」列。
+- `diff` 備份：只有「輪次」由 1 改為 2，其餘是檔尾新增的第 2 輪。`git status` 只有 `convergence.md` 改變。
+- 下一步：依 runbook 小變更路徑第 3 點第 5 步，進入使用者驗證（P9）。
 
 ## Skill 表現檢查
 
@@ -177,6 +186,16 @@
 - 處理結果：<由 Claude Code 填>
 
 子代理另回報「樣板的結果欄位有『不處理 N』，但 Rule 3 禁止寫『不處理』」。主 session 判斷不成立：「不處理」由使用者在確認缺口時手動改寫（runbook 步驟 8c），converge 本身不寫，所以樣板保留這個計數是合理的。
+
+### 問題 5：converge（已收斂時缺口表的寫法沒有定義）
+
+- 發生了什麼：第 2 輪沒有缺口，但 SOP 與樣板都沒有規定空的缺口表要怎麼寫，範例也沒有「已收斂」的輪次。子代理保留表頭，放一列「本輪沒有缺口」。
+- 原本預期：樣板或 SOP 規定已收斂時缺口表的寫法。
+- 證據：`.agents/skills/converge/templates/convergence.md:25-29` 只有 `{{GAP_ROWS}}`；`.agents/skills/converge/SKILL.md:32` 只規定結果寫「已收斂」與下一步；`specs/008-overdue-discord-notification/convergence.md` 第 2 輪缺口表。
+- 影響：不同執行者寫法不同，讀取 `convergence.md` 的腳本會把那一列當成缺口：主 session 實跑 `tasks` 的 `pending_gaps.py`，`skipped` 出現 `{'id': '—', 'handling': '—', 'reason': '處理不是附加任務'}`。這次沒有造成錯誤，但「—」被當成一個 G 項目。
+- 處理結果：<由 Claude Code 填>
+
+第 2 輪子代理再次回報「『不處理』的規定互相矛盾」，並補充 `convergence.example.md:11`、`:53` 也有「不處理 0」。主 session 維持第 1 輪的判斷：「不處理」由使用者確認缺口時手動改寫（runbook 步驟 8c），converge 不寫，Rule 3 只約束 converge，三份文件沒有矛盾。步驟 10 若要再確認，可把這一點列入。
 
 ## 使用者驗證
 
