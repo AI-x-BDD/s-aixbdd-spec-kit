@@ -92,6 +92,20 @@
 - `check_tasks.py`：issues 0、warnings 0。`head -c` 比對附加前備份：既有內容不變。`git status` 只有 `tasks.md` 改變。
 - 憲法遵循：讀取 `.agents/constitution/shared.md`（`skills/tasks/tasks.md` 不存在），必須／不得規則全部通過，沒有憲法偏離與未套用規則。
 - G2、G3 不屬於本次變更（iter-6 既有的缺口）。使用者沒有改成「不處理」，所以依 Skill 規則附加。
+| 實作（P8，Phase 7） | implement | T043～T045 完成 3／3，受阻 0；前端 `index.html`、`OverdueNotificationsView.tsx`，後端 `overdueScheduler.ts`、`notificationConfig.ts` | 沒有 | 沒有 Skill 問題；見 P8 紀錄的決策與觀察 | Phase 7 檢查點 commit（標題「fix(equipment-loan): 收斂 small-1 第 1 輪缺口 G1～G3」） |
+
+### P8 實作紀錄（執行範圍：Phase 7）
+
+- 完成數：範圍內 3／3（全部 45／45）。受阻任務：無。憲法：讀取 `shared.md`，必須／不得規則全部通過，沒有偏離與未套用規則。
+- T043（G1）：`frontend/index.html` 的 `:root` 新增 4 個徽章文字色；`.odn-badge-sending／sent／failed／unknown` 改用它們。以暫時啟動的 Vite（5199 埠，驗證後關閉）量 computed style：Light Mode 5.49、6.49、5.30、6.37；Dark Mode 仍為 `--ink`。
+- T044（G2）：`overdueScheduler.ts` 的恢復處理、領取與 5 種結果更新都寫 `updated_by = NULL`。以臨時整合測試（驗證後刪除）確認：重送後為管理員 ID，送出程序寫入後為 null。
+- T045（G3）：`notificationConfig.ts` 新增 `checkWebhookUrlAtStartup()`，`start()` 開頭呼叫。實際啟動後端 3 次（3199 埠，驗證後關閉）：空白與格式錯誤都只寫固定文字，正確位址沒有警告，後端都能回應。
+- Checkpoint：backend `npm run check` 通過、`npm test` 14 檔 76 測試通過；frontend `npm run check` 通過、`npm test` 2 檔 6 測試通過；`npm run test:e2e` 5 個通過（3000、4010、5183 埠驗證後都已關閉）。
+- 決策紀錄：
+  1. T045：啟動檢查沿用既有的 `readWebhookUrl()` 與「只警告一次」旗標。情況：任務要求啟動時寫 log，且 send 時的行為不變。決定：沒有設定時，警告在啟動時寫一次，之後送出不再重複，直到位址變成合法。理由：`notification/plan.md` §6 規定寫入時機是「啟動時」；既有程式本來就只警告一次，避免每秒的送出程序重複寫 log。影響：只有 `notificationConfig.ts`、`overdueScheduler.ts`；整合測試不呼叫 `start()`，NS10 不受影響。
+  2. 執行方式：`implement` 的規則禁止在 SOP 中 commit；runbook 要求每個 Phase 結束 commit。完成報告後，由主 session 依檢查點 commit，不在任務執行中 commit。
+- 觀察（不在本次範圍，沒有修改）：同一頁的其他徽章對比也低於 4.5:1：「已歸還」徽章 Light Mode 4.34:1，「借用中」徽章 Dark Mode 3.68:1（白字在 `--primary` `#3B82F6` 上）。本次依 P0s 只改 4 種通知狀態徽章，記為遺留項候選，步驟 12 決定去向。
+- 驗證時寫入資料庫的資料：臨時測試與 e2e 結束時都執行 `seedDatabase` 重設，開發資料庫為 demo seed 狀態。PostgreSQL 容器 `equipment-loan-postgres` 保持運行。
 
 ### P5b 重跑紀錄
 

@@ -1,4 +1,4 @@
-import { getSchedulerConfig } from "../config/notificationConfig.js";
+import { checkWebhookUrlAtStartup, getSchedulerConfig } from "../config/notificationConfig.js";
 import { prisma } from "../db/prisma.js";
 import {
   discordWebhookClient,
@@ -42,7 +42,7 @@ interface NotificationSource {
 export async function recoverInterruptedNotifications(now: Date): Promise<number> {
   return prisma.$executeRaw`
     UPDATE overdue_notifications
-    SET status = 'unknown'::overdue_notification_status, updated_at = ${now}::timestamptz
+    SET status = 'unknown'::overdue_notification_status, updated_at = ${now}::timestamptz, updated_by = NULL
     WHERE status = 'sending' AND next_attempt_at IS NULL
   `;
 }
@@ -53,7 +53,8 @@ async function claimDueNotification(now: Date): Promise<ClaimedNotification | nu
     SET next_attempt_at = NULL,
         attempt_count = attempt_count + 1,
         last_attempted_at = ${now}::timestamptz,
-        updated_at = ${now}::timestamptz
+        updated_at = ${now}::timestamptz,
+        updated_by = NULL
     WHERE id = (
       SELECT id FROM overdue_notifications
       WHERE status = 'sending' AND next_attempt_at <= ${now}::timestamptz
@@ -101,6 +102,7 @@ async function applyResult(
           sent_at: now,
           discord_message_id: result.messageId,
           updated_at: now,
+          updated_by: null,
         },
       });
       console.log(`[overdueScheduler] notification=${id} status=sent`);
@@ -114,6 +116,7 @@ async function applyResult(
             next_attempt_at: new Date(now.getTime() + waitSeconds * 1000),
             auto_retry_count: autoRetryCount + 1,
             updated_at: now,
+            updated_by: null,
           },
         });
         console.log(
@@ -123,7 +126,12 @@ async function applyResult(
       }
       await prisma.overdue_notifications.update({
         where: { id },
-        data: { status: "failed", failure_reason: result.failureReason, updated_at: now },
+        data: {
+          status: "failed",
+          failure_reason: result.failureReason,
+          updated_at: now,
+          updated_by: null,
+        },
       });
       console.log(
         `[overdueScheduler] notification=${id} status=failed reason=${result.failureReason}`,
@@ -133,7 +141,12 @@ async function applyResult(
     case "failed":
       await prisma.overdue_notifications.update({
         where: { id },
-        data: { status: "failed", failure_reason: result.failureReason, updated_at: now },
+        data: {
+          status: "failed",
+          failure_reason: result.failureReason,
+          updated_at: now,
+          updated_by: null,
+        },
       });
       console.log(
         `[overdueScheduler] notification=${id} status=failed reason=${result.failureReason}`,
@@ -142,7 +155,7 @@ async function applyResult(
     case "unknown":
       await prisma.overdue_notifications.update({
         where: { id },
-        data: { status: "unknown", failure_reason: null, updated_at: now },
+        data: { status: "unknown", failure_reason: null, updated_at: now, updated_by: null },
       });
       console.log(`[overdueScheduler] notification=${id} status=unknown`);
       return;
@@ -225,6 +238,7 @@ function logJobError(job: string, error: unknown): void {
 export async function start(): Promise<() => void> {
   if (stopScheduler !== null) return stopScheduler;
 
+  checkWebhookUrlAtStartup();
   const config = getSchedulerConfig();
   let stopped = false;
   let checkTimer: NodeJS.Timeout | null = null;

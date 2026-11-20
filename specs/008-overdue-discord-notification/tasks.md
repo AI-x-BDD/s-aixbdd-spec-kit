@@ -485,20 +485,20 @@ With multiple developers:
 
 **Purpose**: 處理 `convergence.md` 第 1 輪的附加任務（G1、G2、G3）
 
-- [ ] T043 [P] 讓前端 4 種通知狀態徽章在 Light Mode 改用 `ui/plan.md` §2 的徽章文字色：在 `frontend/index.html` 的 `:root` 新增 `--badge-sending-ink`、`--badge-sent-ink`、`--badge-failed-ink`、`--badge-unknown-ink`（色碼照 `ui/plan.md` §2，不加進 `[data-theme="dark"]`），並把 `frontend/src/views/OverdueNotificationsView.tsx` 的 `OVERDUE_NOTIFICATIONS_CSS` 中 `.odn-badge-sending`、`.odn-badge-sent`、`.odn-badge-failed`、`.odn-badge-unknown` 的 `color` 分別改用這 4 個變數；底色、邊框、轉圈、Dark Mode 的 `color: var(--ink)` 規則、`.odn-badge-loan`、`.odn-badge-returned` 與其他元件不變，既有的 `--primary`、`--success`、`--danger`、`--pending` 等共用變數不變；完成後重跑 `frontend/` 的 `npm run check` 與 `npm run test:frontend`（FR-003、NFR-002、G1）
+- [X] T043 [P] 讓前端 4 種通知狀態徽章在 Light Mode 改用 `ui/plan.md` §2 的徽章文字色：在 `frontend/index.html` 的 `:root` 新增 `--badge-sending-ink`、`--badge-sent-ink`、`--badge-failed-ink`、`--badge-unknown-ink`（色碼照 `ui/plan.md` §2，不加進 `[data-theme="dark"]`），並把 `frontend/src/views/OverdueNotificationsView.tsx` 的 `OVERDUE_NOTIFICATIONS_CSS` 中 `.odn-badge-sending`、`.odn-badge-sent`、`.odn-badge-failed`、`.odn-badge-unknown` 的 `color` 分別改用這 4 個變數；底色、邊框、轉圈、Dark Mode 的 `color: var(--ink)` 規則、`.odn-badge-loan`、`.odn-badge-returned` 與其他元件不變，既有的 `--primary`、`--success`、`--danger`、`--pending` 等共用變數不變；完成後重跑 `frontend/` 的 `npm run check` 與 `npm run test:frontend`（FR-003、NFR-002、G1）
   - **Must Read**
     - `convergence.md` → G1 — Why：剩餘工作是在前端定義 4 個 Light Mode 徽章文字色並讓 4 個徽章改用；證據指出程式位置在 `OverdueNotificationsView.tsx` 的 `.odn-badge-*` 規則與 `frontend/index.html` 的 `:root`
     - `ui/plan.md` → §2 — Why：4 個徽章文字色的變數名稱與色碼、只用在通知狀態徽章、Dark Mode 沿用 `--ink`，以及和底色的對比要求
   - **Optional**
     - `ui/overdue-notifications.html` → 雛形狀態「通知清單」 — Why：需要對照 4 種徽章在 Light Mode 的實際樣子時
-- [ ] T044 在 `backend/src/jobs/overdueScheduler.ts` 讓送出程序與恢復處理寫入 `overdue_notifications` 時把 `updated_by` 設為 null：`dispatchDueNotifications` 的領取更新、依送出結果更新同一列（`sent`、安排自動重試、`failed`、`unknown`），以及 `recoverInterruptedNotifications` 改為 `unknown` 的更新，都加上 `updated_by = NULL`；B2 重送（`backend/src/services/overdueNotificationService.ts`）寫入管理員 ID 的行為不變；`backend/tests/integration/overdueAuth.test.ts` 斷言一般成員呼叫後 `updated_by` 為 null，不受影響；完成後重跑 `backend/` 的 `npm run check` 與 `npm run test:backend`（FR-005、FR-021、G2）
+- [X] T044 在 `backend/src/jobs/overdueScheduler.ts` 讓送出程序與恢復處理寫入 `overdue_notifications` 時把 `updated_by` 設為 null：`dispatchDueNotifications` 的領取更新、依送出結果更新同一列（`sent`、安排自動重試、`failed`、`unknown`），以及 `recoverInterruptedNotifications` 改為 `unknown` 的更新，都加上 `updated_by = NULL`；B2 重送（`backend/src/services/overdueNotificationService.ts`）寫入管理員 ID 的行為不變；`backend/tests/integration/overdueAuth.test.ts` 斷言一般成員呼叫後 `updated_by` 為 null，不受影響；完成後重跑 `backend/` 的 `npm run check` 與 `npm run test:backend`（FR-005、FR-021、G2）
   - **Must Read**
     - `convergence.md` → G2 — Why：剩餘工作是送出程序領取、寫入送出結果與恢復處理時把 `updated_by` 設為 null；證據指出程式位置在 `overdueScheduler.ts` 的領取、結果更新與恢復處理
     - `data/data-model.dbml` → `overdue_notifications.updated_by` — Why：管理員重送時記錄管理員 ID，送出程序與恢復處理修改時為 null
     - `notification/plan.md` → §6 — Why：「管理員重送者」的寫入時機，S1、S2、S3 寫入時為空
   - **Optional**
     - `notification/plan.md` → §2 — Why：需要確認每個狀態轉換要寫入的欄位時
-- [ ] T045 讓後端啟動時驗證一次 `DISCORD_WEBHOOK_URL`：在 `backend/src/config/notificationConfig.ts` 匯出一個啟動檢查函式，以既有的位址驗證規則檢查一次，沒有設定或格式錯誤時以 `console.warn` 寫固定文字「DISCORD_WEBHOOK_URL 沒有設定或格式不正確」，不寫輸入值；在 `backend/src/jobs/overdueScheduler.ts` 的 `start()` 開頭、`recoverInterruptedNotifications` 之前呼叫它；後端照常啟動，`discordWebhookClient.send` 每次送出時重新讀取環境變數與沒有設定時標 `webhook_not_configured` 的行為不變；整合測試不呼叫 `start()`，`backend/tests/integration/overdueDispatch.test.ts` 的 NS10 只收到一次固定文字的斷言不受影響；完成後重跑 `backend/` 的 `npm run check` 與 `npm run test:backend`（FR-015、NFR-003、G3）
+- [X] T045 讓後端啟動時驗證一次 `DISCORD_WEBHOOK_URL`：在 `backend/src/config/notificationConfig.ts` 匯出一個啟動檢查函式，以既有的位址驗證規則檢查一次，沒有設定或格式錯誤時以 `console.warn` 寫固定文字「DISCORD_WEBHOOK_URL 沒有設定或格式不正確」，不寫輸入值；在 `backend/src/jobs/overdueScheduler.ts` 的 `start()` 開頭、`recoverInterruptedNotifications` 之前呼叫它；後端照常啟動，`discordWebhookClient.send` 每次送出時重新讀取環境變數與沒有設定時標 `webhook_not_configured` 的行為不變；整合測試不呼叫 `start()`，`backend/tests/integration/overdueDispatch.test.ts` 的 NS10 只收到一次固定文字的斷言不受影響；完成後重跑 `backend/` 的 `npm run check` 與 `npm run test:backend`（FR-015、NFR-003、G3）
   - **Must Read**
     - `convergence.md` → G3 — Why：剩餘工作是後端啟動時驗證一次 `DISCORD_WEBHOOK_URL` 並寫固定文字的 log；證據指出 `notificationConfig.ts` 只在讀取位址時驗證、`overdueScheduler.ts` 的 `start()` 沒有驗證位址
     - `research.md` → §5 — Why：啟動時以 zod 4 驗證三個設定、沒有設定時後端照常啟動，以及 log 只寫固定文字

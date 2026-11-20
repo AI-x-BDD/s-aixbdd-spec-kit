@@ -634,10 +634,10 @@ const OVERDUE_NOTIFICATIONS_CSS = `
 .odn-sent-line { margin-top: 6px; font-size: 13px; color: var(--success); }
 [data-theme="dark"] .odn-sent-line { color: var(--ink); }
 .odn-action-note { font-size: 13px; color: var(--muted); white-space: nowrap; }
-.odn-badge-sending { background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary); }
-.odn-badge-sent { background: var(--success-soft); color: var(--success); }
-.odn-badge-failed { background: var(--danger-soft); color: var(--danger); }
-.odn-badge-unknown { background: var(--pending-soft); color: var(--pending); border: 1px solid var(--pending); }
+.odn-badge-sending { background: var(--primary-soft); color: var(--badge-sending-ink); border: 1px solid var(--primary); }
+.odn-badge-sent { background: var(--success-soft); color: var(--badge-sent-ink); }
+.odn-badge-failed { background: var(--danger-soft); color: var(--badge-failed-ink); }
+.odn-badge-unknown { background: var(--pending-soft); color: var(--badge-unknown-ink); border: 1px solid var(--pending); }
 .odn-badge-loan { background: var(--primary); color: #ffffff; }
 .odn-badge-returned { background: var(--occupied-soft); color: var(--occupied); border: 1px solid var(--line); }
 [data-theme="dark"] .odn-badge-sending, [data-theme="dark"] .odn-badge-sent, [data-theme="dark"] .odn-badge-failed, [data-theme="dark"] .odn-badge-unknown { color: var(--ink); }

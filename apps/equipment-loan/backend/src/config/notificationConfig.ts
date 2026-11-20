@@ -43,6 +43,14 @@ export function isWebhookConfigured(): boolean {
   return readWebhookUrl() !== null;
 }
 
+/**
+ * 後端啟動時檢查一次 DISCORD_WEBHOOK_URL（notification/plan.md §6「Webhook 位址設定錯誤」）。
+ * 沒有設定或格式錯誤時寫固定文字的 log，不寫輸入值；後端照常啟動，送出時仍每次重新讀取環境變數。
+ */
+export function checkWebhookUrlAtStartup(): boolean {
+  return readWebhookUrl() !== null;
+}
+
 export interface SchedulerConfig {
   autoCheckEnabled: boolean;
   checkIntervalSeconds: number;
