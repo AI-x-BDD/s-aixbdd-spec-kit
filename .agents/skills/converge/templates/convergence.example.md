@@ -18,6 +18,7 @@
 | 非功能需求 | 3 | NFR-001～NFR-003 |
 | 成功標準 | 7 | SC-001～SC-007，都是可以實作與量測的項目，沒有排除上線後指標 |
 | User Story 情境 | 37 | US1 15、US2 16、US3 6 |
+| Edge Case | 13 | `spec.md` Edge Cases 的 13 項 |
 | 系統介面 | 15 | `plan.md` 系統介面盤點 F1～F4、B1～B4、D1～D2、S1～S3、N1～N2 |
 | 技術決定 | 8 | `research.md` §1～§8 |
 | 憲法規則 | 1 | `.agents/constitution/shared.md` Rule 1；`skills/implement/code.md` 不存在 |
@@ -60,6 +61,7 @@
 | 非功能需求 | 3 | NFR-001～NFR-003 |
 | 成功標準 | 7 | SC-001～SC-007 |
 | User Story 情境 | 37 | US1 15、US2 16、US3 6 |
+| Edge Case | 13 | `spec.md` Edge Cases 的 13 項 |
 | 系統介面 | 15 | 和第 1 輪相同 |
 | 技術決定 | 8 | `research.md` §1～§8，§6 已補上 4 類回應的驗證方式 |
 | 憲法規則 | 1 | `.agents/constitution/shared.md` Rule 1 |
