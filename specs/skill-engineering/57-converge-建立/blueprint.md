@@ -427,3 +427,13 @@ Rule 淨增 1（Rule 5，E19）：「哪個任務被取代、哪部分還要評�
 - O7：同一個待確認 1（F4、F5 分頁），S1 的處理寫 `system-analysis`，S6 寫 `ui-plan`。兩者都符合 Rule 3（程式遵循 `plan.md` 或 `ui/plan.md` 的其中一方，處理寫另一方的 Skill），差別在子代理判斷程式遵循哪一方。暫不修改。
 
 結論：第 2 輪修正的 S6、S1 都通過；第 2 輪 S1、S2、S5 與靜態檢查先前已通過。第 5 步（併回原版優點）完成。
+
+## 使用者實際驗證（small-1，2026-11-20）
+
+- 移除條件：`docs/dev/spec-kit-1.4.2-調整計畫.md` 第 6 行寫明，使用者在實際迭代跑過 `converge` 迴圈後，移除「（未驗證）」。
+- 結果：條件成立，已移除 `description` 開頭的「（未驗證）」，其餘文字不變（依 `.agents/skills/skill-form-description/SKILL.md`）。
+- 依據：
+  1. 實際迭代：小變更 small-1 在正式的 `specs/008-overdue-discord-notification/` 與 `apps/equipment-loan/` 執行，不是沙盒。紀錄 `docs/iterations/iter-small-1.md`，tag `iter-small-1-badge-contrast`。
+  2. 完整迴圈：第 1 輪找到 G1～G3（`05fe183`）→ `tasks` 附加 T043～T045（`f947b9c`）→ `implement`（`4dab6ec`）→ 第 2 輪已收斂（`374763a`）。優化後的版本（`3d2b105`，紀錄 `62-converge-範例樣板與搜尋規則缺漏/`）在同一目錄重跑第 3 輪，已收斂（`6a6ce4d`）。
+  3. 使用者的判斷：使用者沒有把第 1 輪的缺口改為「不處理」，G1～G3 照附加任務處理（`iter-small-1.md` 步驟紀錄的 P8t 列）；P9 由使用者判定通過（`iter-small-1.md` 的「結果（P9 第二段）」）。
+- 執行方式：3 輪都由明確指定 Opus 的子代理執行，主 session 核對（`iter-small-1.md` 的「中途變動」）。runbook 步驟 8c 已寫入執行模型的規定。

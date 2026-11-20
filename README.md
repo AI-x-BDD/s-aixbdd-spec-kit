@@ -30,7 +30,7 @@
 | `skill-form-description`、`skill-form-sop`、`skill-form-rule`、`skill-form-template`、`skill-form-script` | 自建（第二份作業） | 撰寫 Skill 單一部位 |
 | `skill-derive-rule`、`skill-derive-template`、`skill-derive-script` | 自建（第二份作業） | 為 SOP 步驟抽出部位 |
 | `bug-assess`、`bug-fix`、`bug-test` | 自建，含 [github/spec-kit](https://github.com/github/spec-kit) bug extension 的衍生內容（MIT） | 錯誤修正流程：評估、修正、實測（未驗證） |
-| `converge` | 自建，含 [github/spec-kit](https://github.com/github/spec-kit) v1.4.2 `speckit.converge` 的衍生內容（MIT） | 實作後對照程式找出缺口，寫成 `convergence.md`；缺口由 `tasks` 附加模式寫成 Convergence Phase（未驗證） |
+| `converge` | 自建，含 [github/spec-kit](https://github.com/github/spec-kit) v1.4.2 `speckit.converge` 的衍生內容（MIT） | 實作後對照程式找出缺口，寫成 `convergence.md`；缺口由 `tasks` 附加模式寫成 Convergence Phase |
 | `idea-assess` | 自建，含 [github/spec-kit](https://github.com/github/spec-kit) v1.4.2 assess extension 的衍生內容（MIT） | 寫規格前評估構想值不值得做，寫成 `specs/ideas/<slug>/assessment.md`，結論為 go、needs-clarification 或 kill；go 時附可貼上的 `s-specify` 指令（未驗證） |
 | `clarify` | [Waterball-Software-Academy/aixbdd](https://github.com/Waterball-Software-Academy/aixbdd)，Apache-2.0，原樣複製 | 需求訪談，供其他 Skill 委派 |
 

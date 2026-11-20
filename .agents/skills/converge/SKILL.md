@@ -1,6 +1,6 @@
 ---
 name: converge
-description: （未驗證）implement 完成後，要確認程式是否已做到 spec 目錄所有文件的要求時使用：讀取 spec.md、plan.md、tasks.md、research.md 與 ui/、data/、contracts/、notification/，以及 .agents/constitution/ 的 shared.md 與 skills/implement/code.md，逐項對照程式找出缺口；勾選不算證據，每個任務都重新對照程式；不啟動系統、不跑測試、執行中不提問，只新增或修改 spec 目錄的 convergence.md，每個缺口寫出類型（缺少、部分、矛盾、未要求）、嚴重度（CRITICAL～LOW）、來源、附行號的證據、剩餘工作與處理（附加任務，或上游缺口並指名 Skill）；重跑時在檔尾新增一輪，舊輪次不動，缺口編號跨輪接續。觸發關鍵字：converge、convergence.md、收斂評估、收斂檢查、實作後檢查、缺口盤點、程式與規格對照。分流：實作前檢查文件之間的一致性改用 analyze；把附加任務寫進 tasks.md 改用 tasks 的附加模式；依任務實作改用 implement；修正上游文件改用處理欄指名的 Skill。
+description: implement 完成後，要確認程式是否已做到 spec 目錄所有文件的要求時使用：讀取 spec.md、plan.md、tasks.md、research.md 與 ui/、data/、contracts/、notification/，以及 .agents/constitution/ 的 shared.md 與 skills/implement/code.md，逐項對照程式找出缺口；勾選不算證據，每個任務都重新對照程式；不啟動系統、不跑測試、執行中不提問，只新增或修改 spec 目錄的 convergence.md，每個缺口寫出類型（缺少、部分、矛盾、未要求）、嚴重度（CRITICAL～LOW）、來源、附行號的證據、剩餘工作與處理（附加任務，或上游缺口並指名 Skill）；重跑時在檔尾新增一輪，舊輪次不動，缺口編號跨輪接續。觸發關鍵字：converge、convergence.md、收斂評估、收斂檢查、實作後檢查、缺口盤點、程式與規格對照。分流：實作前檢查文件之間的一致性改用 analyze；把附加任務寫進 tasks.md 改用 tasks 的附加模式；依任務實作改用 implement；修正上游文件改用處理欄指名的 Skill。
 ---
 
 # SOP
