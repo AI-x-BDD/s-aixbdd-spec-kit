@@ -1,7 +1,7 @@
 # 迭代 Runbook（OpenCode＋Gemini Argon 執行用）
 
 - 建立日期：2026-11-08
-- 適用範圍：第三題「設備借用與預約審核系統」的每一次迭代（`s-specify` → `implement`）；第 10 節的錯誤修正流程也可以在迭代以外使用
+- 適用範圍：第三題「設備借用與預約審核系統」的每一次迭代（`s-specify` → `implement`）；第 10 節的錯誤修正流程也可以在迭代以外使用；第 11 節的構想評估流程在寫 `spec.md` 之前使用
 - 規劃依據：[第三題選題討論.md](./第三題選題討論.md)（題目、迭代內容、排程、證據保存、第四題 A/B）
 - 狀態：未驗證。第 1 次迭代跑完後依實際情況修正本文件
 
@@ -427,6 +427,7 @@ fix(<skill>): <一句話說明修改>
 | 使用者驗證 | 步驟 9 | P9 | 每次 |
 | 檢查 Skill 是否照預期工作 | 步驟 10 | P10 | 每次 |
 | 錯誤修正 | 第 10 節 | B1～B5 | 步驟 10 有程式錯誤時；迭代外發現錯誤時 |
+| 構想評估 | 第 11 節 | I1、I1r | 寫 `spec.md` 之前，要判斷構想值不值得做時 |
 | `/skill-engineering` 優化 | 步驟 11 | P11（Claude Code）、P11b | 有 Skill 缺陷時 |
 | 收尾 | 步驟 12 | P12 | 每次 |
 
@@ -817,3 +818,54 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 2. 在迭代中使用時，在 docs/iterations/iter-{N}.md「Skill 表現檢查」該列的證據位置，寫上 specs/bugs/{BUG_SLUG}/ 與 commit SHA。
 3. specs/bugs/{BUG_SLUG}/assessment.md 的「轉回 SDD 流程的項目」不是「無」時，列出每一項與處理 Skill，依 runbook 第 10 節步驟 6 交給 SDD 流程。
 ```
+
+## 11. 構想評估流程
+
+### 11.1 什麼時候用
+
+1. 有一個產品或功能構想，還沒決定要做，要在寫 `spec.md` 之前判斷值不值得做。
+2. 不用於已決定要做的功能：直接用步驟 2 的 `s-specify`（P2）。
+3. 不用於只需訪談釐清需求的情況（改用 `clarify`），也不用於錯誤回報（改用第 10 節）。
+
+報告放在 `specs/ideas/<slug>/assessment.md`。`idea-assess` 評估過程中不提問（沒有構想或報告已存在時除外），只寫報告目錄，不執行 `s-specify`。
+
+### 11.2 步驟
+
+1. `idea-assess`（I1）：寫 `assessment.md`，回報結論、推薦方案與整體證據信心。
+   - 報告已存在、提示詞沒有指明時：`idea-assess` 問你要覆寫還是改用新 slug。你選一種。
+   - 結論為 go：進第 2 步。
+   - 結論為 needs-clarification：你回答報告列出的阻擋問題，再用 I1r 帶著回答重新執行 `idea-assess`。
+   - 結論為 kill：結束這個流程。決定性理由留在 `assessment.md`。要另提構想時，用新 slug 從第 1 步重新開始。
+2. 決定是否採用（I2）：你讀報告，決定要不要做。
+   - 採用時：你貼上 `assessment.md` 判定段「交接給 `s-specify`」的指令區塊。貼上的指令會執行 `s-specify`，產出 `spec.md`。
+   - 不採用時：結束這個流程。
+
+### 11.3 變數
+
+| 變數 | 意思 | 例子 |
+|---|---|---|
+| `{IDEA}` | 構想描述：要解決什麼問題、給誰用、已知限制，可附專案檔案路徑 | — |
+| `{IDEA_SLUG}` | slug；I1 沒有時由 `idea-assess` 擬定，之後沿用 | `equipment-loan-notify` |
+| `{ANSWERS}` | 阻擋問題的回答，一題一行 | — |
+
+### 11.4 提示詞
+
+#### I1 `idea-assess`
+
+```text
+請做 runbook 第 11 節步驟 1：讀取 .agents/skills/idea-assess/SKILL.md 並依其 SOP 執行。
+構想：{IDEA}
+Slug：{IDEA_SLUG}（沒有時寫「由 idea-assess 擬定」）
+不 commit，不執行 s-specify。依 SOP 回報結論後停下來。
+```
+
+#### I1r 重新評估（第 1 步結論為 needs-clarification 時）
+
+```text
+請重新執行 runbook 第 11 節步驟 1：讀取 .agents/skills/idea-assess/SKILL.md 並依其 SOP 重新評估 slug {IDEA_SLUG}，覆寫 specs/ideas/{IDEA_SLUG}/assessment.md。
+構想：{IDEA}
+阻擋問題的回答：{ANSWERS}
+不 commit，不執行 s-specify。依 SOP 回報結論後停下來。
+```
+
+I2 沒有固定提示詞：貼上 `assessment.md` 判定段的 `s-specify` 指令區塊。
