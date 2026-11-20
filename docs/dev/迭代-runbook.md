@@ -231,6 +231,31 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
    - 完成報告中的受阻任務與自行決策，逐條記進迭代紀錄。
    - 測試全部通過。
 5. 檢查點：每個 Phase 結束 commit 一次 `feat(...)` 或 `fix(...)`。
+6. 全部 Phase 完成後，進步驟 8c。從步驟 8t 回到這一步時，只執行新附加的 Convergence Phase（執行範圍：Phase <N>），完成後再進步驟 8c。
+
+### 步驟 8c：`converge`
+
+1. 指令：「讀取 `.agents/skills/converge/SKILL.md` 並依其 SOP 執行，目標 spec：<路徑>」。
+2. `converge` 全程不向使用者提問。它不啟動系統、不跑測試，只新增或修改 spec 目錄的 `convergence.md`。重跑時在檔尾新增一輪，舊輪次不動。
+3. 產出：`convergence.md`。
+4. 結束後的檢查：
+   - 最新一輪的「結果」。「已收斂」時，進步驟 9。
+   - 使用者確認每個缺口是不是真的缺口。不是缺口或決定不處理的，由使用者把「處理」手動改為「不處理」。
+   - 「處理」為「上游缺口：<Skill>」的缺口：依該 Skill 修正上游文件（做法同 P7b，問題編號改用 `convergence.md` 的 G 編號），修正後重跑步驟 8c。
+   - 「處理」為「附加任務」的缺口：進步驟 8t。
+   - 缺口逐條記進迭代紀錄：G 編號、類型、嚴重度、處理。
+5. 檢查點：commit `docs(specs): ...`。
+
+### 步驟 8t：`tasks` 附加模式
+
+1. 指令：「讀取 `.agents/skills/tasks/SKILL.md`，依 <spec 目錄>/convergence.md 執行附加模式」。
+2. 附加模式不詢問覆寫。它只把最新一輪「附加任務」且還沒有被任務引用的缺口，寫成 `tasks.md` 檔尾的 `## Phase <N>: Convergence`，前面的內容不變。
+3. 產出：更新後的 `tasks.md`。沒有可附加的缺口時，`tasks.md` 不變。
+4. 結束後的檢查：
+   - `git diff` 只有檔尾新增的 Convergence Phase。
+   - 回報的「未附加缺口」：依回報的處理 Skill 修正上游文件，修正後重跑步驟 8c。
+5. 檢查點：commit `docs(specs): ...`。
+6. 回到步驟 8，只執行新的 Convergence Phase，再進步驟 8c。重複 8 → 8c → 8t，直到 `convergence.md` 最新一輪的結果為「已收斂」，再進步驟 9。
 
 ### 步驟 9：使用者驗證
 
@@ -397,6 +422,8 @@ fix(<skill>): <一句話說明修改>
 | `/tasks` | 步驟 6 | P6 | 每次 |
 | `/analyze` | 步驟 7 | P7；P7b（修 CRITICAL） | 每次 |
 | `/implement` | 步驟 8 | P8 | 每次 |
+| `/converge` | 步驟 8c | P8c | 每次，步驟 8 全部完成後；之後每跑完一個 Convergence Phase 再跑一次 |
+| `/tasks` 附加模式 | 步驟 8t | P8t | `convergence.md` 最新一輪有「附加任務」時 |
 | 使用者驗證 | 步驟 9 | P9 | 每次 |
 | 檢查 Skill 是否照預期工作 | 步驟 10 | P10 | 每次 |
 | 錯誤修正 | 第 10 節 | B1～B5 | 步驟 10 有程式錯誤時；迭代外發現錯誤時 |
@@ -608,7 +635,27 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 每個 Phase 結束就 commit。全部完成後，依步驟 8 的「結束後的檢查」，把受阻任務與自行決策逐條寫進 docs/iterations/iter-{N}.md。
 ```
 
-範圍太大、一次跑不完時，改成「執行範圍：Phase <X>」，一個 Phase 貼一次。
+範圍太大、一次跑不完時，改成「執行範圍：Phase <X>」，一個 Phase 貼一次。從 P8t 回來時，一定要改成「執行範圍：Phase <N>」，`<N>` 是 P8t 回報的新 Convergence Phase 編號。
+
+#### P8c `converge`
+
+```text
+請做 runbook 步驟 8c：讀取 .agents/skills/converge/SKILL.md 並依其 SOP 執行。
+目標 spec：{SPEC_DIR}/spec.md
+完成後依步驟 8c 的「結束後的檢查」回報：最新一輪的結果、每個缺口的 G 編號、類型、嚴重度與處理，並逐條寫進 docs/iterations/iter-{N}.md。不要修改 convergence.md 的「處理」欄，等我確認缺口。
+```
+
+結果為「已收斂」時，跳到 P9。有「上游缺口」時，用 P7b 的做法逐項修正（`analysis.md` 換成 `convergence.md`，問題編號換成 G 編號），修正後重貼 P8c。有「附加任務」時，確認缺口後貼 P8t。
+
+#### P8t `tasks` 附加模式
+
+```text
+請做 runbook 步驟 8t：讀取 .agents/skills/tasks/SKILL.md，依 {SPEC_DIR}/convergence.md 執行附加模式。
+目標 spec：{SPEC_DIR}/spec.md
+完成後回報新 Phase 的編號、任務 ID 範圍、每個任務對應的 G 編號與「未附加缺口」，並依步驟 8t 的檢查點 commit。
+```
+
+接著回到 P8，執行範圍改成新的 Convergence Phase，完成後再貼 P8c。重複 P8 → P8c → P8t，直到 P8c 回報「已收斂」，再進 P9。
 
 #### P9 準備使用者驗證
 
@@ -674,7 +721,7 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 6. P4（`{TECH}`=9.4 第 1 列）
 7. P5（第 1 次迭代版）（→ 某個 Planner 有問題時 P5b）
 8. P6 → P7（→ P7b）
-9. P8
+9. P8 → P8c（→ P8t → P8 只跑新 Phase → P8c，重複到「已收斂」）
 10. P9 → 你驗證 → 貼驗證結果
 11. P10 →（有程式錯誤時）第 10 節 B1～B5 →（有 Skill 缺陷時）P11 在 Claude Code → P11b
 12. P12
