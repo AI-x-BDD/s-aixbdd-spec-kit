@@ -478,3 +478,32 @@ With multiple developers:
 - T042 的新增原因：使用者在 2026-11-12 驗證 T041 時回報，在「逾期通知紀錄」點擊清單右上角的「重新整理」時畫面上下抖動，認定為嚴重錯誤。原因是 `OverdueNotificationsView.tsx` 在 `refreshing` 為 true 時於表格上方插入 `odn-refresh-line`，把「共 N 則通知」與表格往下推，載入完成後移除，換頁載入時也一樣；這個寫法從 T023 就存在，T040 沿用。T041 的完成狀態不變；修正由新增的 T042 實作，理由同待確認 4，接在 Polish 最後、不標 `[US2]`。T042 不改變 `data-testid` 與畫面文字，以既有測試搜尋 `overdue-refreshing`、`odn-refresh-line` 沒有命中，不需要更新既有測試，只重跑回歸
 - T042 第二次修正：使用者驗證第一次修正時回報「畫面還是會閃爍」。原因是本機回應很快，清單在極短時間內變淡又恢復，「重新整理」按鈕文字也一閃而過。修正：載入超過 0.3 秒才變淡並顯示提示與「重新整理中…」，0.3 秒內完成時畫面不變；載入中以 `loading` 擋下重複的重新整理、換頁、篩選與立即檢查逾期。`ui/plan.md` §4「重新整理中」「換頁中」已同步。0.3 秒的門檻由主控對話依自動模式採用推薦做法（自動採推薦，非使用者決定）
 - T042 第三次修正：使用者驗證第二次修正時回報「點重新整理沒有任何動作」。查詢其實有送出，但第二次修正把所有載入回饋都藏在 0.3 秒門檻後，本機回應很快時畫面沒有任何變化。修正：點擊後按鈕立即顯示「重新整理中…」並至少維持 0.5 秒、按鈕寬度固定，完成後在「共 N 則通知」右側顯示「已更新 HH:MM:SS」；清單變淡仍只在載入超過 0.3 秒時出現。`ui/plan.md` §4「重新整理中」已同步
+
+---
+
+## Phase 7: Convergence
+
+**Purpose**: 處理 `convergence.md` 第 1 輪的附加任務（G1、G2、G3）
+
+- [ ] T043 [P] 讓前端 4 種通知狀態徽章在 Light Mode 改用 `ui/plan.md` §2 的徽章文字色：在 `frontend/index.html` 的 `:root` 新增 `--badge-sending-ink`、`--badge-sent-ink`、`--badge-failed-ink`、`--badge-unknown-ink`（色碼照 `ui/plan.md` §2，不加進 `[data-theme="dark"]`），並把 `frontend/src/views/OverdueNotificationsView.tsx` 的 `OVERDUE_NOTIFICATIONS_CSS` 中 `.odn-badge-sending`、`.odn-badge-sent`、`.odn-badge-failed`、`.odn-badge-unknown` 的 `color` 分別改用這 4 個變數；底色、邊框、轉圈、Dark Mode 的 `color: var(--ink)` 規則、`.odn-badge-loan`、`.odn-badge-returned` 與其他元件不變，既有的 `--primary`、`--success`、`--danger`、`--pending` 等共用變數不變；完成後重跑 `frontend/` 的 `npm run check` 與 `npm run test:frontend`（FR-003、NFR-002、G1）
+  - **Must Read**
+    - `convergence.md` → G1 — Why：剩餘工作是在前端定義 4 個 Light Mode 徽章文字色並讓 4 個徽章改用；證據指出程式位置在 `OverdueNotificationsView.tsx` 的 `.odn-badge-*` 規則與 `frontend/index.html` 的 `:root`
+    - `ui/plan.md` → §2 — Why：4 個徽章文字色的變數名稱與色碼、只用在通知狀態徽章、Dark Mode 沿用 `--ink`，以及和底色的對比要求
+  - **Optional**
+    - `ui/overdue-notifications.html` → 雛形狀態「通知清單」 — Why：需要對照 4 種徽章在 Light Mode 的實際樣子時
+- [ ] T044 在 `backend/src/jobs/overdueScheduler.ts` 讓送出程序與恢復處理寫入 `overdue_notifications` 時把 `updated_by` 設為 null：`dispatchDueNotifications` 的領取更新、依送出結果更新同一列（`sent`、安排自動重試、`failed`、`unknown`），以及 `recoverInterruptedNotifications` 改為 `unknown` 的更新，都加上 `updated_by = NULL`；B2 重送（`backend/src/services/overdueNotificationService.ts`）寫入管理員 ID 的行為不變；`backend/tests/integration/overdueAuth.test.ts` 斷言一般成員呼叫後 `updated_by` 為 null，不受影響；完成後重跑 `backend/` 的 `npm run check` 與 `npm run test:backend`（FR-005、FR-021、G2）
+  - **Must Read**
+    - `convergence.md` → G2 — Why：剩餘工作是送出程序領取、寫入送出結果與恢復處理時把 `updated_by` 設為 null；證據指出程式位置在 `overdueScheduler.ts` 的領取、結果更新與恢復處理
+    - `data/data-model.dbml` → `overdue_notifications.updated_by` — Why：管理員重送時記錄管理員 ID，送出程序與恢復處理修改時為 null
+    - `notification/plan.md` → §6 — Why：「管理員重送者」的寫入時機，S1、S2、S3 寫入時為空
+  - **Optional**
+    - `notification/plan.md` → §2 — Why：需要確認每個狀態轉換要寫入的欄位時
+- [ ] T045 讓後端啟動時驗證一次 `DISCORD_WEBHOOK_URL`：在 `backend/src/config/notificationConfig.ts` 匯出一個啟動檢查函式，以既有的位址驗證規則檢查一次，沒有設定或格式錯誤時以 `console.warn` 寫固定文字「DISCORD_WEBHOOK_URL 沒有設定或格式不正確」，不寫輸入值；在 `backend/src/jobs/overdueScheduler.ts` 的 `start()` 開頭、`recoverInterruptedNotifications` 之前呼叫它；後端照常啟動，`discordWebhookClient.send` 每次送出時重新讀取環境變數與沒有設定時標 `webhook_not_configured` 的行為不變；整合測試不呼叫 `start()`，`backend/tests/integration/overdueDispatch.test.ts` 的 NS10 只收到一次固定文字的斷言不受影響；完成後重跑 `backend/` 的 `npm run check` 與 `npm run test:backend`（FR-015、NFR-003、G3）
+  - **Must Read**
+    - `convergence.md` → G3 — Why：剩餘工作是後端啟動時驗證一次 `DISCORD_WEBHOOK_URL` 並寫固定文字的 log；證據指出 `notificationConfig.ts` 只在讀取位址時驗證、`overdueScheduler.ts` 的 `start()` 沒有驗證位址
+    - `research.md` → §5 — Why：啟動時以 zod 4 驗證三個設定、沒有設定時後端照常啟動，以及 log 只寫固定文字
+    - `notification/plan.md` → §6 — Why：「Webhook 位址設定錯誤」在啟動時寫入應用程式 log，不得記錄輸入值
+  - **Optional**
+    - `notification/plan.md` → §5.1 — Why：需要確認 `start()` 的啟動順序時
+
+**Checkpoint**: convergence.md 第 1 輪的附加任務完成，可以再執行 converge

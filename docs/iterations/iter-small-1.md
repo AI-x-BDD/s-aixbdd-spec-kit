@@ -82,6 +82,16 @@
 | 準備（P0s） | — | `docs/iterations/iter-small-1.md` | 貼 P0s | 沒有 | 不 commit（小變更路徑第 3 點第 1 步沒有檢查點） |
 | 重跑 Planner（P5b） | ui-plan | `ui/plan.md`、`ui/index.html`、`ui/overdue-notifications.html` | 貼 P5b；同意覆寫 `ui/` 的 3 個檔案 | 見問題 1（候選） | P5b 檢查點 commit（標題「docs(specs): 調高 008 通知狀態徽章 Light Mode 文字對比至 WCAG AA」） |
 | 收斂評估（P8c） | converge | `convergence.md` 第 1 輪：有缺口（附加任務 3、上游缺口 0、不處理 0） | 還沒確認缺口 | 子代理回報 4 項 Skill 問題，主 session 判斷 3 項成立（見問題 2～4） | P8c 檢查點 commit（標題「docs(specs): 新增 008 小變更 small-1 第 1 輪收斂評估」） |
+| 附加任務（P8t） | tasks（附加模式） | `tasks.md` 檔尾新增 `## Phase 7: Convergence`，T043～T045（T043→G1、T044→G2、T045→G3），未附加缺口 0 | 沒有修改 `convergence.md` 的「處理」欄，G1～G3 都維持「附加任務」 | 沒有 | P8t 檢查點 commit（標題「docs(specs): 附加 008 小變更 small-1 第 1 輪收斂任務 T043～T045」） |
+
+### P8t 附加紀錄
+
+- `pending_gaps.py`：第 1 輪待附加 G1、G2、G3，略過 0；附加後重跑為待附加 0。
+- 新 Phase：Phase 7: Convergence，T043～T045。T043 標 `[P]`（只改前端）；T044、T045 都改 `backend/src/jobs/overdueScheduler.ts`，不標 `[P]`。
+- 既有測試依賴：搜尋 `updated_by`、`沒有設定或格式不正確`、`odn-badge`、`isWebhookConfigured`。`overdueAuth.test.ts:123`（`updated_by` 為 null）與 `overdueDispatch.test.ts:426`（NS10 只有一次固定 log）讀過命中段落，行為不變，不需要更新測試任務。
+- `check_tasks.py`：issues 0、warnings 0。`head -c` 比對附加前備份：既有內容不變。`git status` 只有 `tasks.md` 改變。
+- 憲法遵循：讀取 `.agents/constitution/shared.md`（`skills/tasks/tasks.md` 不存在），必須／不得規則全部通過，沒有憲法偏離與未套用規則。
+- G2、G3 不屬於本次變更（iter-6 既有的缺口）。使用者沒有改成「不處理」，所以依 Skill 規則附加。
 
 ### P5b 重跑紀錄
 
