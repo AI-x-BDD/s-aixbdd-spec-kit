@@ -34,10 +34,21 @@
 | `idea-assess` | 自建，含 [github/spec-kit](https://github.com/github/spec-kit) v1.4.2 assess extension 的衍生內容（MIT） | 寫規格前評估構想值不值得做，寫成 `specs/ideas/<slug>/assessment.md`，結論為 go、needs-clarification 或 kill；go 時附可貼上的 `s-specify` 指令（未驗證） |
 | `clarify` | [Waterball-Software-Academy/aixbdd](https://github.com/Waterball-Software-Academy/aixbdd)，Apache-2.0，原樣複製 | 需求訪談，供其他 Skill 委派 |
 
+### 三種流程的入口
+
+| 流程 | 什麼時候用 | 第一個 Skill | 步驟說明 |
+|---|---|---|---|
+| 構想評估 | 有一個構想，還沒決定要不要做 | `idea-assess` | [runbook 第 11 節](docs/dev/迭代-runbook.md#11-構想評估流程) |
+| 迭代 | 已決定要做一個新功能 | `s-specify` | [runbook 第 4 節](docs/dev/迭代-runbook.md#4-一次迭代的步驟) |
+| 錯誤修正 | 程式和已同意的文件不一致 | `bug-assess` | [runbook 第 10 節](docs/dev/迭代-runbook.md#10-錯誤修正流程) |
+
+只改既有 spec 目錄的 Planner 產出時，可以走 runbook 第 4 節的「小變更路徑」（未驗證）。
+
 ### SDD 流程
 
 ```mermaid
 flowchart TD
+  idea["idea-assess<br/>（構想評估）"] -- go，使用者決定採用 --> specify
   specify[s-specify] --> research[technical-research]
   research --> analysis["system-analysis<br/>（委派 ui-plan、api-plan、data-plan）"]
   analysis --> tasks[tasks]
@@ -49,6 +60,11 @@ flowchart TD
   converge -- 上游缺口 --> upstream[處理欄指名的 Skill<br/>修正上游文件]
   upstream --> converge
   converge -- 已收斂 --> verify[使用者驗證]
+  verify -- 程式錯誤 --> bug["bug-assess<br/>（錯誤評估）"]
+  bug -- 使用者核准修法 --> fix[bug-fix]
+  fix --> btest[bug-test]
+  btest --> bverify[使用者驗證修正]
+  bug -- 意圖改變 --> back["轉回 SDD 流程<br/>（由寫出該內容的 Skill 修改）"]
 ```
 
 ## 待確認
