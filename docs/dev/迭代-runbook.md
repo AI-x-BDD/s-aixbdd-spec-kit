@@ -180,7 +180,7 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
 1. 指令：「讀取 `.agents/skills/system-analysis/SKILL.md` 並依其 SOP 執行，目標 spec：<路徑>」。
 2. 視覺風格：第 1 次迭代由 `clarify` 決定。第 2 次迭代起，在指令中寫明「沿用 `specs/<第 1 次 spec 目錄>/ui/plan.md` 的視覺風格」，避免每次重選。
 3. 使用者要做的事：同意覆寫；回答憲法衝突或視覺風格的問題。
-4. 產出：`plan.md`；Planner 依 Wave 產出 `contracts/`（`api-plan`）、`data/data-model.dbml`（`data-plan`）、`ui/`（`ui-plan`）。
+4. 產出：`plan.md`；Planner 依 Wave 產出 `contracts/`（`api-plan`）、`data/data-model.dbml`（`data-plan`）、`ui/`（`ui-plan`）。資料庫介面排在後端之前的 Wave（批 5），有資料庫與後端的功能會多一個 Wave。
 5. 結束後的檢查：
    - 每個 Planner 都有產出，或回報了停止原因。
    - `plan.md` 中標為「沒有 Planner」的端點，記進迭代紀錄（第四題的證據）。

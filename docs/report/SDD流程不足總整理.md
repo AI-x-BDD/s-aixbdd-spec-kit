@@ -14,7 +14,7 @@
 
 | # | 問題 | 出現的迭代 | 影響 | 處理狀態 |
 |---|---|---|---|---|
-| 1 | 同一 Wave 平行的 `api-plan` 與 `data-plan` 不讀彼此產出，欄位命名可以一一對應但不同（`slot_code`／`slotCode`、`reservation_no`／`reservationNumber` 等）；`ui-plan` 在 Wave 1 先完成，沒有列出 Wave 2 才定義的錯誤碼 | 1、2、3（命名）；1、2（錯誤碼） | `analyze` 每次產生 MEDIUM；`implement` 要在服務層做欄位映射 | 未處理。只記錄觀察，沒有改 Wave 依賴或憲法命名規則 |
+| 1 | 同一 Wave 平行的 `api-plan` 與 `data-plan` 不讀彼此產出，欄位命名可以一一對應但不同（`slot_code`／`slotCode`、`reservation_no`／`reservationNumber` 等）；`ui-plan` 在 Wave 1 先完成，沒有列出 Wave 2 才定義的錯誤碼 | 1、2、3（命名）；1、2（錯誤碼） | `analyze` 每次產生 MEDIUM；`implement` 要在服務層做欄位映射 | 部分處理。批 5 讓資料庫排在後端之前的 Wave，`api-plan` 的共用欄位依資料模型命名，不一致時列為上游衝突（紀錄 `specs/skill-engineering/60-api-plan-共用欄位與合約語意及Wave順序/`）。`ui-plan` 看不到後端錯誤碼仍未處理 |
 | 2 | 上游決策錯誤或缺漏往下游傳：Planner 發現與 research 衝突時沒有回報，直接寫相反規則；`analyze` 的 HIGH 沒修就進 `implement` | 4（research §3 → `api-plan`）、5（F1～F6） | 合約與程式不一致，`implement` 只能用暫行做法 | 部分處理。已優化 `api-plan`（`6669ebd`）與迭代 5 的 5 支 Skill（`92f7c1e`、`be06f9c`、`ca01fc0`、`1a2cf98`、`b09eaa7`）。迭代 5 的正式文件沒有重跑，仍和程式不一致 |
 | 3 | `tasks` 遇到 UI 規劃改變既有畫面時，沒有排「更新既有測試」的任務 | 4、5 | 中間各 Phase 都有既有測試失敗，留到 Polish 才修 | 已處理：`tasks` 優化（`b09eaa7`），迭代 6 沒有再出現 |
 | 4 | 既有測試依賴實際時間（晚間時段是否已結束） | 4、5、6（`api.test.ts`、e2e `equipment-loan.spec.ts:77`） | 在特定時段執行回歸會失敗，被誤判成本次修改的錯誤 | 未處理。README 寫了時段範圍；假時鐘工具沒有進版控；`docs/待確認.md` 第 33 項 |
@@ -28,7 +28,7 @@
 ## 3. 還沒處理的項目
 
 1. 第 4 項：把既有測試改成不依賴實際時間。
-2. 第 1 項：決定是否調整 Wave 依賴，或在憲法加命名規則。
+2. 第 1 項：命名已由批 5 處理（資料庫排在後端之前的 Wave，`api-plan` 共用欄位依資料模型）。剩下 `ui-plan` 看不到後端錯誤碼。
 3. 第 8 項：在 runbook 第 8 節補上資料庫隔離、載入 `.env`、合併後重新產生 Prisma Client。
 4. 第 10 項：在 runbook 步驟 9 補上「修畫面問題先列預期行為」。
 5. 第 2 項：迭代 5 的正式文件和程式仍不一致。
