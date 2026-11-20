@@ -42,7 +42,7 @@
 | 迭代 | 已決定要做一個新功能 | `s-specify` | [runbook 第 4 節](docs/dev/迭代-runbook.md#4-一次迭代的步驟) |
 | 錯誤修正 | 程式和已同意的文件不一致 | `bug-assess` | [runbook 第 10 節](docs/dev/迭代-runbook.md#10-錯誤修正流程) |
 
-只改既有 spec 目錄的 Planner 產出時，可以走 runbook 第 4 節的「小變更路徑」（未驗證）。
+只改既有 spec 目錄的 Planner 產出時，可以走 runbook 第 4 節的「小變更路徑」。
 
 ### SDD 流程
 
