@@ -2,6 +2,7 @@
 
 1. GitHub Spec Kit（https://github.com/github/spec-kit ，MIT License，Copyright GitHub, Inc.）：
    `templates/spec.md` 與 `templates/spec.example.md` 的 spec.md 段落結構，以及照片相簿範例情境。
+   另參考 Spec Kit v1.4.2 的 `specify` 命令：規格品質清單的 3 組結構（`templates/requirements-checklist.md` 與 `templates/requirements-checklist.example.md`，項目改寫成本專案規則的檢查句）、提問優先序與有業界預設時不提問的清單（`rules/需求缺口-格式規範.md`）、Success Criteria 從使用者角度描述、依賴列入 Assumptions，以及 spec 目錄的編號規則（`scripts/create_spec_dir.py`）。
 2. 水球軟體學院 AI x BDD 開源專案（https://github.com/Waterball-Software-Academy/aixbdd ，Apache License 2.0），
    參考 https://github.com/Waterball-Software-Academy/aixbdd/tree/cdfd997601274a170182b089d96e70ac06f9e41b/.agents/skills/specify ：
    FR／NFR 列管於使用者故事底下、全域需求判準，以及樣板填位符號的命名方式。本 Skill 的 SOP、RuleFile 與範例內容為重新撰寫，未直接複製上述檔案。

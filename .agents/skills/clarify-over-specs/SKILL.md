@@ -1,6 +1,6 @@
 ---
 name: clarify-over-specs
-description: s-specify 產出 spec.md 之後，要對整份規格做多面向需求澄清時使用的可選步驟：以 10 類分類表找出整份 spec.md 的缺漏、矛盾與歧義，依影響與不確定性排序，委派 clarify 向使用者提問並在每題標出分類，把答案寫回 spec.md 最適合的段落與 Clarifications，取代矛盾敘述並統一術語，最後回報每個分類的狀態與尚未解決的項目。題數可由使用者指定，預設 5 題；實作方法與技術選型留到技術規劃。使用者提到 clarify-over-specs、澄清規格、spec 澄清、需求澄清、掃描 spec 缺口時使用。還沒有 spec.md 時改用 s-specify；只需訪談釐清需求、不寫回 spec.md 時改用 clarify；做技術選型改用 technical-research。
+description: s-specify 產出 spec.md 之後，要對整份規格做多面向需求澄清時使用的可選步驟：以 10 類分類表找出整份 spec.md 的缺漏、矛盾與歧義，依影響與不確定性排序，委派 clarify 向使用者提問並在每題標出分類，把答案寫回 spec.md 最適合的段落與 Clarifications，取代矛盾敘述並統一術語；寫回後重新判定同目錄的規格品質清單 checklists/requirements.md，只切換狀態改變的勾選記號；最後回報每個分類的狀態、尚未解決的項目與品質清單的前後通過數。題數可由使用者指定，預設 5 題；實作方法與技術選型留到技術規劃。使用者提到 clarify-over-specs、澄清規格、spec 澄清、需求澄清、掃描 spec 缺口、品質清單重驗時使用。還沒有 spec.md 時改用 s-specify；只需訪談釐清需求、不寫回 spec.md 時改用 clarify；做技術選型改用 technical-research。
 ---
 
 # SOP
@@ -10,13 +10,13 @@ description: s-specify 產出 spec.md 之後，要對整份規格做多面向需
 1. `READ` 使用者輸入（可指定 spec 目錄或 spec.md 路徑、本次題數與優先面向），以及專案根目錄 `specs/` 下名稱符合 `<三位數編號>-<名稱>` 且含 `spec.md` 的目錄清單，建立「澄清輸入」。
 2. `THINK` 依「澄清輸入」決定「目標 spec」與「本次題數」：使用者指定路徑時以該路徑的 spec.md 為目標，未指定時取清單中編號最大之目錄的 spec.md；使用者指定正整數題數時以該數為「本次題數」，未指定時為 5。
 3. `CHECK` 「目標 spec」不存在時，回覆使用者先執行 `s-specify` 產出 spec.md，並停止執行，不建立或修改任何檔案。
-4. `READ` 「目標 spec」全文，建立「spec 現況」。
+4. `READ` 「目標 spec」全文，建立「spec 現況」；讀取「目標 spec」同目錄的 `checklists/requirements.md`，記下每個勾選項目的文字與勾選狀態，建立「品質清單前狀態」，檔案不存在時記為「沒有品質清單」。
 5. `READ` 專案根目錄的 `.agents/constitution/shared.md` 與 `.agents/constitution/skills/s-specify/spec.md`（不存在的略過），建立「憲法檢查清單」；鎖定項目不受憲法覆寫：`### User Story N - 標題 (Priority: Pn)` 標題格式、`US`／`FR-`／`NFR-`／`SC-` 編號格式，以及 Clarifications、Edge Cases、Requirements、Key Entities、Success Criteria 段落。
 6. `READ` 掃描缺口時，讀取 `rules/spec-缺口掃描-格式規範.md` 的所有 Rule，建立「缺口掃描檢查清單」。
 7. `THINK` 依已載入的「缺口掃描檢查清單」掃描「spec 現況」，為每個分類標出初始狀態，列出候選缺口及其分類與所在位置，標出 Deferred 項目，排序後建立「提問佇列」與「覆蓋地圖」；使用者指定優先面向時，影響相同的缺口中優先排入該面向。
 8. `CHECK` 「提問佇列」為空時進入 Phase 3，不委派 `clarify`，也不修改「目標 spec」；不為空時進入 Phase 2。
 
-完成條件：已決定「目標 spec」與「本次題數」，「覆蓋地圖」已標出每個分類的初始狀態，「提問佇列」已排序；或找不到 spec.md，已停止執行。
+完成條件：已決定「目標 spec」與「本次題數」，已記下「品質清單前狀態」或「沒有品質清單」，「覆蓋地圖」已標出每個分類的初始狀態，「提問佇列」已排序；或找不到 spec.md，已停止執行。
 
 ## Phase 2 -- 委派提問並寫回 spec
 
@@ -34,6 +34,7 @@ description: s-specify 產出 spec.md 之後，要對整份規格做多面向需
 ## Phase 3 -- 回報澄清結果
 
 1. `THINK` 依「缺口掃描檢查清單」判定每個分類的最終狀態，列出狀態為 Outstanding 與 Deferred 的項目及理由，建立「分類狀態摘要」。
-2. `WRITE` 向使用者回報：已提問與已回答的題數、「目標 spec」路徑、本次修改的段落名稱、「分類狀態摘要」的分類狀態表（每個分類一列）、Outstanding 與 Deferred 項目、「未通過項」與「未驗證原因」、「憲法遵循」（已讀取的憲法檔路徑，都不存在時寫「沒有憲法檔」；必須／不得規則是否全部通過；「憲法偏離」；「未套用規則」）；最後給出下一步：有「未通過項」時建議先處理；有高影響的 Outstanding 或 Deferred 時，建議再執行一次 `clarify-over-specs`，或留到技術規劃處理；其他情況建議進入 `technical-research`。
+2. `WRITE` 有「品質清單前狀態」且 Phase 2 寫回過「目標 spec」時，依品質清單檔頭寫的判定方式與 Phase 2 最後一次驗證的「未通過項」重新判定每個項目，只切換狀態改變之項目的勾選記號並存檔，其他內容不變；Phase 2 沒有寫回時，以「品質清單前狀態」為後狀態，不修改檔案；「沒有品質清單」時略過本步驟，不建立 `checklists/`。比較前後狀態，建立「品質清單變化」：前後通過數、新通過、退步與仍未通過的項目。
+3. `WRITE` 向使用者回報：已提問與已回答的題數、「目標 spec」路徑、本次修改的段落名稱、「分類狀態摘要」的分類狀態表（每個分類一列）、Outstanding 與 Deferred 項目、「品質清單變化」（寫成「前 a/n → 後 b/n」並列出新通過、退步與仍未通過的項目；「沒有品質清單」時寫明沒有品質清單）、「未通過項」與「未驗證原因」、「憲法遵循」（已讀取的憲法檔路徑，都不存在時寫「沒有憲法檔」；必須／不得規則是否全部通過；「憲法偏離」；「未套用規則」）；最後給出下一步：有「未通過項」時建議先處理；有高影響的 Outstanding 或 Deferred 時，建議再執行一次 `clarify-over-specs`，或留到技術規劃處理；其他情況建議進入 `technical-research`。
 
-完成條件：已向使用者回報每個分類的最終狀態與尚未解決的項目。
+完成條件：已向使用者回報每個分類的最終狀態、尚未解決的項目與品質清單的前後通過數；品質清單存在時，只有狀態改變之項目的勾選記號被修改。

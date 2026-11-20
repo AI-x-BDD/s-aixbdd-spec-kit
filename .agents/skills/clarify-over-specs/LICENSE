@@ -8,6 +8,7 @@
 4. 答案寫回 spec 最適合的段落，並在 `## Clarifications` 的 `### Session` 下記錄 Q → A。
 5. 新答案取代矛盾的舊敘述，全份 spec 統一術語。
 6. 每次寫入後驗證，結束時以 Resolved／Deferred／Clear／Outstanding 回報每個分類的狀態。
+7. 寫回後重新判定同目錄的 `checklists/requirements.md`，只切換狀態改變的勾選記號，並回報前後通過數（參考 Spec Kit v1.4.2 的 `clarify` 命令）。
 
 本 Skill 的 SOP、RuleFile 與範例為重新撰寫，未直接複製上述檔案。問答互動委派給本 repo 的 `clarify` Skill。
 
