@@ -13,7 +13,7 @@
 |---|---|---|---|
 | 構想評估 | 有一個構想，還沒決定要不要做 | I1 | 第 11 節 |
 | SDD 迭代 | 已決定要做一個新功能 | P0 → P2 | 第 4 節步驟 0～12 |
-| 小變更 | 只改既有 spec 目錄的 Planner 產出，不新增介面、技術主題與需求 | P5b | 第 4 節「小變更路徑」 |
+| 小變更 | 只改既有 spec 目錄的 Planner 產出，不新增介面、技術主題與需求 | P0s → P5b | 第 4 節「小變更路徑」 |
 | 錯誤修正 | 程式和已同意的文件不一致 | B1 | 第 10 節 |
 
 做法之間的銜接：
@@ -332,14 +332,14 @@ OpenCode 和 Claude Code、Codex 的差異如下。開始第 1 次迭代前確�
    - 常見來源：步驟 10 分類為意圖改變、只動到 Planner 產出的項目。
 2. 不適用時：走步驟 0～12，由 `s-specify` 建立新的 spec 目錄。新的 spec 目錄沒有 `plan.md` 與技術研究結果，`system-analysis` 與 Planner 會停止，所以不能在新目錄跳過步驟 4、5。
 3. 步驟：
-   1. 準備：同步驟 0。迭代紀錄寫明本次變更與目標 spec 目錄（`{SPEC_DIR}`）。
+   1. 準備（P0s）：同步驟 0。`{N}` 用 `small-<序號>`（例如 `small-1`），迭代紀錄是 `docs/iterations/iter-small-<序號>.md`，寫明本次變更與目標 spec 目錄（`{SPEC_DIR}`）。之後的提示詞照常代換 `{N}`。
    2. 重跑受影響的 Planner（P5b）：「重跑理由」寫本次變更。Planner 會列出既有檔案並詢問是否覆寫，你同意後它才重寫。一次重跑一個 Planner；有兩個以上時，依 `plan.md` 的 Wave 順序。
       - 結束後的檢查：`git diff` 只有受影響 Planner 的產出；記下檢查腳本結果。
       - 改了兩個以上 Planner 的產出時，先跑 P7（`analyze`），確認產出之間一致，再進下一步。
-      - 檢查點：commit `docs(specs): ...`。
+      - 檢查點：commit `docs(specs): ...`。P5b 的提示詞沒有寫 commit；Planner 完成後，依這個檢查點 commit（P0s 已同意）。
    3. `converge`（P8c）：對照新的文件與程式，找出缺口。照步驟 8c 的「結束後的檢查」處理。
    4. `tasks` 附加模式（P8t）→ `implement` 只執行新的 Convergence Phase（P8）→ 再跑 P8c。重複到 `convergence.md` 最新一輪的結果為「已收斂」。不用 `tasks` 的產生模式，已打勾的任務不會被覆寫。
-   5. 使用者驗證、Skill 表現檢查與收尾：同步驟 9～12。
+   5. 使用者驗證、Skill 表現檢查與收尾：同步驟 9～12。步驟 12 不在第 5 節新增列；本次變更來自某一列的遺留項時，在該項後面標「已處理（commit SHA）」。
 4. 跳過的步驟：步驟 1～4、步驟 5 的 `system-analysis`、步驟 6 的產生模式；步驟 7 只在第 3 點第 2 步要求時跑。
 5. 狀態：未驗證。`converge` 也還是「未驗證」。第一次照這個路徑做完後，依實際情況修正本節。
 
@@ -485,7 +485,7 @@ fix(<skill>): <一句話說明修改>
 | 檢查 Skill 是否照預期工作 | 步驟 10 | P10 | 每次 |
 | 錯誤修正 | 第 10 節 | B1～B5 | 步驟 10 有程式錯誤時；迭代外發現錯誤時 |
 | 構想評估 | 第 11 節 | I1、I1r | 寫 `spec.md` 之前，要判斷構想值不值得做時 |
-| 小變更 | 第 4 節「小變更路徑」 | P5b → P8c → P8t → P8 | 只改既有 spec 目錄的 Planner 產出時 |
+| 小變更 | 第 4 節「小變更路徑」 | P0s → P5b → P8c → P8t → P8 | 只改既有 spec 目錄的 Planner 產出時 |
 | `/skill-engineering` 優化 | 步驟 11 | P11（Claude Code）、P11b | 有 Skill 缺陷時 |
 | 收尾 | 步驟 12 | P12 | 每次 |
 
@@ -514,12 +514,13 @@ fix(<skill>): <一句話說明修改>
 
 | 變數 | 意思 | 例子 |
 |---|---|---|
-| `{N}` | 第幾次迭代 | `1` |
+| `{N}` | 第幾次迭代；小變更用 `small-<序號>` | `1`、`small-1` |
 | `{FEATURE}` | 本次功能描述，取自 9.3 | — |
 | `{SPEC_DIR}` | 本次 spec 目錄，P2 跑完後由 `s-specify` 決定 | `specs/003-equipment-booking` |
 | `{PREV_SPEC_DIR}` | 上一次迭代的 spec 目錄；第 1 次寫「無」 | `specs/003-equipment-booking` |
 | `{FIRST_SPEC_DIR}` | 第 1 次迭代的 spec 目錄（視覺風格來源） | `specs/003-equipment-booking` |
 | `{TECH}` | 本次技術限制，取自 9.4 | — |
+| `{CHANGE}` | 小變更的內容與來源（P0s 用） | `008 逾期通知紀錄畫面顯示送出成功通知的 Message ID；來源：第 5 節第 6 列遺留項（iter-6.md:333）` |
 | `{COMPAT}` | 相容邊界：本次必須保持不變的既有行為、資料與介面。第 1 次寫「無」 | `既有的預約、取消與審核 API 路徑與回應欄位不變；既有預約資料不刪除` |
 
 ### 9.3 各次迭代的功能描述（`{FEATURE}`）
@@ -573,6 +574,26 @@ fix(<skill>): <一句話說明修改>
 本次資料：
 - 本次 spec 目錄：{SPEC_DIR}
 - 上一次 spec 目錄：{PREV_SPEC_DIR}
+```
+
+#### P0s 小變更開場（走第 4 節「小變更路徑」時，開新 session 貼）
+
+```text
+我們要走 runbook 第 4 節的「小變更路徑」，代號 {N}。請先讀 docs/dev/迭代-runbook.md 全文，再做小變更路徑第 3 點第 1 步（準備）。
+規則：
+- 每一步只做我貼給你的那一步，做完就停下來等我貼下一步。
+- 每一步都用路徑指定 Skill：讀取 .agents/skills/<name>/SKILL.md 並依其 SOP 執行，不用同名的全域 Skill。
+- 不修改任何 Skill（.claude/skills/、.agents/skills/）。發現 Skill 問題時，依 runbook 第 7 節格式記進 docs/iterations/iter-{N}.md。
+- 我同意你在 runbook 第 4 節（含小變更路徑）標出的檢查點自行 commit，commit 訊息依 .agents/skills/conventional-commits/SKILL.md。不 push、不打 tag。
+- 每一步結束時，用 3 行以內回報：產出、問題、下一步。
+- 用繁體中文回覆。
+本次資料：
+- 目標 spec 目錄：{SPEC_DIR}
+- 本次變更：{CHANGE}
+做準備時：
+1. 確認本次變更符合小變更路徑第 1 點的每個條件。有不符合的條件時，列出來並停下來。
+2. 依第 7 節樣板建立 docs/iterations/iter-{N}.md，「本次功能」寫本次變更，並依 9.0「固定環境」寫進執行工具版本、模型與 effort、Skill 版本（git rev-parse --short HEAD）。
+3. 回報下一步要貼的 P5b 中「負責介面」應填的介面編號（取自 {SPEC_DIR}/plan.md 的系統介面盤點）。
 ```
 
 #### P1 憲法增補（只在第 1 次迭代，或發現共同規則時）
@@ -787,7 +808,7 @@ analysis.md 的 <問題編號> 標出由 <處理 Skill> 處理。
 11. P10 →（有程式錯誤時）第 10 節 B1～B5 →（有 Skill 缺陷時）P11 在 Claude Code → P11b
 12. P12
 
-第 2 次以後：同樣順序，跳過 P1（除非有新的共同規則），P5 用「第 2 次以後」版，P2 的 `{COMPAT}` 寫本次的相容邊界。小變更依第 4 節「小變更路徑」的順序貼。構想評估的結論為 go 時，依第 11 節步驟 2 開始。通知迭代依第 8 節的 A/B 流程，在 P5 之後分 A、B 兩組；B 組在 P6 之前先跑 P5n。
+第 2 次以後：同樣順序，跳過 P1（除非有新的共同規則），P5 用「第 2 次以後」版，P2 的 `{COMPAT}` 寫本次的相容邊界。小變更從 P0s 開始，依第 4 節「小變更路徑」的順序貼。構想評估的結論為 go 時，依第 11 節步驟 2 開始。通知迭代依第 8 節的 A/B 流程，在 P5 之後分 A、B 兩組；B 組在 P6 之前先跑 P5n。
 
 ## 10. 錯誤修正流程
 
