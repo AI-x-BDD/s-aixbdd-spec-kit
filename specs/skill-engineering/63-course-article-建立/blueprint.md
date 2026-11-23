@@ -99,7 +99,7 @@ description: （未驗證）有課程逐字稿或字幕、要寫成可獨立閱�
 - 理由：新 Skill 取代它們；三者 description 觸發範圍重疊（逐字稿、課程素材、文章），並存會讓選路混亂。
 - 影響範圍：兩個 Skill 目錄；`STATUS.md` 的位置段落需更新；課程 repo 的舊工程紀錄不受影響。
 - 復原方式：這兩個 Skill 已提交於 `8b23981`，可由 `git checkout 8b23981 -- .agents/skills/lesson-prep-writing .agents/skills/lesson-prep-workflow` 取回，再執行 `scripts/sync-skills.sh --from agents`。
-- 時機：新 Skill 通過驗收後才刪除，驗收前保留。
+- 時機：使用者 2026-11-23 同意立即刪除，不等新 Skill 驗收。已刪除，`.agents/skills/` 與 `.claude/skills/` 兩側都已移除，同步檢查通過。
 
 ## 5. 約束分配表
 

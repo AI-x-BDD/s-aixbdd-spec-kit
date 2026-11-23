@@ -21,7 +21,7 @@
 ## 位置
 - Steve 與所有 Skill：本 repo `personal-helper-proposal` 分支的 `.agents/skills/`、`.claude/skills/`。
 - 逐字稿與文章：私有 repo `/Volumes/data/Projects-practice/lesson-preparation-perspective`（`materials/`、`articles/`）。該 repo 已不含任何 Skill。
-- 舊 Skill `lesson-prep-writing`、`lesson-prep-workflow` 已移入本 repo，內容未修改；新 Skill 通過驗收後才退役。
+- 舊 Skill `lesson-prep-writing`、`lesson-prep-workflow` 已於 2026-11-23 刪除（使用者同意）。復原：`git checkout 8b23981 -- .agents/skills/lesson-prep-writing .agents/skills/lesson-prep-workflow`，再執行 `scripts/sync-skills.sh --from agents`。新 Skill `course-article` 施工前，本 repo 沒有寫文 Skill。
 - 舊驗證證據（約 310 MB）已刪除；根因報告與設計文件留在課程 repo `specs/`。
 
 ## 現在卡在哪
