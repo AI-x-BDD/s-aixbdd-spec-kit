@@ -65,7 +65,17 @@ Claude Code 與 Codex 每次輸入時，由 `scripts/hooks/answer-style.sh` 再�
 
 介紹陌生概念、解釋 Skill 用途或提出初步構想前，先讀取 [概念解說偏好](docs/dev/概念解說偏好.md) 的背景與範例。正式規則以本文件「回答方式」為準。
 
-開工前先讀根目錄 [STATUS.md](STATUS.md)，並先用三行回報：最終目標、目前位置、下一個動作。回報後直接接續工作，使用者覺得方向不對再打斷。commit 前、使用者說收工或換機時，改寫 `STATUS.md` 的「位置／現在卡在哪／下一個動作」與更新行，放進同一個 commit。標示「只有使用者能改」的欄位，只在使用者明說時修改。`docs/handoff/Steve與課程筆記-目前狀態.md` 只當需求全文來源，不再往上加新段落。
+## 個人小幫手（Steve）目標
+
+- 最終目標：做出個人 Orchestrator「Steve」，依判準選 Skill、交接素材與完成條件、檢查回傳。依據：`docs/wb-secret-formula/決策樹.md`。
+- 這一段目標：第一個子 Skill `course-article`（`.agents/skills/course-article/`），把課程逐字稿寫成有 SEO 方向的文章，只用課程內容。
+- 順序：重做課程文章 Skill → 使用者驗證 → 定義 Steve 第一條交接路徑 → home repo 最後。Steve 只做選路與交接，不放寫作 SOP。
+- 位置：Skill 都在本分支。逐字稿與文章在私有 repo `lesson-preparation-perspective`（`git@github.com:stevecyj/lesson-preparation-perspective.git`，資料夾 `materials/`、`articles/`）。位置依電腦而異，先在本 repo 的上層目錄找，找不到就問使用者。
+- 已確定：長短文、SEO、是否每篇有操作都已回答，不再問。Skill 可公開，付費逐字稿只放私有 repo。
+- 不要做：用自製測試材料當交付、帶入課程以外的案例或產品、未經授權 push 或啟動 Steve 施工。
+- 需求全文：`docs/handoff/Steve與課程筆記-目前狀態.md` §2–§4，該文件不再往上加新段落。
+
+開工先看 `git log -5` 與 `specs/skill-engineering/` 最新紀錄目錄，判斷停在哪，用三行回報：最終目標、目前位置、下一個動作。回報後直接接續工作，使用者覺得方向不對再打斷。上列目標只在使用者明說時修改。提交訊息寫清楚當時狀態與下一步。
 
 ## 目錄結構
 
