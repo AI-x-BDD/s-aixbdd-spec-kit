@@ -38,11 +38,13 @@ git clone --branch personal-helper-proposal git@github.com:AI-x-BDD/s-aixbdd-spe
 git clone --branch main git@github.com:stevecyj/lesson-preparation-perspective.git
 ```
 
-已有本機副本時，先檢查git status；乾淨且已切到指定分支時用git pull --ff-only。若有本機變更或分歧，保留後再處理，不使用reset或force push。公開repo目前有本機／遠端分歧，本次以保留雙方歷史的方式合併後推送。
+已有本機副本時，先檢查git status；乾淨且已切到指定分支時用git pull --ff-only。若有本機變更或分歧，保留後再處理，不使用reset或force push。公開repo原有本機／遠端分歧，已合併並推送；舊提案檔的add/add衝突保留現行轉址，遠端原文留在Git歷史。未使用強制推送。
 
 新對話先讀本段，再從相鄰的lesson-preparation-perspective repo讀`specs/skill-engineering/04-lesson-prep-workflow-產出與課程文章需求落差/migration-handoff.md`及`validation-b2-s2-r2/result.md`。歷史檔中的`/Volumes/data/...`與`/private/tmp/...`是舊機位置；以新機repo實際位置定位工程內保存的outputs、final-output、fixtures與history，不要求舊暫存目錄存在。這次提供可讀的長期證據，跨機重跑測試仍需另行授權及環境核對。
 
 Git只攜帶repo內檔案。Pi登入憑證、全域Skills／extensions與全域指引`/Users/steve/.pi/agent/AGENTS.md`位於repo外。本次不將登入憑證放入Git；新機需另行登入與安裝所用工具。全域設定整套遷移尚未執行。
+
+本次保存已推送：課程repo `main` 為 `05528a0`；公開repo交接提交 `0223227`，合併提交 `915acd9` 已推送，本段完成紀錄再以後續docs提交保存。課程共保存5277個變更檔（含新增掃描設定），原始工作檔與Git index位元組比對通過；兩側Skills同步通過。完整歷史文件有既存尾端空白，原樣保留。課程hook的173筆雜湊誤判以嚴格限定的repo設定處理，commit及push均通過gitleaks；沒有跳過hook。新增工程`.gitattributes`保留證據原始換行。
 
 下一動作是新電腦讀取交接與確認兩個repo版本；工程保持暫停。之後若使用者要求恢復原任務，沿用上述需求，先讀既有真實逐字稿及研究，針對缺少且會改變產出的資訊提問，不重問整體需求或自動另開假測試。
 
