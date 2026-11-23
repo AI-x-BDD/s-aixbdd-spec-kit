@@ -21,14 +21,15 @@
 ## 位置
 - Steve 與所有 Skill：本 repo `personal-helper-proposal` 分支的 `.agents/skills/`、`.claude/skills/`。
 - 逐字稿與文章：私有 repo `/Volumes/data/Projects-practice/lesson-preparation-perspective`（`materials/`、`articles/`）。該 repo 已不含任何 Skill。
-- 舊 Skill `lesson-prep-writing`、`lesson-prep-workflow` 已移入本 repo，內容尚未依新需求修改。
+- 舊 Skill `lesson-prep-writing`、`lesson-prep-workflow` 已移入本 repo，內容未修改；新 Skill 通過驗收後才退役。
 - 舊驗證證據（約 310 MB）已刪除；根因報告與設計文件留在課程 repo `specs/`。
 
 ## 現在卡在哪
-示範文章 `lesson-preparation-perspective/articles/intro-to-ai-agents/demo-article.md` 等使用者判斷方向。
+新 Skill `course-article` 的工程藍圖已寫好，等使用者確認：`specs/skill-engineering/63-course-article-建立/blueprint.md`。
+示範文章 `lesson-preparation-perspective/articles/intro-to-ai-agents/demo-article.md` 仍待使用者判斷方向。
 
 ## 下一個動作
-使用者讀示範文章，回覆方向對不對、哪裡太多或太少。確認後用 skill-engineering 重做 Skill。
+使用者確認藍圖後，依藍圖第 6 節施工（W1～W5），再用真實逐字稿執行驗收情境 S1。S2、S3 需要使用者提供第二份真實逐字稿。
 
 ## 不要做
 - 不用自製測試材料當交付；不帶入課程以外的產品、案例。
