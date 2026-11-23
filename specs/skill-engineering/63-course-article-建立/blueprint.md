@@ -3,7 +3,7 @@
 - 模式：新建
 - 紀錄目錄：`specs/skill-engineering/63-course-article-建立/`
 - 根因報告：無（新建模式）。重做原因：使用者 2026-11-23 回報舊寫文 Skill（`lesson-prep-writing`、`lesson-prep-workflow`）流程過重、產出偏離原課；舊紀錄在課程 repo `specs/skill-engineering/04-lesson-prep-workflow-產出與課程文章需求落差/rca-report.md`（參考，未重新分析）
-- 施工差異（2026-11-23）：W1 完成後，W2 開工前依 `skill-form-sop`「SOP-格式規範」Rule 2 檢查，原 P1-1（讀取、提問、停止同一步）與 P1-2（章級判斷與回報同一步）不合格式；已將 Phase 1 拆成 10 步（提問與回覆各自獨立）。驗收條件 E1～E8 與約束 C1～C12 不變，僅 C8、C9 的所屬步驟與存放位置說明更新。修訂後的 W2 待使用者確認
+- 施工差異（2026-11-23）：W1 完成後，W2 開工前依 `skill-form-sop`「SOP-格式規範」Rule 2 檢查，原 P1-1（讀取、提問、停止同一步）與 P1-2（章級判斷與回報同一步）不合格式；已將 Phase 1 拆成 10 步（提問與回覆各自獨立）。驗收條件 E1～E8 與約束 C1～C12 不變，僅 C8、C9 的所屬步驟與存放位置說明更新。使用者 2026-11-23 回覆「同意」，修訂後的 W2 已確認
 - 確認紀錄：使用者 2026-11-23 回覆「嗯，蠻讚的，這次都有打中我的期待值。那開始執行」，確認 E1～E8（含推定的 E7）、W1～W5 與舊 Skill 退役（退役已於 2459d9f 先行執行）
 
 ## 1. 驗收條件
@@ -128,10 +128,10 @@ description: （未驗證）有課程逐字稿或字幕、要寫成可獨立閱�
 | 順序 | 工作項 | 執行者 | 目標 | 內容 | 約束 | 狀態 |
 | ---- | ------ | ------ | ---- | ---- | ---- | ---- |
 | 1 | W1 | `skill-form-description` | `.agents/skills/course-article/SKILL.md` frontmatter | 建立 `name` 與 `description` | 無（只概述用途與觸發情境） | 已完成 |
-| 2 | W2 | `skill-form-sop` | `SKILL.md` SOP | 寫入胖 SOP（規則與樣板約束先寫在步驟內文） | C1～C12 | 待施工 |
-| 3 | W3 | `skill-derive-rule` | Phase 3 的 `WRITE` 寫 `article.md` 步驟 | 抽出 `rules/正文來源-格式規範.md` Rule 1 | C1 | 待施工 |
-| 4 | W4 | `skill-derive-template` | Phase 2 的 `WRITE` 寫 `notes.md` 步驟 | 抽出 `templates/notes.md` 與 `templates/notes.example.md` | C7 | 待施工 |
-| 5 | W5 | `skill-derive-rule` | Phase 1 的 `THINK` 規劃步驟 | 抽出 `rules/選材規劃-格式規範.md` Rule 1、Rule 2 | C2～C6 | 待施工 |
+| 2 | W2 | `skill-form-sop` | `SKILL.md` SOP | 寫入胖 SOP（規則與樣板約束先寫在步驟內文） | C1～C12 | 已完成 |
+| 3 | W3 | `skill-derive-rule` | Phase 3 的 `WRITE` 寫 `article.md` 步驟 | 抽出 `rules/正文來源-格式規範.md` Rule 1 | C1 | 已完成 |
+| 4 | W4 | `skill-derive-template` | Phase 2 的 `WRITE` 寫 `notes.md` 步驟 | 抽出 `templates/notes.md` 與 `templates/notes.example.md` | C7 | 已完成 |
+| 5 | W5 | `skill-derive-rule` | Phase 1 的 `THINK` 規劃步驟 | 抽出 `rules/選材規劃-格式規範.md` Rule 1、Rule 2 | C2～C6 | 已完成 |
 
 施工順序依「施工委派-格式規範」Rule 3：先 frontmatter，再胖 SOP，再從位置最後的步驟往前抽取（Phase 3、Phase 2、Phase 1）。沒有 SOP 收尾工作項。
 
