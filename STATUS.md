@@ -1,6 +1,6 @@
 # STATUS（一頁，上限 40 行；直接改寫，不往上疊）
 
-更新：2026-11-23｜基準提交：本 repo 8b23981（寫入 STATUS.md 之前）、課程 repo main 5cb8604
+更新：2026-11-23｜基準提交：本 repo 5aaee77（含 STATUS.md 以外的提交）、課程 repo main cbe1d3b
 `git log` 在基準提交之後出現 STATUS.md 以外的新提交時，先回報「STATUS 可能過期」，再做事。
 
 ## 最終目標（只有使用者能改）
@@ -21,15 +21,16 @@
 ## 位置
 - Steve 與所有 Skill：本 repo `personal-helper-proposal` 分支的 `.agents/skills/`、`.claude/skills/`。
 - 逐字稿與文章：私有 repo `/Volumes/data/Projects-practice/lesson-preparation-perspective`（`materials/`、`articles/`）。該 repo 已不含任何 Skill。
-- 舊 Skill `lesson-prep-writing`、`lesson-prep-workflow` 已於 2026-11-23 刪除（使用者同意）。復原：`git checkout 8b23981 -- .agents/skills/lesson-prep-writing .agents/skills/lesson-prep-workflow`，再執行 `scripts/sync-skills.sh --from agents`。新 Skill `course-article` 施工前，本 repo 沒有寫文 Skill。
+- 舊 Skill `lesson-prep-writing`、`lesson-prep-workflow` 已於 2026-11-23 刪除（使用者同意）。復原：`git checkout 8b23981 -- .agents/skills/lesson-prep-writing .agents/skills/lesson-prep-workflow`，再執行 `scripts/sync-skills.sh --from agents`。寫文 Skill 現為 `course-article`（未驗證標記仍在，S2、S3 未做）。
 - 舊驗證證據（約 310 MB）已刪除；根因報告與設計文件留在課程 repo `specs/`。
 
 ## 現在卡在哪
-新 Skill `course-article` 的工程藍圖已寫好，等使用者確認：`specs/skill-engineering/63-course-article-建立/blueprint.md`。
-示範文章 `lesson-preparation-perspective/articles/intro-to-ai-agents/demo-article.md` 仍待使用者判斷方向。
+`course-article` 已施工，S1 驗收通過（概念型小節）。等使用者閱讀 S1 文章並判斷：
+`lesson-preparation-perspective/articles/intro-to-ai-agents/course-article-s1/article.md`（約 2,500 字）。
+Skill：`.agents/skills/course-article/`。藍圖與驗收結果：`specs/skill-engineering/63-course-article-建立/blueprint.md`。
 
 ## 下一個動作
-使用者確認藍圖後，依藍圖第 6 節施工（W1～W5），再用真實逐字稿執行驗收情境 S1。S2、S3 需要使用者提供第二份真實逐字稿。
+使用者讀 S1 文章，回覆方向對不對。要驗收操作型小節（S2）與章級整合（S3）時，使用者提供第二份真實逐字稿。
 
 ## 不要做
 - 不用自製測試材料當交付；不帶入課程以外的產品、案例。

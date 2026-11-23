@@ -216,4 +216,23 @@ S2、S3 需要使用者提供第二份真實逐字稿。提供之前，S1 通過
 
 ## 8. 驗收結果
 
-尚未施工
+- 施工：W1～W5 全部完成（提交 486da8e、5aaee77）。施工後結構診斷：`course-article` 0 個 error、0 個 warning。`.agents/skills` 與 `.claude/skills` 同步檢查「兩邊一致」。
+- 驗收方式：S1 在暫存目錄 `/tmp/course-article-s1`（只含 Skill 複本與逐字稿，獨立 git repo）以 `claude -p` 啟動全新子代理執行；模型為 Sonnet、effort 為 medium（依專案 AGENTS.md「Skill 驗收」列），7 個回合、約 43 秒，退出狀態 0。產出另存私有課程 repo：`articles/intro-to-ai-agents/course-article-s1/`（提交 cbe1d3b）。
+- S1 通過，逐項核對（本次實際計算與閱讀）：
+  - E2：去除空白後 2,514 字，落在 2,000～3,000；`notes.md` 記錄篇幅與理由。
+  - E1：文章中的英文詞 0 個不在逐字稿；數字只有編號清單；「訂單」「n8n」「金額」出現 0 次；沒有表格；沒有「補充」標示（文章沒有使用外來內容）。
+  - E3：逐字稿只講概念；文章沒有操作步驟、練習或提示詞。
+  - E4：關鍵字 3 個，各有意圖類型，全部標「未查證」，沒有搜尋量。
+  - E5：7 項收穫各附逐字稿原句；逐字稿沒有時間碼，來源欄只放原句。
+  - E7：單次執行完成，沒有提問。
+  - E8：輸出位置為使用者指定的 `./out`；暫存目錄的 git status 只有新增 `out/`。
+- 未驗證：
+  - E3 的操作型分支（S2）與 E6 章級整合（S3）需要第二份真實逐字稿，尚未執行。
+  - Phase 2 步驟 1 在有搜尋工具時的路徑未測；本次子代理沒有搜尋，走「未查證」分支。
+  - 觸發判斷未實測：S1 的任務明講「使用 course-article Skill」。
+  - 使用者尚未閱讀 S1 文章並判斷。
+- W1 觸發演練（本次由執行者依各 Skill description 判斷，未啟動子代理）：
+  - 應觸發 course-article：「把這節逐字稿寫成文章」「用課程字幕產出有 SEO 方向的文章」「Write a blog post from this lecture transcript」。
+  - 應改用他者：「評估這個產品構想值不值得做」→ `idea-assess`；「建立一個新 Skill」→ `skill-engineering`；「解釋 Git 分支是什麼」→ 不需要 Skill。
+- 約束分配：C1～C12 各只出現在指定的存放位置；SOP 步驟內文沒有重述 C1～C7。
+- 個案驗收條件：無。
