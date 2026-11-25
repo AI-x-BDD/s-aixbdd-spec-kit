@@ -1,0 +1,12 @@
+{
+  "name": "shuorenhua",
+  "version": "2.5.0",
+  "source": "https://github.com/MrGeDiao/shuorenhua.git",
+  "commit": "5a9eafefe03807404135f4d2ee4f42fe61d58759",
+  "files": {
+    "SKILL.md": "56a156045d2ac25ebf8210768b6c2608a42c37ac7ee4979d746cde7b026012db",
+    "references/editing-guide.md": "c4ce2a4b43f967fc18f688b486908751563c0503263a28ea7a5b65bfe04d94b6",
+    "references/examples.md": "ef6c9e19edd8f0addf6a95335adab1a0f6344bbebdc3f15981fd4182b0e6c29c",
+    "LICENSE": "d26eebf6104e9770ca097771022767da18fc07ca73a542469d2748b2e3186878"
+  }
+}
